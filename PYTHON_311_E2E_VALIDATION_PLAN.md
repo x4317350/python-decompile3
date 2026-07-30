@@ -122,7 +122,7 @@ def main():
         "accumulator": accumulator.add(4),
         "division": [safe_divide(9, 2), safe_divide(9, 0)],
         "message": f"{label}:{total}",
-        "offset": [offset(0), offset(5)],
+        "offset": [offset(0), offset(5), offset(None), offset(-10)],
         "selected": selected,
     }
     print(json.dumps(result, sort_keys=True))
@@ -150,7 +150,7 @@ cat "$ORIGINAL_OUTPUT"
 预期输出：
 
 ```json
-{"accumulator": 9, "division": [[4, "done"], [null, "done"]], "message": "large:27", "offset": [10, 15], "selected": [3, 9, 15]}
+{"accumulator": 9, "division": [[4, "done"], [null, "done"]], "message": "large:27", "offset": [10, 15, 10, 10], "selected": [3, 9, 15]}
 ```
 
 这一输出是后续行为对比的基准。

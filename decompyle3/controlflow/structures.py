@@ -965,6 +965,71 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return end
         return None
 
+    def _try_return_expression(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Recover one closed conditional expression ending in ``return``."""
+        if (
+            self.stack
+            or self.pending_assignment_value is not None
+            or self.pending_assignment_targets
+            or self.pending_booleans
+            or self.pending_keywords
+        ):
+            return None
+
+        return_index = next(
+            (
+                index
+                for index in range(start, end)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ),
+            None,
+        )
+        if return_index is None:
+            return None
+
+        candidate = self.tokens[start : return_index + 1]
+        if not any(
+            token.kind.startswith(("JUMP_IF_", "POP_JUMP_"))
+            for token in candidate
+        ):
+            return None
+        if any("BACKWARD" in token.kind for token in candidate):
+            return None
+
+        candidate_offsets = {token.offset for token in candidate}
+        if any(
+            target is not None and target not in candidate_offsets
+            for target in (
+                instruction_target(token) for token in candidate[:-1]
+            )
+        ):
+            return None
+        if any(
+            self.exception_region_map.covering(token.offset)
+            for token in candidate
+        ):
+            return None
+
+        from decompyle3.parsers.p311.expressions import recover_expression311
+
+        try:
+            expression = recover_expression311(
+                self.code,
+                self.tokens,
+                start=start,
+                end=return_index + 1,
+                terminal_kinds=frozenset({"RETURN_VALUE"}),
+            )
+        except Python311ParseError:
+            return None
+
+        self.body.append(ast.Return(value=expression))
+        return return_index + 1
+
     def _parse_region(
         self,
         start: int,
@@ -1080,6 +1145,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 loop_end = self._while_loop(condition, loop)
                 if loop_end is not None:
                     index = loop_end
+                    continue
+                return_end = self._try_return_expression(index, end)
+                if return_end is not None:
+                    index = return_end
                     continue
                 expression_end = self._try_if_expression(condition)
                 if expression_end is not None:
