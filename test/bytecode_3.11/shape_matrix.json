@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 5,
+  "phase": 6,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -20,9 +20,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_eval_short_circuit_expressions_preserve_values"
+        "pytest/test_expressions311.py::test_eval_short_circuit_expressions_preserve_values",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "eval mode covers nested and/or value preservation."
+      "notes": "eval mode covers nested and/or value preservation. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "mixed_short_circuit_return",
@@ -31,9 +32,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_exec_return_mixed_short_circuit_preserves_false_values"
+        "pytest/test_expressions311.py::test_exec_return_mixed_short_circuit_preserves_false_values",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "exec-mode nested closure covers false values, result fallback, type, and lazy addition."
+      "notes": "exec-mode nested closure covers false values, result fallback, type, and lazy addition. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "short_circuit_evaluation_order",
@@ -42,9 +44,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_short_circuit_expressions_preserve_evaluation_order"
+        "pytest/test_expressions311.py::test_short_circuit_expressions_preserve_evaluation_order",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Observable call order is compared between original and recovered expressions."
+      "notes": "Observable call order is compared between original and recovered expressions. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "conditional_expression",
@@ -53,9 +56,10 @@
       "fixture": "test/simple_source/311/02_control_flow.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_controlflow311.py::test_control_flow_source_reparses_recompiles_and_has_all_structures"
+        "pytest/test_controlflow311.py::test_control_flow_source_reparses_recompiles_and_has_all_structures",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Recovered AST must contain ast.IfExp."
+      "notes": "Recovered AST must contain ast.IfExp. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "chained_comparison",
@@ -64,9 +68,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_chained_comparison_comprehension_filters"
+        "pytest/test_expressions311.py::test_chained_comparison_comprehension_filters",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Covers chained comparison filters for all comprehension forms."
+      "notes": "Covers chained comparison filters for all comprehension forms. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "explicit_if_multiple_return",
@@ -75,9 +80,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_exec_explicit_if_return_keeps_statement_control_flow"
+        "pytest/test_expressions311.py::test_exec_explicit_if_return_keeps_statement_control_flow",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Explicit if statements with multiple return sites remain statement control flow."
+      "notes": "Explicit if statements with multiple return sites remain statement control flow. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "if_elif_else",
@@ -86,9 +92,10 @@
       "fixture": "test/simple_source/311/02_control_flow.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Behavior coverage includes classify, nested conditions, and choose."
+      "notes": "Behavior coverage includes classify, nested conditions, and choose. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "for_break_continue_else",
@@ -97,9 +104,10 @@
       "fixture": "test/simple_source/311/02_control_flow.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Behavior coverage includes for loops, nested loops, break, continue, and loop else."
+      "notes": "Behavior coverage includes for loops, nested loops, break, continue, and loop else. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "while_break_continue_else",
@@ -108,9 +116,10 @@
       "fixture": "test/simple_source/311/02_control_flow.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Behavior coverage includes while, None predicates, and continue."
+      "notes": "Behavior coverage includes while, None predicates, and continue. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "irreducible_control_flow",
@@ -119,9 +128,10 @@
       "fixture": null,
       "expected_error": "IrreducibleControlFlowError",
       "tests": [
-        "pytest/test_controlflow311.py::test_irreducible_graph_is_rejected_explicitly"
+        "pytest/test_controlflow311.py::test_irreducible_graph_is_rejected_explicitly",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Artificial irreducible graphs are rejected instead of guessed."
+      "notes": "Artificial irreducible graphs are rejected instead of guessed. Phase 6 verifies its fail-closed contract before behavior execution."
     },
     {
       "name": "nested_comprehension_filter",
@@ -130,9 +140,10 @@
       "fixture": "test/simple_source/311/03_comprehensions.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_generators311.py::test_recovered_comprehensions_preserve_behavior_and_scope"
+        "pytest/test_generators311.py::test_recovered_comprehensions_preserve_behavior_and_scope",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Covers nested comprehensions, filters, lambdas, and scope isolation."
+      "notes": "Covers nested comprehensions, filters, lambdas, and scope isolation. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "generator_and_yield_from",
@@ -141,9 +152,10 @@
       "fixture": "test/simple_source/311/04_generators_async.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior"
+        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Covers generator yield, yield from, send, and return behavior."
+      "notes": "Covers generator yield, yield from, send, and return behavior. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "coroutine_await",
@@ -152,9 +164,10 @@
       "fixture": "test/simple_source/311/04_generators_async.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior"
+        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Coroutine and await behavior is compared through asyncio."
+      "notes": "Coroutine and await behavior is compared through asyncio. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "async_for",
@@ -163,9 +176,10 @@
       "fixture": "test/simple_source/311/04_generators_async.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior"
+        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Async iteration protocol and loop behavior are covered."
+      "notes": "Async iteration protocol and loop behavior are covered. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "try_except_else_finally",
@@ -174,9 +188,10 @@
       "fixture": "test/simple_source/311/05_exceptions_with.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_exceptiontable311.py::test_recovered_exception_structures_preserve_behavior"
+        "pytest/test_exceptiontable311.py::test_recovered_exception_structures_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Covers normal, handled, else, finally, and reraised paths."
+      "notes": "Covers normal, handled, else, finally, and reraised paths. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "with_statement",
@@ -185,9 +200,10 @@
       "fixture": "test/simple_source/311/05_exceptions_with.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_exceptiontable311.py::test_recovered_with_structures_preserve_exit_behavior"
+        "pytest/test_exceptiontable311.py::test_recovered_with_structures_preserve_exit_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Context-manager enter, exit, suppression, and propagation are compared."
+      "notes": "Context-manager enter, exit, suppression, and propagation are compared. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "async_with",
@@ -196,9 +212,10 @@
       "fixture": "test/simple_source/311/05_exceptions_with.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior"
+        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Async context-manager behavior is compared."
+      "notes": "Async context-manager behavior is compared. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "except_star_basic",
@@ -207,9 +224,10 @@
       "fixture": "test/simple_source/311/07_exception_group.py",
       "expected_error": null,
       "tests": [
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
         "pytest/test_syntax311.py::test_recovered_except_star_preserves_splitting_and_reraise"
       ],
-      "notes": "Covers ExceptionGroup splitting, handling, and reraising."
+      "notes": "Covers ExceptionGroup splitting, handling, and reraising. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "except_star_with_else",
@@ -218,9 +236,10 @@
       "fixture": null,
       "expected_error": "UnsupportedPython311ControlFlow",
       "tests": [
-        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context"
+        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "The current parser rejects except* combined with an else suite."
+      "notes": "The current parser rejects except* combined with an else suite. Phase 6 verifies its fail-closed contract before behavior execution."
     },
     {
       "name": "except_star_with_finally",
@@ -229,9 +248,10 @@
       "fixture": null,
       "expected_error": "UnsupportedPython311ControlFlow",
       "tests": [
-        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context"
+        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "The current parser rejects except* combined with an enclosing finally."
+      "notes": "The current parser rejects except* combined with an enclosing finally. Phase 6 verifies its fail-closed contract before behavior execution."
     },
     {
       "name": "match_patterns_and_guards",
@@ -240,9 +260,10 @@
       "fixture": "test/simple_source/311/06_match.py",
       "expected_error": null,
       "tests": [
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
         "pytest/test_syntax311.py::test_recovered_match_preserves_bindings_guards_and_behavior"
       ],
-      "notes": "Covers canonical mapping, sequence, class, OR, AS, star, and guard forms."
+      "notes": "Covers canonical mapping, sequence, class, OR, AS, star, and guard forms. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "single_mode_print_expr",
@@ -251,9 +272,10 @@
       "fixture": "test/bytecode_3.11/opcode_fixtures/internal/print_expr.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_expressions311.py::test_single_mode_uses_expression_cfg_instead_of_statement_if"
+        "pytest/test_expressions311.py::test_single_mode_uses_expression_cfg_instead_of_statement_if",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "The focused fixture and behavior test both compile in single mode to exercise PRINT_EXPR."
+      "notes": "The focused fixture and behavior test both compile in single mode to exercise PRINT_EXPR. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "extended_arg",
@@ -262,9 +284,10 @@
       "fixture": null,
       "expected_error": null,
       "tests": [
-        "pytest/test_reliability311.py::test_large_function_deep_nesting_and_long_collection_stress"
+        "pytest/test_reliability311.py::test_large_function_deep_nesting_and_long_collection_stress",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Large generated functions cover EXTENDED_ARG and deep constants."
+      "notes": "Large generated functions cover EXTENDED_ARG and deep constants. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "compound_assert_condition",
@@ -273,9 +296,10 @@
       "fixture": null,
       "expected_error": "Python311ParseError",
       "tests": [
-        "pytest/test_opcode_parser311.py::test_compound_assertions_fail_closed"
+        "pytest/test_opcode_parser311.py::test_compound_assertions_fail_closed",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Compound and/or assert predicates remain explicitly fail-closed pending shape recovery."
+      "notes": "Compound and/or assert predicates remain explicitly fail-closed pending shape recovery. Phase 6 verifies its fail-closed contract before behavior execution."
     },
     {
       "name": "closure_class_scope",
@@ -285,9 +309,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 verifies closure reads from class bodies and preserves captured values."
+      "notes": "Phase 5 verifies closure reads from class bodies and preserves captured values. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "variable_annotations",
@@ -297,9 +322,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 recovers module and class annotation protocols as AnnAssign nodes."
+      "notes": "Phase 5 recovers module and class annotation protocols as AnnAssign nodes. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "assert_statement",
@@ -309,9 +335,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 recovers LOAD_ASSERTION_ERROR control flow as an Assert node."
+      "notes": "Phase 5 recovers LOAD_ASSERTION_ERROR control flow as an Assert node. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "import_star",
@@ -321,9 +348,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 recovers IMPORT_STAR as a wildcard ImportFrom node."
+      "notes": "Phase 5 recovers IMPORT_STAR as a wildcard ImportFrom node. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "starred_collection_build",
@@ -333,9 +361,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 verifies starred tuple and set construction behavior."
+      "notes": "Phase 5 verifies starred tuple and set construction behavior. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "incremental_mapping_build",
@@ -344,9 +373,10 @@
       "fixture": "test/simple_source/311/08_imports_unpacking.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 verifies incremental DICT_UPDATE mapping construction behavior."
+      "notes": "Phase 5 verifies incremental DICT_UPDATE mapping construction behavior. Phase 6 verifies its isolated differential behavior contract."
     },
     {
       "name": "scope_deletion",
@@ -356,9 +386,10 @@
       "expected_error": null,
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
-        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 5 verifies local, global, nonlocal, attribute, and subscript deletion recovery."
+      "notes": "Phase 5 verifies local, global, nonlocal, attribute, and subscript deletion recovery. Phase 6 verifies its isolated differential behavior contract."
     }
   ]
 }

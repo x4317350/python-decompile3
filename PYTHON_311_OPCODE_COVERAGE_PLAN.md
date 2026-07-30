@@ -492,16 +492,16 @@ recovered.py
 
 任务：
 
-- [ ] 比较返回值和类型；
-- [ ] 比较 stdout、stderr 和退出码；
-- [ ] 比较异常类型和参数；
-- [ ] 比较全局状态和对象状态；
-- [ ] 比较副作用顺序；
-- [ ] 比较 generator/coroutine 产出；
-- [ ] 比较 context manager 协议；
-- [ ] 屏蔽路径、地址和时间等非确定性字段；
-- [ ] 设置超时；
-- [ ] 失败时保留源码、`.pyc`、恢复文件和输出。
+- [x] 比较返回值和类型；
+- [x] 比较 stdout、stderr 和退出码；
+- [x] 比较异常类型和参数；
+- [x] 比较全局状态和对象状态；
+- [x] 比较副作用顺序；
+- [x] 比较 generator/coroutine 产出；
+- [x] 比较 context manager 协议；
+- [x] 屏蔽路径、地址和时间等非确定性字段；
+- [x] 设置超时；
+- [x] 失败时保留源码、`.pyc`、恢复文件和输出。
 
 ### 阶段 7：补齐已知不支持组合
 
@@ -792,11 +792,11 @@ failure.json
 - [x] Scanner 110/110 有明确状态；
 - [x] Normalizer 110/110 有明确状态；
 - [x] Parser 110/110 有明确状态；
-- [ ] 行为层 110/110 有明确状态；
+- [x] 行为层 110/110 有明确状态；
 - [x] 内部协议 opcode 全部标记为 `internal_consumed`；
 - [x] 13 个未触达 opcode 已补齐语料；
 - [x] shape 矩阵不存在未解释空白；
-- [ ] 所有声明支持项都有行为测试；
+- [x] 所有声明支持项都有行为测试；
 - [x] 所有不支持项都有 fail-closed 测试；
 - [x] golden 检查通过；
 - [x] 3.11 定向回归通过；
@@ -827,7 +827,8 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4 和阶段 5 已完成；
+- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5 和阶段 6
+  已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
@@ -835,10 +836,11 @@ Behavior：
 - Scanner 层已达到 110/110 pass；
 - Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Parser 层已达到 102 pass + 8 internal_consumed，即 110/110；
+- Behavior 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - shape inventory 为 31 项：27 pass、4 unsupported_fail_closed、
   0 missing；
-- 本阶段补齐 assert、annotation、import-star、删除声明和未来注解恢复；
-- 行为层逐 opcode 状态仍为 missing，留待阶段 6 建立统一框架。
+- 本阶段建立 checked-hash pyc、反编译、隔离子进程和富观测值差分链路；
+- 失败现场、超时和非确定性字段清洗已有自动化回归。
 
 阶段 0：
 
@@ -953,4 +955,24 @@ Behavior：新增阶段 5 聚焦语义验证；逐 opcode 统一行为状态留�
 golden/报告：23 个 corpus golden 已按 dont_inherit=True 刷新；opcode/shape 报告已更新
 已知限制：compound and/or assert、except* + else、except* + finally 和人工不可约 CFG 保持显式 fail-closed
 失败现场：IMPORT_STAR、SETUP_ANNOTATIONS、LOAD_ASSERTION_ERROR 初始失败；延迟注解二次加引号及删除声明缺失已修复
+```
+
+阶段 6：
+
+```text
+阶段：6，行为验证框架
+提交：本文件所在 Git 提交，提交说明为“测试：建立 Python 3.11 差分行为验证框架”
+新增语料：0 个 checked-in fixture；为 23 个 corpus 文件增加确定性 probe，并增加 6 个 inline pass shape
+新增 opcode 覆盖：Behavior 从 0/110 提升到 102 pass + 8 internal_consumed
+新增 shape 覆盖：31/31 具备差分行为或 fail-closed 契约；状态保持 27 pass、4 fail-closed、0 missing
+Scanner：未修改；维持 110/110 pass
+Normalizer：未修改；维持 102 pass + 8 internal_consumed
+Parser：未修改；维持 102 pass + 8 internal_consumed
+Behavior：新增 checked-hash pyc、decompyle3 恢复、隔离子进程和 JSON 富观测值比较；覆盖返回类型、异常参数、状态、副作用、生成器、协程和上下文协议
+定向测试：opcode/shape 四层门禁，583 passed；其中 opcode behavior 114 passed、shape behavior 31 passed
+相邻测试：既有 Scanner、Normalizer、Parser、表达式、控制流、生成器、异常表、语法和可靠性，91 passed
+全量测试：733 passed, 6 skipped；6 项均为既有 Python 3.7/3.8 legacy skip
+golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
+已知限制：compound and/or assert、except* + else、except* + finally 和人工不可约 CFG 继续显式 fail-closed
+失败现场：受控 mismatch 和 timeout 均保留文档规定的 13 类文件；实际 corpus 无行为差异
 ```

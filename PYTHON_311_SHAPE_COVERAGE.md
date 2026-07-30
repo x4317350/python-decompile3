@@ -16,37 +16,37 @@
 
 | Shape | 类别 | 状态 | Fixture | 预期错误 | 测试数 |
 | --- | --- | --- | --- | --- | ---: |
-| `nested_and_or` | expression | pass | `—` | `—` | 1 |
-| `mixed_short_circuit_return` | expression | pass | `—` | `—` | 1 |
-| `short_circuit_evaluation_order` | expression | pass | `—` | `—` | 1 |
-| `conditional_expression` | expression | pass | `test/simple_source/311/02_control_flow.py` | `—` | 1 |
-| `chained_comparison` | expression | pass | `—` | `—` | 1 |
-| `explicit_if_multiple_return` | control_flow | pass | `—` | `—` | 1 |
-| `if_elif_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 1 |
-| `for_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 1 |
-| `while_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 1 |
-| `irreducible_control_flow` | control_flow | unsupported_fail_closed | `—` | `IrreducibleControlFlowError` | 1 |
-| `nested_comprehension_filter` | comprehension | pass | `test/simple_source/311/03_comprehensions.py` | `—` | 1 |
-| `generator_and_yield_from` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 1 |
-| `coroutine_await` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 1 |
-| `async_for` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 1 |
-| `try_except_else_finally` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 1 |
-| `with_statement` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 1 |
-| `async_with` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 1 |
-| `except_star_basic` | exception_group | pass | `test/simple_source/311/07_exception_group.py` | `—` | 1 |
-| `except_star_with_else` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 1 |
-| `except_star_with_finally` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 1 |
-| `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 1 |
-| `single_mode_print_expr` | compile_mode | pass | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` | `—` | 1 |
-| `extended_arg` | internal | pass | `—` | `—` | 1 |
-| `compound_assert_condition` | statement | unsupported_fail_closed | `—` | `Python311ParseError` | 1 |
-| `closure_class_scope` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 2 |
-| `variable_annotations` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 2 |
-| `assert_statement` | statement | pass | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 2 |
-| `import_star` | import | pass | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` | `—` | 2 |
-| `starred_collection_build` | collection | pass | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` | `—` | 2 |
-| `incremental_mapping_build` | collection | pass | `test/simple_source/311/08_imports_unpacking.py` | `—` | 1 |
-| `scope_deletion` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 2 |
+| `nested_and_or` | expression | pass | `—` | `—` | 2 |
+| `mixed_short_circuit_return` | expression | pass | `—` | `—` | 2 |
+| `short_circuit_evaluation_order` | expression | pass | `—` | `—` | 2 |
+| `conditional_expression` | expression | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
+| `chained_comparison` | expression | pass | `—` | `—` | 2 |
+| `explicit_if_multiple_return` | control_flow | pass | `—` | `—` | 2 |
+| `if_elif_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
+| `for_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
+| `while_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
+| `irreducible_control_flow` | control_flow | unsupported_fail_closed | `—` | `IrreducibleControlFlowError` | 2 |
+| `nested_comprehension_filter` | comprehension | pass | `test/simple_source/311/03_comprehensions.py` | `—` | 2 |
+| `generator_and_yield_from` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
+| `coroutine_await` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
+| `async_for` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
+| `try_except_else_finally` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
+| `with_statement` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
+| `async_with` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
+| `except_star_basic` | exception_group | pass | `test/simple_source/311/07_exception_group.py` | `—` | 2 |
+| `except_star_with_else` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 2 |
+| `except_star_with_finally` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 2 |
+| `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 2 |
+| `single_mode_print_expr` | compile_mode | pass | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` | `—` | 2 |
+| `extended_arg` | internal | pass | `—` | `—` | 2 |
+| `compound_assert_condition` | statement | unsupported_fail_closed | `—` | `Python311ParseError` | 2 |
+| `closure_class_scope` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 3 |
+| `variable_annotations` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 3 |
+| `assert_statement` | statement | pass | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 3 |
+| `import_star` | import | pass | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` | `—` | 3 |
+| `starred_collection_build` | collection | pass | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` | `—` | 3 |
+| `incremental_mapping_build` | collection | pass | `test/simple_source/311/08_imports_unpacking.py` | `—` | 2 |
+| `scope_deletion` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 3 |
 
 ## Missing
 
@@ -55,7 +55,7 @@
 
 ## Fail-closed
 
-- `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed.
-- `except_star_with_else`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an else suite.
-- `except_star_with_finally`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an enclosing finally.
-- `compound_assert_condition`：`Python311ParseError`；Compound and/or assert predicates remain explicitly fail-closed pending shape recovery.
+- `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 6 verifies its fail-closed contract before behavior execution.
+- `except_star_with_else`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an else suite. Phase 6 verifies its fail-closed contract before behavior execution.
+- `except_star_with_finally`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an enclosing finally. Phase 6 verifies its fail-closed contract before behavior execution.
+- `compound_assert_condition`：`Python311ParseError`；Compound and/or assert predicates remain explicitly fail-closed pending shape recovery. Phase 6 verifies its fail-closed contract before behavior execution.
