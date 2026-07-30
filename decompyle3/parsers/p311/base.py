@@ -255,6 +255,17 @@ def _constant_value(node, default=None):
     return default
 
 
+def _new_decompiler311(code, tokens, compile_mode="exec", is_class_body=False):
+    from decompyle3.controlflow.structures import StructuredDecompiler311
+
+    return StructuredDecompiler311(
+        code,
+        tokens,
+        compile_mode=compile_mode,
+        is_class_body=is_class_body,
+    )
+
+
 class _StraightLineDecompiler:
     """Convert one normalized 3.11 token stream to Python AST statements."""
 
@@ -776,7 +787,7 @@ class _StraightLineDecompiler:
             kwdefaults=value.kwdefaults,
             annotations=value.annotations,
         )
-        nested = _StraightLineDecompiler(
+        nested = _new_decompiler311(
             code,
             self._nested_tokens(code),
             compile_mode="exec",
@@ -801,7 +812,7 @@ class _StraightLineDecompiler:
             kwdefaults=value.kwdefaults,
             annotations=value.annotations,
         )
-        nested = _StraightLineDecompiler(
+        nested = _new_decompiler311(
             value.code,
             self._nested_tokens(value.code),
             compile_mode="lambda",
@@ -825,7 +836,7 @@ class _StraightLineDecompiler:
 
     def _class_node(self, value: _ClassValue, name: str):
         class_name = name or value.name
-        nested = _StraightLineDecompiler(
+        nested = _new_decompiler311(
             value.body_function.code,
             self._nested_tokens(value.body_function.code),
             compile_mode="exec",
@@ -1249,7 +1260,7 @@ class Python311BaseParser:
             raise Python311ParseError(
                 "Parser311 requires the active code object from SourceWalker"
             )
-        decompiler = _StraightLineDecompiler(
+        decompiler = _new_decompiler311(
             self.code_object,
             tokens,
             compile_mode=self.compile_mode,
@@ -1278,6 +1289,10 @@ class Python311BaseParser:
                 "(run decompyle3 on Python 3.9 or newer)"
             ) from error
         source = unparse(tree)
+        self.cfg = decompiler.cfg
+        self.control_flow = decompiler.control_flow
+        if self.debug.get("cfg", False):
+            print(self.cfg.format())
         return Python311ParseResult(
             kind=kind,
             tree=tree,

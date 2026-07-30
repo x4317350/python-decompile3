@@ -29,8 +29,20 @@
  66          36 LOAD_CONST               6 (<code object boolean_values at 0x..., file "test/simple_source/311/02_control_flow.py", line 66>)
              38 MAKE_FUNCTION            0
              40 STORE_NAME               6 (boolean_values)
-             42 LOAD_CONST               7 (None)
-             44 RETURN_VALUE
+
+ 70          42 LOAD_CONST               7 (<code object choose at 0x..., file "test/simple_source/311/02_control_flow.py", line 70>)
+             44 MAKE_FUNCTION            0
+             46 STORE_NAME               7 (choose)
+
+ 78          48 LOAD_CONST               8 (<code object nested_loops at 0x..., file "test/simple_source/311/02_control_flow.py", line 78>)
+             50 MAKE_FUNCTION            0
+             52 STORE_NAME               8 (nested_loops)
+
+ 92          54 LOAD_CONST               9 (<code object while_continue at 0x..., file "test/simple_source/311/02_control_flow.py", line 92>)
+             56 MAKE_FUNCTION            0
+             58 STORE_NAME               9 (while_continue)
+             60 LOAD_CONST              10 (None)
+             62 RETURN_VALUE
 
 Disassembly of <code object classify at 0x..., file "test/simple_source/311/02_control_flow.py", line 4>:
   4           0 RESUME                   0
@@ -284,3 +296,117 @@ Disassembly of <code object boolean_values at 0x..., file "test/simple_source/31
              12 LOAD_FAST                1 (right)
         >>   14 BUILD_TUPLE              2
              16 RETURN_VALUE
+
+Disassembly of <code object choose at 0x..., file "test/simple_source/311/02_control_flow.py", line 70>:
+ 70           0 RESUME                   0
+
+ 71           2 LOAD_FAST                0 (value)
+              4 POP_JUMP_FORWARD_IF_FALSE     3 (to 12)
+
+ 72           6 LOAD_CONST               1 ('yes')
+              8 STORE_FAST               1 (result)
+             10 JUMP_FORWARD             2 (to 16)
+
+ 74     >>   12 LOAD_CONST               2 ('no')
+             14 STORE_FAST               1 (result)
+
+ 75     >>   16 LOAD_FAST                1 (result)
+             18 RETURN_VALUE
+
+Disassembly of <code object nested_loops at 0x..., file "test/simple_source/311/02_control_flow.py", line 78>:
+ 78           0 RESUME                   0
+
+ 79           2 LOAD_CONST               1 (0)
+              4 STORE_FAST               1 (total)
+
+ 80           6 LOAD_FAST                0 (rows)
+              8 GET_ITER
+        >>   10 FOR_ITER                32 (to 76)
+             12 STORE_FAST               2 (row)
+
+ 81          14 LOAD_FAST                2 (row)
+             16 GET_ITER
+        >>   18 FOR_ITER                22 (to 64)
+             20 STORE_FAST               3 (value)
+
+ 82          22 LOAD_FAST                3 (value)
+             24 LOAD_CONST               1 (0)
+             26 COMPARE_OP               0 (<)
+             28 CACHE                    0
+             30 CACHE                    0
+             32 POP_JUMP_FORWARD_IF_FALSE     2 (to 38)
+
+ 83          34 POP_TOP
+             36 JUMP_FORWARD            18 (to 74)
+
+ 84     >>   38 LOAD_FAST                3 (value)
+             40 LOAD_CONST               1 (0)
+             42 COMPARE_OP               2 (==)
+             44 CACHE                    0
+             46 CACHE                    0
+             48 POP_JUMP_FORWARD_IF_FALSE     1 (to 52)
+
+ 85          50 JUMP_BACKWARD           17 (to 18)
+
+ 86     >>   52 LOAD_FAST                1 (total)
+             54 LOAD_FAST                3 (value)
+             56 BINARY_OP               13 (+=)
+             58 CACHE                    0
+             60 STORE_FAST               1 (total)
+             62 JUMP_BACKWARD           23 (to 18)
+
+ 88     >>   64 LOAD_FAST                1 (total)
+             66 LOAD_CONST               2 (1)
+             68 BINARY_OP               13 (+=)
+             70 CACHE                    0
+             72 STORE_FAST               1 (total)
+        >>   74 JUMP_BACKWARD           33 (to 10)
+
+ 89     >>   76 LOAD_FAST                1 (total)
+             78 RETURN_VALUE
+
+Disassembly of <code object while_continue at 0x..., file "test/simple_source/311/02_control_flow.py", line 92>:
+ 92           0 RESUME                   0
+
+ 93           2 LOAD_CONST               1 (0)
+              4 STORE_FAST               1 (value)
+
+ 94           6 LOAD_CONST               1 (0)
+              8 STORE_FAST               2 (total)
+
+ 95     >>   10 LOAD_FAST                1 (value)
+             12 LOAD_FAST                0 (limit)
+             14 COMPARE_OP               0 (<)
+             16 CACHE                    0
+             18 CACHE                    0
+             20 POP_JUMP_FORWARD_IF_FALSE    22 (to 66)
+
+ 96     >>   22 LOAD_FAST                1 (value)
+             24 LOAD_CONST               2 (1)
+             26 BINARY_OP               13 (+=)
+             28 CACHE                    0
+             30 STORE_FAST               1 (value)
+
+ 97          32 LOAD_FAST                1 (value)
+             34 LOAD_CONST               3 (2)
+             36 BINARY_OP                6 (%)
+             38 CACHE                    0
+             40 POP_JUMP_FORWARD_IF_FALSE     1 (to 44)
+
+ 98          42 JUMP_BACKWARD           17 (to 10)
+
+ 99     >>   44 LOAD_FAST                2 (total)
+             46 LOAD_FAST                1 (value)
+             48 BINARY_OP               13 (+=)
+             50 CACHE                    0
+             52 STORE_FAST               2 (total)
+
+ 95          54 LOAD_FAST                1 (value)
+             56 LOAD_FAST                0 (limit)
+             58 COMPARE_OP               0 (<)
+             60 CACHE                    0
+             62 CACHE                    0
+             64 POP_JUMP_BACKWARD_IF_TRUE    22 (to 22)
+
+100     >>   66 LOAD_FAST                2 (total)
+             68 RETURN_VALUE

@@ -65,3 +65,36 @@ def not_none_loop(value):
 
 def boolean_values(left, right):
     return left or right, left and right
+
+
+def choose(value):
+    if value:
+        result = "yes"
+    else:
+        result = "no"
+    return result
+
+
+def nested_loops(rows):
+    total = 0
+    for row in rows:
+        for value in row:
+            if value < 0:
+                break
+            if value == 0:
+                continue
+            total += value
+        else:
+            total += 1
+    return total
+
+
+def while_continue(limit):
+    value = 0
+    total = 0
+    while value < limit:
+        value += 1
+        if value % 2:
+            continue
+        total += value
+    return total

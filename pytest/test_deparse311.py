@@ -153,13 +153,6 @@ def test_python_parser_returns_standard_ast_result():
     "source, message",
     [
         (
-            "def branch(value):\n"
-            "    if value:\n"
-            "        return 1\n"
-            "    return 0\n",
-            "phase-3 parser",
-        ),
-        (
             "def generate():\n"
             "    yield 1\n",
             "phase 5",
@@ -174,6 +167,6 @@ def test_python_parser_returns_standard_ast_result():
         ),
     ],
 )
-def test_later_phase_control_flow_is_rejected(source, message):
+def test_later_phase_constructs_are_rejected(source, message):
     with pytest.raises(UnsupportedPython311ControlFlow, match=message):
         deparse311(compile(source, "<unsupported-311>", "exec"))

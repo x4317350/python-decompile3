@@ -80,7 +80,7 @@ Scanner311 读取原始指令
 | 1 | 3.11 `.pyc` 装载和原始扫描 | 已完成 |
 | 2 | 3.11 指令规范化 | 已完成 |
 | 3 | 无复杂控制流的源码恢复 | 已完成 |
-| 4 | CFG 和普通控制流恢复 | 未开始 |
+| 4 | CFG 和普通控制流恢复 | 已完成 |
 | 5 | 推导式、生成器和协程 | 未开始 |
 | 6 | 异常表、异常语句和 `with` | 未开始 |
 | 7 | `match/case`、`except*` 等新语法 | 未开始 |
@@ -409,52 +409,52 @@ decompyle3/controlflow/dominators.py
 decompyle3/controlflow/structures.py
 ```
 
-- [ ] 根据入口、跳转目标和终结指令划分基础块。
-- [ ] 建立 fall-through 边。
-- [ ] 建立条件跳转边。
-- [ ] 建立无条件跳转边。
-- [ ] 标记 return、raise 和不可达块。
-- [ ] 生成稳定、可调试的 CFG 文本表示。
+- [x] 根据入口、跳转目标和终结指令划分基础块。
+- [x] 建立 fall-through 边。
+- [x] 建立条件跳转边。
+- [x] 建立无条件跳转边。
+- [x] 标记 return、raise 和不可达块。
+- [x] 生成稳定、可调试的 CFG 文本表示。
 
 ### 4.2 图分析
 
-- [ ] 计算 dominator。
-- [ ] 计算 immediate dominator。
-- [ ] 计算 post-dominator。
-- [ ] 识别 back edge。
-- [ ] 识别 natural loop。
-- [ ] 识别 irreducible control flow 并明确报错。
+- [x] 计算 dominator。
+- [x] 计算 immediate dominator。
+- [x] 计算 post-dominator。
+- [x] 识别 back edge。
+- [x] 识别 natural loop。
+- [x] 识别 irreducible control flow 并明确报错。
 
 ### 4.3 结构恢复
 
-- [ ] 简单 `if`。
-- [ ] `if/else`。
-- [ ] `if/elif/else`。
-- [ ] 短路 `and/or`。
-- [ ] 三元表达式。
-- [ ] `while`。
-- [ ] `for`。
-- [ ] `break`。
-- [ ] `continue`。
-- [ ] `for/else`。
-- [ ] `while/else`。
-- [ ] 多层嵌套分支和循环。
+- [x] 简单 `if`。
+- [x] `if/else`。
+- [x] `if/elif/else`。
+- [x] 短路 `and/or`。
+- [x] 三元表达式。
+- [x] `while`。
+- [x] `for`。
+- [x] `break`。
+- [x] `continue`。
+- [x] `for/else`。
+- [x] `while/else`。
+- [x] 多层嵌套分支和循环。
 
 ### 4.4 与 Parser 集成
 
-- [ ] 决定 CFG 直接生成结构化节点，还是生成兼容 `COME_FROM` Token。
-- [ ] 将选定方案写入代码注释和执行记录。
-- [ ] 禁止同时维护两套未经测试的结构恢复路径。
-- [ ] 保留 CFG 调试输出选项。
+- [x] 决定 CFG 直接生成结构化节点，还是生成兼容 `COME_FROM` Token。
+- [x] 将选定方案写入代码注释和执行记录。
+- [x] 禁止同时维护两套未经测试的结构恢复路径。
+- [x] 保留 CFG 调试输出选项。
 
 ### 阶段 4 验收条件
 
-- [ ] 控制流测试覆盖所有上述结构。
-- [ ] `break` 和 `continue` 不混淆。
-- [ ] loop-else 正确。
-- [ ] 死代码不会错误并入循环。
-- [ ] 嵌套控制流生成源码可解析、可编译并通过行为验证。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 控制流测试覆盖所有上述结构。
+- [x] `break` 和 `continue` 不混淆。
+- [x] loop-else 正确。
+- [x] 死代码不会错误并入循环。
+- [x] 嵌套控制流生成源码可解析、可编译并通过行为验证。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -955,3 +955,69 @@ VerificationError
 - 下一步：
   - 阶段 4：建立基本块、CFG、dominator/post-dominator 和结构识别，
     恢复普通 `if`、循环、break/continue、loop-else 与条件表达式。
+
+### 2026-07-30：阶段 4
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/controlflow/__init__.py`
+  - `decompyle3/controlflow/basicblock.py`
+  - `decompyle3/controlflow/cfg.py`
+  - `decompyle3/controlflow/dominators.py`
+  - `decompyle3/controlflow/structures.py`
+  - `decompyle3/parsers/p311/base.py`
+  - `pytest/test_controlflow311.py`
+  - `pytest/test_deparse311.py`
+  - `test/simple_source/311/02_control_flow.py`
+  - `test/bytecode_3.11/generate.py`
+  - `test/bytecode_3.11/golden/02_control_flow.dis`
+  - `test/bytecode_3.11/golden_tokens/02_control_flow.tokens`
+  - `test/bytecode_3.11/golden_cfg/02_control_flow.cfg`
+- 已实现：
+  - 根据入口、跳转目标及 return/raise 等终结指令划分基本块，建立
+    fall-through、条件和无条件跳转边，并显式标记不可达块。
+  - 提供无地址噪声的稳定 CFG 文本格式及 Parser `cfg` 调试选项；
+    为控制流 corpus 跟踪 CFG、back edge 和 natural loop golden。
+  - 通过固定点算法计算 dominator、immediate dominator、
+    post-dominator 和 immediate post-dominator。
+  - 识别 back edge 与 natural loop；对具有多个外部入口的循环 SCC
+    抛出 `IrreducibleControlFlowError`，不输出猜测源码。
+  - 恢复简单分支、`if/else`、`if/elif/else`、短路 `and/or`、
+    条件表达式和链式比较。
+  - 恢复 `while`、`for`、`break`、`continue`、`for/else`、
+    `while/else` 及嵌套循环和分支。
+  - 结构恢复只保留一条经过测试的路径：CFG 分析后直接生成标准库
+    `ast` 结构化节点；不合成或维护兼容旧 Parser 的 `COME_FROM`
+    Token 路径。该选择同时记录在 `structures.py` 模块注释中。
+  - 对磁盘 `.pyc` 的反编译结果执行 `ast.parse()`、重新编译和原始/
+    恢复源码行为对比。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_corpus311.py pytest/test_scanner311.py pytest/test_normalize311.py pytest/test_deparse311.py pytest/test_controlflow311.py`
+  - `.venv311/bin/pytest -q`
+  - `make -C test check-bytecode-3.7 PYTHON=../.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=../.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/controlflow decompyle3/parsers/p311/base.py pytest/test_controlflow311.py pytest/test_deparse311.py test/bytecode_3.11/generate.py test/simple_source/311/02_control_flow.py`
+  - `git diff --check`
+- 验证结果：
+  - 阶段 0 至阶段 4 定向测试：`30 passed`。
+  - 全部 pytest：`35 passed, 17 skipped`。
+  - 10 份 corpus 的 dis/Token golden 及阶段 4 CFG golden：
+    生成和一致性检查通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 新控制流模块只由 3.11 Parser 路径使用。
+  - 3.7 和 3.8 继续使用原 Scanner、Spark Parser 与 SourceWalker，
+    现有回归语料未新增失败。
+- 已知限制：
+  - 当前结构恢复面向 CPython 3.11 编译器生成的可约普通控制流；
+    不可约 CFG 会明确拒绝。
+  - 推导式、生成器、协程和 async 结构留在阶段 5。
+  - 异常表、`try`、`with` 留在阶段 6；`match/case` 与 `except*`
+    留在阶段 7。
+  - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
+- 下一步：
+  - 阶段 5：恢复推导式、生成器、协程及 async 控制流协议。
