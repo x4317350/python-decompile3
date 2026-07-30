@@ -37,15 +37,15 @@
 | `except_star_with_else` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 1 |
 | `except_star_with_finally` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 1 |
 | `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 1 |
-| `single_mode_print_expr` | compile_mode | pass | `—` | `—` | 1 |
+| `single_mode_print_expr` | compile_mode | pass | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` | `—` | 1 |
 | `extended_arg` | internal | pass | `—` | `—` | 1 |
-| `closure_class_scope` | scope | missing | `test/simple_source/311/01_functions_classes.py` | `—` | 0 |
-| `variable_annotations` | scope | missing | `—` | `—` | 0 |
-| `assert_statement` | statement | missing | `—` | `—` | 0 |
-| `import_star` | import | missing | `—` | `—` | 0 |
-| `starred_collection_build` | collection | missing | `—` | `—` | 0 |
+| `closure_class_scope` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 1 |
+| `variable_annotations` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 1 |
+| `assert_statement` | statement | missing | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 1 |
+| `import_star` | import | missing | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` | `—` | 1 |
+| `starred_collection_build` | collection | missing | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` | `—` | 1 |
 | `incremental_mapping_build` | collection | missing | `—` | `—` | 0 |
-| `scope_deletion` | scope | missing | `—` | `—` | 0 |
+| `scope_deletion` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 1 |
 
 ## Missing
 

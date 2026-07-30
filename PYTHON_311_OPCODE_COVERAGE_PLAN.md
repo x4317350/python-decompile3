@@ -363,13 +363,13 @@ shape 矩阵至少包含：
 
 任务：
 
-- [ ] 只使用 CPython 编译器生成字节码；
-- [ ] 禁止手工拼接 code object；
-- [ ] 为每个语料生成 `.pyc`；
-- [ ] 更新标准 `dis` golden；
-- [ ] 更新 normalized token golden；
-- [ ] 更新 CFG golden；
-- [ ] 矩阵关联到具体 fixture 和测试。
+- [x] 只使用 CPython 编译器生成字节码；
+- [x] 禁止手工拼接 code object；
+- [x] 为每个语料生成 `.pyc`；
+- [x] 更新标准 `dis` golden；
+- [x] 更新 normalized token golden；
+- [x] 更新 CFG golden；
+- [x] 矩阵关联到具体 fixture 和测试。
 
 验收：
 
@@ -827,10 +827,12 @@ Behavior：
 
 当前状态：
 
-- 阶段 0 和阶段 1 已完成；
+- 阶段 0、阶段 1 和阶段 2 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
-- 阶段 2 尚未开始；
+- raw opcode corpus 已达到 110/110，normalized original opcode 为
+  108/110；
+- 阶段 3 尚未开始；
 - 尚未修改 Scanner、Normalizer 或 Parser。
 
 阶段 0：
@@ -867,4 +869,23 @@ Behavior：未修改；110 项状态仍为 missing
 全量测试：116 passed, 6 skipped；本阶段无新增 skip
 已知限制：7 项 shape 尚为 missing；逐 opcode 四层状态将在后续阶段归因
 失败现场：未知状态和缺少字段返回 2；过期或缺失报告返回 1
+```
+
+阶段 2：
+
+```text
+阶段：2，补齐 13 个未触达 opcode 语料
+提交：本文件所在 Git 提交，提交说明为“测试：补齐 Python 3.11 的 13 个 opcode 语料”
+新增语料：13；全部由 CPython 3.11 compile/py_compile 生成，single-mode 使用 CPython checked-hash pyc 序列化
+新增 opcode 覆盖：raw 从 97/110 提升到 110/110；normalized 从 96/110 提升到 108/110
+新增 shape 覆盖：为 single-mode 和 6 项 missing shape 关联最小 fixture；状态未提前变更
+Scanner：未修改；13 个目标 raw opcode 均有独立 fixture 和标准 dis golden
+Normalizer：未修改；12 个目标进入 normalized token；SETUP_ANNOTATIONS 稳定触发 StackDepthError
+Parser：未修改；逐 opcode 正式状态仍为 missing，留待阶段 5 和阶段 6 归因
+Behavior：未修改；新增语料只验证编译、pyc 加载、raw/normalized 和 golden
+定向测试：opcode corpus、inventory 和 corpus 测试，49 passed
+相邻测试：Scanner、Normalizer、表达式和反编译测试，38 passed
+全量测试：156 passed, 6 skipped；本阶段无新增 skip
+已知限制：CACHE 为内部缓存；SETUP_ANNOTATIONS 的 Normalizer 栈效应留待阶段 4 修复
+失败现场：SETUP_ANNOTATIONS 在模块 offset 2 和类体 offset 10 触发 StackDepthError，已固化到 token/CFG golden
 ```

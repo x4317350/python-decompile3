@@ -19,6 +19,8 @@ physical_offset | logical_index | normalized_kind | argument | target
 - 不把 `CACHE` 当作普通语义 Token。
 - 必须保留物理 offset，以便核对跳转和行号。
 - 输出必须稳定，不包含内存地址或临时绝对路径。
+- 当前 Normalizer fail-closed 的语料以 `!! ErrorType: context` 保存，不得
+  伪造规范化 Token。
 - 每次修改 Scanner311 后由 `pytest/test_normalize311.py` 和 corpus
   生成物检查共同验证 golden。
 

@@ -14,10 +14,10 @@
 
 ## Corpus 基线
 
-- 源文件：10
-- Code object：105
-- Raw opcode：97/110
-- Normalized original opcode：96/110
+- 源文件：23
+- Code object：131
+- Raw opcode：110/110
+- Normalized original opcode：108/110
 
 ## 四层状态汇总
 
@@ -28,8 +28,9 @@
 | parser | 0 | 0 | 0 | 0 | 110 |
 | behavior | 0 | 0 | 0 | 0 | 110 |
 
-阶段 0 的逐 opcode 正式状态统一从 `missing` 开始。Corpus 中观察到
-指令不等同于完成 Scanner、Normalizer、Parser 和行为归因。
+截至阶段 2，逐 opcode 四层正式状态仍从 `missing`
+开始归因。Corpus 中观察到指令不等同于完成 Scanner、Normalizer、
+Parser 和行为验证。
 
 ## Opcode 明细
 
@@ -39,9 +40,9 @@
 | 1 | `POP_TOP` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 2 | `PUSH_NULL` | internal | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 9 | `NOP` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
-| 10 | `UNARY_POSITIVE` | expression | 否 | 否 | missing | missing | missing | missing | `—` |
+| 10 | `UNARY_POSITIVE` | expression | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/expressions/unary_positive.py` |
 | 11 | `UNARY_NEGATIVE` | expression | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
-| 12 | `UNARY_NOT` | expression | 否 | 否 | missing | missing | missing | missing | `—` |
+| 12 | `UNARY_NOT` | expression | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/expressions/unary_not.py` |
 | 15 | `UNARY_INVERT` | expression | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 25 | `BINARY_SUBSCR` | expression | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 30 | `GET_LEN` | expression | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/06_match.py` |
@@ -61,14 +62,14 @@
 | 61 | `DELETE_SUBSCR` | delete | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 68 | `GET_ITER` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 69 | `GET_YIELD_FROM_ITER` | generator_async | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/04_generators_async.py` |
-| 70 | `PRINT_EXPR` | statement_protocol | 否 | 否 | missing | missing | missing | missing | `—` |
+| 70 | `PRINT_EXPR` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` |
 | 71 | `LOAD_BUILD_CLASS` | call_function_class | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
-| 74 | `LOAD_ASSERTION_ERROR` | load | 否 | 否 | missing | missing | missing | missing | `—` |
+| 74 | `LOAD_ASSERTION_ERROR` | load | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` |
 | 75 | `RETURN_GENERATOR` | generator_async | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/03_comprehensions.py` |
-| 82 | `LIST_TO_TUPLE` | collection | 否 | 否 | missing | missing | missing | missing | `—` |
+| 82 | `LIST_TO_TUPLE` | collection | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` |
 | 83 | `RETURN_VALUE` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
-| 84 | `IMPORT_STAR` | import | 否 | 否 | missing | missing | missing | missing | `—` |
-| 85 | `SETUP_ANNOTATIONS` | statement_protocol | 否 | 否 | missing | missing | missing | missing | `—` |
+| 84 | `IMPORT_STAR` | import | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` |
+| 85 | `SETUP_ANNOTATIONS` | statement_protocol | 是 | 否 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` |
 | 86 | `YIELD_VALUE` | generator_async | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/03_comprehensions.py` |
 | 87 | `ASYNC_GEN_WRAP` | generator_async | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/04_generators_async.py` |
 | 88 | `PREP_RERAISE_STAR` | exception | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/07_exception_group.py` |
@@ -79,9 +80,9 @@
 | 93 | `FOR_ITER` | control_flow | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 94 | `UNPACK_EX` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/06_match.py` |
 | 95 | `STORE_ATTR` | store | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
-| 96 | `DELETE_ATTR` | delete | 否 | 否 | missing | missing | missing | missing | `—` |
-| 97 | `STORE_GLOBAL` | store | 否 | 否 | missing | missing | missing | missing | `—` |
-| 98 | `DELETE_GLOBAL` | delete | 否 | 否 | missing | missing | missing | missing | `—` |
+| 96 | `DELETE_ATTR` | delete | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/delete_attr.py` |
+| 97 | `STORE_GLOBAL` | store | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/store_global.py` |
+| 98 | `DELETE_GLOBAL` | delete | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/delete_global.py` |
 | 99 | `SWAP` | statement_protocol | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 100 | `LOAD_CONST` | load | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 101 | `LOAD_NAME` | load | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
@@ -119,14 +120,14 @@
 | 136 | `LOAD_CLOSURE` | load | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 137 | `LOAD_DEREF` | load | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 138 | `STORE_DEREF` | store | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
-| 139 | `DELETE_DEREF` | delete | 否 | 否 | missing | missing | missing | missing | `—` |
+| 139 | `DELETE_DEREF` | delete | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` |
 | 140 | `JUMP_BACKWARD` | control_flow | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 142 | `CALL_FUNCTION_EX` | call_function_class | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 144 | `EXTENDED_ARG` | internal | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/08_imports_unpacking.py` |
 | 145 | `LIST_APPEND` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/03_comprehensions.py` |
 | 146 | `SET_ADD` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/03_comprehensions.py` |
 | 147 | `MAP_ADD` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/03_comprehensions.py` |
-| 148 | `LOAD_CLASSDEREF` | load | 否 | 否 | missing | missing | missing | missing | `—` |
+| 148 | `LOAD_CLASSDEREF` | load | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` |
 | 149 | `COPY_FREE_VARS` | internal | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 151 | `RESUME` | internal | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 152 | `MATCH_CLASS` | match | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/06_match.py` |
@@ -135,7 +136,7 @@
 | 157 | `BUILD_STRING` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
 | 160 | `LOAD_METHOD` | call_function_class | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 162 | `LIST_EXTEND` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
-| 163 | `SET_UPDATE` | collection | 否 | 否 | missing | missing | missing | missing | `—` |
+| 163 | `SET_UPDATE` | collection | 是 | 是 | missing | missing | missing | missing | `test/bytecode_3.11/opcode_fixtures/collections/set_update.py` |
 | 164 | `DICT_MERGE` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/01_functions_classes.py` |
 | 165 | `DICT_UPDATE` | collection | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/06_match.py` |
 | 166 | `PRECALL` | internal | 是 | 是 | missing | missing | missing | missing | `test/simple_source/311/00_expressions.py` |
@@ -151,38 +152,13 @@
 ### Raw corpus
 
 ```text
-DELETE_ATTR
-DELETE_DEREF
-DELETE_GLOBAL
-IMPORT_STAR
-LIST_TO_TUPLE
-LOAD_ASSERTION_ERROR
-LOAD_CLASSDEREF
-PRINT_EXPR
-SETUP_ANNOTATIONS
-SET_UPDATE
-STORE_GLOBAL
-UNARY_NOT
-UNARY_POSITIVE
 ```
 
 ### Normalized corpus
 
 ```text
 CACHE
-DELETE_ATTR
-DELETE_DEREF
-DELETE_GLOBAL
-IMPORT_STAR
-LIST_TO_TUPLE
-LOAD_ASSERTION_ERROR
-LOAD_CLASSDEREF
-PRINT_EXPR
 SETUP_ANNOTATIONS
-SET_UPDATE
-STORE_GLOBAL
-UNARY_NOT
-UNARY_POSITIVE
 ```
 
 ## 状态定义

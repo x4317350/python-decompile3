@@ -271,7 +271,11 @@ def validate_opcode_matrix(
                 f"{context}.observed_in 必须是字符串数组"
             )
         for filename in observed_in:
-            observed_path = ROOT / "test" / "simple_source" / "311" / filename
+            observed_path = (
+                ROOT / filename
+                if "/" in filename
+                else ROOT / "test" / "simple_source" / "311" / filename
+            )
             if not observed_path.is_file():
                 raise MatrixValidationError(
                     f"{context}.observed_in 文件不存在：{filename}"
@@ -476,8 +480,9 @@ def render_opcode_report(data: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "阶段 0 的逐 opcode 正式状态统一从 `missing` 开始。Corpus 中观察到",
-            "指令不等同于完成 Scanner、Normalizer、Parser 和行为归因。",
+            f"截至阶段 {data['phase']}，逐 opcode 四层正式状态仍从 `missing`",
+            "开始归因。Corpus 中观察到指令不等同于完成 Scanner、Normalizer、",
+            "Parser 和行为验证。",
             "",
             "## Opcode 明细",
             "",

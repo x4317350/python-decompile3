@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 1,
+  "phase": 2,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -248,12 +248,12 @@
       "name": "single_mode_print_expr",
       "category": "compile_mode",
       "status": "pass",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/internal/print_expr.py",
       "expected_error": null,
       "tests": [
         "pytest/test_expressions311.py::test_single_mode_uses_expression_cfg_instead_of_statement_if"
       ],
-      "notes": "compile(..., mode='single') exercises PRINT_EXPR outside the file corpus."
+      "notes": "The focused fixture and behavior test both compile in single mode to exercise PRINT_EXPR."
     },
     {
       "name": "extended_arg",
@@ -270,46 +270,56 @@
       "name": "closure_class_scope",
       "category": "scope",
       "status": "missing",
-      "fixture": "test/simple_source/311/01_functions_classes.py",
+      "fixture": "test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "General closure and class coverage exists, but LOAD_CLASSDEREF needs an attributed fixture."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 attributes LOAD_CLASSDEREF; end-to-end scope behavior remains for a later phase."
     },
     {
       "name": "variable_annotations",
       "category": "scope",
       "status": "missing",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "SETUP_ANNOTATIONS is not present in the current file corpus."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 exposes SETUP_ANNOTATIONS and its current Normalizer StackDepthError."
     },
     {
       "name": "assert_statement",
       "category": "statement",
       "status": "missing",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "LOAD_ASSERTION_ERROR is not present in the current file corpus."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 attributes LOAD_ASSERTION_ERROR; parser and behavior coverage remain missing."
     },
     {
       "name": "import_star",
       "category": "import",
       "status": "missing",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/imports/import_star.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "IMPORT_STAR is not present in the current file corpus."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 attributes IMPORT_STAR; parser and behavior coverage remain missing."
     },
     {
       "name": "starred_collection_build",
       "category": "collection",
       "status": "missing",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "LIST_TO_TUPLE and SET_UPDATE require attributed fixtures."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 attributes LIST_TO_TUPLE and SET_UPDATE; behavior coverage remains missing."
     },
     {
       "name": "incremental_mapping_build",
@@ -324,10 +334,12 @@
       "name": "scope_deletion",
       "category": "scope",
       "status": "missing",
-      "fixture": null,
+      "fixture": "test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "DELETE_ATTR, DELETE_DEREF, and DELETE_GLOBAL need attributed fixtures."
+      "tests": [
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+      ],
+      "notes": "Phase 2 attributes DELETE_ATTR, DELETE_DEREF, and DELETE_GLOBAL; behavior remains missing."
     }
   ]
 }
