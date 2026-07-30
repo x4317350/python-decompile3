@@ -14,19 +14,31 @@
              14 MAKE_FUNCTION            0
              16 STORE_NAME               2 (delegating)
 
- 13          18 LOAD_CONST               3 (<code object async_numbers at 0x..., file "test/simple_source/311/04_generators_async.py", line 13>)
+ 13          18 LOAD_CONST               3 (<code object echo at 0x..., file "test/simple_source/311/04_generators_async.py", line 13>)
              20 MAKE_FUNCTION            0
-             22 STORE_NAME               3 (async_numbers)
+             22 STORE_NAME               3 (echo)
 
- 18          24 LOAD_CONST               4 (<code object consume at 0x..., file "test/simple_source/311/04_generators_async.py", line 18>)
+ 20          24 LOAD_CONST               4 (<code object async_numbers at 0x..., file "test/simple_source/311/04_generators_async.py", line 20>)
              26 MAKE_FUNCTION            0
-             28 STORE_NAME               4 (consume)
+             28 STORE_NAME               4 (async_numbers)
 
- 22          30 LOAD_CONST               5 (<code object await_value at 0x..., file "test/simple_source/311/04_generators_async.py", line 22>)
+ 25          30 LOAD_CONST               5 (<code object consume at 0x..., file "test/simple_source/311/04_generators_async.py", line 25>)
              32 MAKE_FUNCTION            0
-             34 STORE_NAME               5 (await_value)
-             36 LOAD_CONST               6 (None)
-             38 RETURN_VALUE
+             34 STORE_NAME               5 (consume)
+
+ 29          36 LOAD_CONST               6 (<code object await_value at 0x..., file "test/simple_source/311/04_generators_async.py", line 29>)
+             38 MAKE_FUNCTION            0
+             40 STORE_NAME               6 (await_value)
+
+ 34          42 LOAD_CONST               7 (<code object async_filtered at 0x..., file "test/simple_source/311/04_generators_async.py", line 34>)
+             44 MAKE_FUNCTION            0
+             46 STORE_NAME               7 (async_filtered)
+
+ 43          48 LOAD_CONST               8 (<code object async_transform at 0x..., file "test/simple_source/311/04_generators_async.py", line 43>)
+             50 MAKE_FUNCTION            0
+             52 STORE_NAME               8 (async_transform)
+             54 LOAD_CONST               9 (None)
+             56 RETURN_VALUE
 
 Disassembly of <code object numbers at 0x..., file "test/simple_source/311/04_generators_async.py", line 4>:
   4           0 RETURN_GENERATOR
@@ -76,12 +88,39 @@ Disassembly of <code object delegating at 0x..., file "test/simple_source/311/04
              22 LOAD_CONST               0 (None)
              24 RETURN_VALUE
 
-Disassembly of <code object async_numbers at 0x..., file "test/simple_source/311/04_generators_async.py", line 13>:
+Disassembly of <code object echo at 0x..., file "test/simple_source/311/04_generators_async.py", line 13>:
  13           0 RETURN_GENERATOR
               2 POP_TOP
               4 RESUME                   0
 
- 14           6 LOAD_GLOBAL              1 (NULL + range)
+ 14           6 LOAD_FAST                0 (values)
+              8 GET_ITER
+        >>   10 FOR_ITER                12 (to 36)
+             12 STORE_FAST               1 (value)
+
+ 15          14 LOAD_FAST                1 (value)
+             16 YIELD_VALUE
+             18 RESUME                   1
+             20 STORE_FAST               2 (received)
+
+ 16          22 LOAD_FAST                2 (received)
+             24 POP_JUMP_FORWARD_IF_NONE     4 (to 34)
+
+ 17          26 LOAD_FAST                2 (received)
+             28 YIELD_VALUE
+             30 RESUME                   1
+             32 POP_TOP
+        >>   34 JUMP_BACKWARD           13 (to 10)
+
+ 14     >>   36 LOAD_CONST               0 (None)
+             38 RETURN_VALUE
+
+Disassembly of <code object async_numbers at 0x..., file "test/simple_source/311/04_generators_async.py", line 20>:
+ 20           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+ 21           6 LOAD_GLOBAL              1 (NULL + range)
               8 CACHE                    0
              10 CACHE                    0
              12 CACHE                    0
@@ -99,22 +138,22 @@ Disassembly of <code object async_numbers at 0x..., file "test/simple_source/311
         >>   36 FOR_ITER                 7 (to 52)
              38 STORE_FAST               1 (value)
 
- 15          40 LOAD_FAST                1 (value)
+ 22          40 LOAD_FAST                1 (value)
              42 ASYNC_GEN_WRAP
              44 YIELD_VALUE
              46 RESUME                   1
              48 POP_TOP
              50 JUMP_BACKWARD            8 (to 36)
 
- 14     >>   52 LOAD_CONST               0 (None)
+ 21     >>   52 LOAD_CONST               0 (None)
              54 RETURN_VALUE
 
-Disassembly of <code object consume at 0x..., file "test/simple_source/311/04_generators_async.py", line 18>:
- 18           0 RETURN_GENERATOR
+Disassembly of <code object consume at 0x..., file "test/simple_source/311/04_generators_async.py", line 25>:
+ 25           0 RETURN_GENERATOR
               2 POP_TOP
               4 RESUME                   0
 
- 19           6 LOAD_CONST               1 (<code object <listcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 19>)
+ 26           6 LOAD_CONST               1 (<code object <listcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 26>)
               8 MAKE_FUNCTION            0
              10 LOAD_FAST                0 (iterator)
              12 GET_AITER
@@ -133,8 +172,8 @@ Disassembly of <code object consume at 0x..., file "test/simple_source/311/04_ge
              38 JUMP_BACKWARD_NO_INTERRUPT     4 (to 32)
         >>   40 RETURN_VALUE
 
-Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 19>:
- 19           0 RETURN_GENERATOR
+Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 26>:
+ 26           0 RETURN_GENERATOR
               2 POP_TOP
               4 RESUME                   0
               6 BUILD_LIST               0
@@ -159,12 +198,12 @@ Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/04
 ExceptionTable:
   10 to 20 -> 40 [2]
 
-Disassembly of <code object await_value at 0x..., file "test/simple_source/311/04_generators_async.py", line 22>:
- 22           0 RETURN_GENERATOR
+Disassembly of <code object await_value at 0x..., file "test/simple_source/311/04_generators_async.py", line 29>:
+ 29           0 RETURN_GENERATOR
               2 POP_TOP
               4 RESUME                   0
 
- 23           6 LOAD_FAST                0 (awaitable)
+ 30           6 LOAD_FAST                0 (awaitable)
               8 GET_AWAITABLE            0
              10 LOAD_CONST               0 (None)
         >>   12 SEND                     3 (to 20)
@@ -173,5 +212,99 @@ Disassembly of <code object await_value at 0x..., file "test/simple_source/311/0
              18 JUMP_BACKWARD_NO_INTERRUPT     4 (to 12)
         >>   20 STORE_FAST               1 (result)
 
- 24          22 LOAD_FAST                1 (result)
+ 31          22 LOAD_FAST                1 (result)
              24 RETURN_VALUE
+
+Disassembly of <code object async_filtered at 0x..., file "test/simple_source/311/04_generators_async.py", line 34>:
+ 34           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+ 35           6 LOAD_CONST               1 (<code object <setcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 35>)
+              8 MAKE_FUNCTION            0
+
+ 37          10 LOAD_FAST                0 (iterator)
+
+ 35          12 GET_AITER
+             14 PRECALL                  0
+             16 CACHE                    0
+             18 CALL                     0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 GET_AWAITABLE            0
+             30 LOAD_CONST               0 (None)
+        >>   32 SEND                     3 (to 40)
+             34 YIELD_VALUE
+             36 RESUME                   3
+             38 JUMP_BACKWARD_NO_INTERRUPT     4 (to 32)
+        >>   40 RETURN_VALUE
+
+Disassembly of <code object <setcomp> at 0x..., file "test/simple_source/311/04_generators_async.py", line 35>:
+ 35           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+              6 BUILD_SET                0
+              8 LOAD_FAST                0 (.0)
+        >>   10 GET_ANEXT
+             12 LOAD_CONST               0 (None)
+        >>   14 SEND                     3 (to 22)
+             16 YIELD_VALUE
+             18 RESUME                   3
+             20 JUMP_BACKWARD_NO_INTERRUPT     4 (to 14)
+        >>   22 NOP
+
+ 37          24 STORE_FAST               1 (value)
+
+ 38          26 LOAD_FAST                1 (value)
+             28 LOAD_CONST               1 (0)
+             30 COMPARE_OP               4 (>)
+             32 CACHE                    0
+             34 CACHE                    0
+             36 POP_JUMP_BACKWARD_IF_FALSE    14 (to 10)
+
+ 39          38 LOAD_FAST                1 (value)
+             40 LOAD_CONST               2 (2)
+             42 BINARY_OP                6 (%)
+             44 CACHE                    0
+
+ 38          46 POP_JUMP_BACKWARD_IF_FALSE    19 (to 10)
+
+ 36          48 LOAD_FAST                1 (value)
+             50 LOAD_CONST               2 (2)
+             52 BINARY_OP                5 (*)
+             54 CACHE                    0
+
+ 38          56 SET_ADD                  2
+             58 JUMP_BACKWARD           25 (to 10)
+        >>   60 END_ASYNC_FOR
+             62 RETURN_VALUE
+ExceptionTable:
+  10 to 20 -> 60 [2]
+
+Disassembly of <code object async_transform at 0x..., file "test/simple_source/311/04_generators_async.py", line 43>:
+ 43           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+ 44           6 LOAD_FAST                0 (awaitables)
+              8 GET_ITER
+        >>   10 FOR_ITER                13 (to 38)
+             12 STORE_FAST               1 (awaitable)
+
+ 45          14 LOAD_FAST                1 (awaitable)
+             16 GET_AWAITABLE            0
+             18 LOAD_CONST               0 (None)
+        >>   20 SEND                     3 (to 28)
+             22 YIELD_VALUE
+             24 RESUME                   3
+             26 JUMP_BACKWARD_NO_INTERRUPT     4 (to 20)
+        >>   28 ASYNC_GEN_WRAP
+             30 YIELD_VALUE
+             32 RESUME                   1
+             34 POP_TOP
+             36 JUMP_BACKWARD           14 (to 10)
+
+ 44     >>   38 LOAD_CONST               0 (None)
+             40 RETURN_VALUE

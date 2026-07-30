@@ -18,9 +18,6 @@ from decompyle3.controlflow.cfg import (
 )
 from decompyle3.controlflow.dominators import analyze_control_flow
 from decompyle3.parsers.p311.base import (
-    CO_ASYNC_GENERATOR,
-    CO_COROUTINE,
-    CO_GENERATOR,
     Python311ParseError,
     UnsupportedPython311ControlFlow,
     _COMPARE_OPERATORS,
@@ -61,25 +58,18 @@ _STATEMENT_BOUNDARIES = {
 }
 
 _LATER_PHASE_OPS = {
-    "ASYNC_GEN_WRAP",
     "BEFORE_ASYNC_WITH",
     "BEFORE_WITH",
     "CHECK_EG_MATCH",
     "CHECK_EXC_MATCH",
-    "END_ASYNC_FOR",
-    "GET_AITER",
     "GET_ANEXT",
-    "GET_AWAITABLE",
     "LIST_APPEND",
     "MAP_ADD",
     "PUSH_EXC_INFO",
     "RERAISE",
-    "RETURN_GENERATOR",
-    "SEND",
     "SET_ADD",
     "SETUP_ANNOTATIONS",
     "WITH_EXCEPT_START",
-    "YIELD_VALUE",
 }
 
 
@@ -181,17 +171,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self.offset_to_index = {
             token.offset: index for index, token in enumerate(self.tokens)
         }
-        self.cfg = build_cfg(self.tokens)
+        flow_tokens = self.tokens
+        if flow_tokens and flow_tokens[0].kind == "RETURN_GENERATOR":
+            flow_tokens = flow_tokens[2:]
+        self.cfg = build_cfg(flow_tokens)
         self.control_flow = analyze_control_flow(self.cfg)
 
     def _validate_scope(self):
-        flags = int(getattr(self.code, "co_flags", 0))
-        if flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR):
-            self._error(
-                "Generator, coroutine, and async-generator recovery belongs "
-                "to implementation phase 5",
-                UnsupportedPython311ControlFlow,
-            )
         if bytes(getattr(self.code, "co_exceptiontable", b"") or b""):
             self._error(
                 "The code object has a CPython 3.11 exception table; "
@@ -206,6 +192,70 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     "implementation phase",
                     UnsupportedPython311ControlFlow,
                 )
+
+    def _await_protocol(self, index: int) -> int:
+        value = self._pop_expr()
+        send_index = next(
+            (
+                cursor
+                for cursor in range(index + 1, len(self.tokens))
+                if self.tokens[cursor].kind == "SEND"
+            ),
+            None,
+        )
+        if send_index is None:
+            self._error("GET_AWAITABLE has no SEND protocol")
+        target = instruction_target(self.tokens[send_index])
+        target_index = self.offset_to_index[target]
+        is_async_comprehension = isinstance(
+            value,
+            (ast.DictComp, ast.GeneratorExp, ast.ListComp, ast.SetComp),
+        ) and any(generator.is_async for generator in value.generators)
+        self.stack.append(
+            value
+            if is_async_comprehension
+            else ast.Await(value=value)
+        )
+        return target_index
+
+    def _yield_from_protocol(self, index: int, end: int) -> int:
+        value = self._pop_expr()
+        send_index = next(
+            (
+                cursor
+                for cursor in range(index + 1, len(self.tokens))
+                if self.tokens[cursor].kind == "SEND"
+            ),
+            None,
+        )
+        if send_index is None:
+            self._error("GET_YIELD_FROM_ITER has no SEND protocol")
+        target = instruction_target(self.tokens[send_index])
+        target_index = self.offset_to_index[target]
+        expression = ast.YieldFrom(value=value)
+        if (
+            target_index < end
+            and self.tokens[target_index].kind == "POP_TOP"
+        ):
+            self.body.append(ast.Expr(value=expression))
+            return target_index + 1
+        self.stack.append(expression)
+        return target_index
+
+    def _yield_value(self, index: int, end: int) -> int:
+        value = self._pop_expr()
+        expression = ast.Yield(value=value)
+        cursor = index + 1
+        if (
+            cursor < end
+            and self.tokens[cursor].kind == "INTERNAL_RESUME"
+        ):
+            cursor += 1
+        if cursor < end and self.tokens[cursor].kind == "POP_TOP":
+            self.body.append(ast.Expr(value=expression))
+            return cursor + 1
+        self.stack.append(expression)
+        return cursor
 
     def _expression_slice(self, start: int, end: int) -> ast.expr:
         parser = _StraightLineDecompiler(
@@ -750,8 +800,28 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = chained_end
                 continue
 
-            if token.kind == "GET_ITER":
+            if (
+                token.kind == "GET_ITER"
+                and index + 1 < end
+                and self.tokens[index + 1].kind == "FOR_ITER"
+            ):
                 index = self._for_loop(index, loop)
+                continue
+
+            if token.kind == "GET_AWAITABLE":
+                index = self._await_protocol(index)
+                continue
+
+            if token.kind == "GET_YIELD_FROM_ITER":
+                index = self._yield_from_protocol(index, end)
+                continue
+
+            if token.kind == "ASYNC_GEN_WRAP":
+                index += 1
+                continue
+
+            if token.kind == "YIELD_VALUE":
+                index = self._yield_value(index, end)
                 continue
 
             condition = self._condition_plan(index)
@@ -789,7 +859,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
     def decompile_body(self) -> List[ast.stmt]:
         self._validate_scope()
-        self.body = self._capture_region(0, len(self.tokens), None)
+        start = (
+            2
+            if self.tokens and self.tokens[0].kind == "RETURN_GENERATOR"
+            else 0
+        )
+        self.body = self._capture_region(start, len(self.tokens), None)
         if getattr(self.code, "co_name", "<module>") != "<module>" and not self.is_class_body:
             self._inject_function_docstring()
         self._prepend_scope_declarations()

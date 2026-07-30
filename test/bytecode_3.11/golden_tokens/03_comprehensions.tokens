@@ -11,8 +11,14 @@
 0012 | 0006 | LOAD_CONST | arg=2 | target=- | value=<code nested_comprehension> | stack=1/- | cache=()
 0014 | 0007 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='nested_comprehension',defaults=None,kwdefaults=(),annotations=(),closure=())
 0016 | 0008 | STORE_NAME | arg=2 | target=- | value='nested_comprehension' | stack=-1/- | cache=()
-0018 | 0009 | LOAD_CONST | arg=3 | target=- | value=None | stack=1/- | cache=()
-0020 | 0010 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+0018 | 0009 | LOAD_CONST | arg=3 | target=- | value=<code filtered_lambda> | stack=1/- | cache=()
+0020 | 0010 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='filtered_lambda',defaults=None,kwdefaults=(),annotations=(),closure=())
+0022 | 0011 | STORE_NAME | arg=3 | target=- | value='filtered_lambda' | stack=-1/- | cache=()
+0024 | 0012 | LOAD_CONST | arg=4 | target=- | value=<code comprehension_scope> | stack=1/- | cache=()
+0026 | 0013 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='comprehension_scope',defaults=None,kwdefaults=(),annotations=(),closure=())
+0028 | 0014 | STORE_NAME | arg=4 | target=- | value='comprehension_scope' | stack=-1/- | cache=()
+0030 | 0015 | LOAD_CONST | arg=5 | target=- | value=None | stack=1/- | cache=()
+0032 | 0016 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: comprehensions
 0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
@@ -181,6 +187,74 @@
 0006 | 0003 | FOR_ITER | arg=4 | target=16 | value=16 | stack=1/-1 | cache=()
 0008 | 0004 | STORE_FAST | arg=1 | target=- | value='column' | stack=-1/- | cache=()
 0010 | 0005 | LOAD_FAST | arg=1 | target=- | value='column' | stack=1/- | cache=()
+0012 | 0006 | LIST_APPEND | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0014 | 0007 | JUMP_BACKWARD | arg=5 | target=6 | value=6 | stack=0/0 | cache=()
+0016 | 0008 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: filtered_lambda
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | LOAD_CONST | arg=1 | target=- | value=<code filtered_lambda.<locals>.<listcomp>> | stack=1/- | cache=()
+0004 | 0002 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='<listcomp>',defaults=None,kwdefaults=(),annotations=(),closure=())
+0006 | 0003 | LOAD_FAST | arg=0 | target=- | value='values' | stack=1/- | cache=()
+0008 | 0004 | GET_ITER | arg=- | target=- | value=None | stack=0/- | cache=()
+0010 | 0005 | PRECALL | arg=0 | target=- | value=0 | stack=0/- | cache=(12,) | meta=(('call_offset', 14), ('argc', 0), ('keyword_names', ())) | internal=True
+0014 | 0006 | CALL | arg=0 | target=- | value=0 | stack=-1/- | cache=(16, 18, 20, 22) | call(argc=0,positional=0,keywords=(),mode=unknown,method=False,null=False,self=False,ex=False,starargs=False,kwargs=False)
+0024 | 0007 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: filtered_lambda.<locals>.<listcomp>
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | BUILD_LIST | arg=0 | target=- | value=0 | stack=1/- | cache=()
+0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='.0' | stack=1/- | cache=()
+0006 | 0003 | FOR_ITER | arg=25 | target=58 | value=58 | stack=1/-1 | cache=()
+0008 | 0004 | STORE_FAST | arg=1 | target=- | value='value' | stack=-1/- | cache=()
+0010 | 0005 | LOAD_FAST | arg=1 | target=- | value='value' | stack=1/- | cache=()
+0012 | 0006 | LOAD_CONST | arg=0 | target=- | value=0 | stack=1/- | cache=()
+0014 | 0007 | COMPARE_GT | arg=4 | target=- | value='>' | stack=-1/- | cache=(16, 18) | meta=(('operator', '>'),)
+0020 | 0008 | POP_JUMP_BACKWARD_IF_FALSE | arg=8 | target=6 | value=6 | stack=-1/-1 | cache=()
+0022 | 0009 | LOAD_FAST | arg=1 | target=- | value='value' | stack=1/- | cache=()
+0024 | 0010 | LOAD_CONST | arg=1 | target=- | value=2 | stack=1/- | cache=()
+0026 | 0011 | BINARY_MODULO | arg=6 | target=- | value=6 | stack=-1/- | cache=(28,) | meta=(('operator', '%'), ('inplace', False))
+0030 | 0012 | POP_JUMP_BACKWARD_IF_FALSE | arg=13 | target=6 | value=6 | stack=-1/-1 | cache=()
+0032 | 0013 | PUSH_NULL | arg=- | target=- | value=None | stack=1/- | cache=() | meta=(('call_protocol', 'null'),) | internal=True
+0034 | 0014 | LOAD_CONST | arg=2 | target=- | value=<code filtered_lambda.<locals>.<listcomp>.<lambda>> | stack=1/- | cache=()
+0036 | 0015 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='<lambda>',defaults=None,kwdefaults=(),annotations=(),closure=())
+0038 | 0016 | LOAD_FAST | arg=1 | target=- | value='value' | stack=1/- | cache=()
+0040 | 0017 | PRECALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(42,) | meta=(('call_offset', 44), ('argc', 1), ('keyword_names', ())) | internal=True
+0044 | 0018 | CALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(46, 48, 50, 52) | call(argc=1,positional=1,keywords=(),mode=null,method=False,null=True,self=False,ex=False,starargs=False,kwargs=False)
+0054 | 0019 | LIST_APPEND | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0056 | 0020 | JUMP_BACKWARD | arg=26 | target=6 | value=6 | stack=0/0 | cache=()
+0058 | 0021 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: filtered_lambda.<locals>.<listcomp>.<lambda>
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | LOAD_FAST | arg=0 | target=- | value='item' | stack=1/- | cache=()
+0004 | 0002 | LOAD_CONST | arg=1 | target=- | value=1 | stack=1/- | cache=()
+0006 | 0003 | BINARY_ADD | arg=0 | target=- | value=0 | stack=-1/- | cache=(8,) | meta=(('operator', '+'), ('inplace', False))
+0010 | 0004 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: comprehension_scope
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | LOAD_CONST | arg=1 | target=- | value='outer' | stack=1/- | cache=()
+0004 | 0002 | STORE_FAST | arg=1 | target=- | value='value' | stack=-1/- | cache=()
+0006 | 0003 | LOAD_CONST | arg=2 | target=- | value=<code comprehension_scope.<locals>.<listcomp>> | stack=1/- | cache=()
+0008 | 0004 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='<listcomp>',defaults=None,kwdefaults=(),annotations=(),closure=())
+0010 | 0005 | LOAD_FAST | arg=0 | target=- | value='values' | stack=1/- | cache=()
+0012 | 0006 | GET_ITER | arg=- | target=- | value=None | stack=0/- | cache=()
+0014 | 0007 | PRECALL | arg=0 | target=- | value=0 | stack=0/- | cache=(16,) | meta=(('call_offset', 18), ('argc', 0), ('keyword_names', ())) | internal=True
+0018 | 0008 | CALL | arg=0 | target=- | value=0 | stack=-1/- | cache=(20, 22, 24, 26) | call(argc=0,positional=0,keywords=(),mode=unknown,method=False,null=False,self=False,ex=False,starargs=False,kwargs=False)
+0028 | 0009 | STORE_FAST | arg=2 | target=- | value='result' | stack=-1/- | cache=()
+0030 | 0010 | LOAD_FAST | arg=1 | target=- | value='value' | stack=1/- | cache=()
+0032 | 0011 | LOAD_FAST | arg=2 | target=- | value='result' | stack=1/- | cache=()
+0034 | 0012 | BUILD_TUPLE | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0036 | 0013 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: comprehension_scope.<locals>.<listcomp>
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | BUILD_LIST | arg=0 | target=- | value=0 | stack=1/- | cache=()
+0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='.0' | stack=1/- | cache=()
+0006 | 0003 | FOR_ITER | arg=4 | target=16 | value=16 | stack=1/-1 | cache=()
+0008 | 0004 | STORE_FAST | arg=1 | target=- | value='value' | stack=-1/- | cache=()
+0010 | 0005 | LOAD_FAST | arg=1 | target=- | value='value' | stack=1/- | cache=()
 0012 | 0006 | LIST_APPEND | arg=2 | target=- | value=2 | stack=-1/- | cache=()
 0014 | 0007 | JUMP_BACKWARD | arg=5 | target=6 | value=6 | stack=0/0 | cache=()
 0016 | 0008 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()

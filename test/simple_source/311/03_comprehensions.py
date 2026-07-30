@@ -21,3 +21,18 @@ def comprehensions(rows):
 
 def nested_comprehension(limit):
     return [[column for column in range(row)] for row in range(limit)]
+
+
+def filtered_lambda(values):
+    return [
+        (lambda item: item + 1)(value)
+        for value in values
+        if value > 0
+        if value % 2
+    ]
+
+
+def comprehension_scope(values):
+    value = "outer"
+    result = [value for value in values]
+    return value, result

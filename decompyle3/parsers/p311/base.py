@@ -1,10 +1,10 @@
-"""Straight-line CPython 3.11 parser used by implementation phase 3.
+"""Core CPython 3.11 stack-to-AST parser.
 
 The older decompyle3 parsers encode control flow in a large Spark grammar.
 CPython 3.11 removed many of the protocol opcodes used by that grammar. This
-module instead consumes the normalized stage-2 tokens and constructs Python's
-standard ``ast`` nodes. It intentionally rejects structures that need a CFG,
-exception-table analysis, or generator/comprehension reconstruction.
+module instead consumes normalized tokens and constructs Python's standard
+``ast`` nodes. CFG structuring and comprehension recovery extend this core in
+separate modules; exception-table structures remain fail-closed.
 """
 
 from __future__ import annotations
@@ -296,13 +296,6 @@ class _StraightLineDecompiler:
         raise error_type(f"{message} ({location})")
 
     def _validate_scope(self):
-        flags = int(getattr(self.code, "co_flags", 0))
-        if flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR):
-            self._error(
-                "Generator, coroutine, and async-generator recovery belongs "
-                "to implementation phase 5",
-                UnsupportedPython311ControlFlow,
-            )
         if bytes(getattr(self.code, "co_exceptiontable", b"") or b""):
             self._error(
                 "The code object has a CPython 3.11 exception table; "
@@ -726,12 +719,18 @@ class _StraightLineDecompiler:
             if (
                 not info.has_null
                 and not info.is_method
-                and self.stack
-                and isinstance(self.stack[-1], (_FunctionValue, _ClassValue))
                 and len(self.stack) >= 2
-                and isinstance(self.stack[-2], ast.expr)
             ):
-                hidden_argument = self._pop()
+                if (
+                    isinstance(self.stack[-1], (_FunctionValue, _ClassValue))
+                    and isinstance(self.stack[-2], ast.expr)
+                ):
+                    hidden_argument = self._pop()
+                elif (
+                    isinstance(self.stack[-1], ast.expr)
+                    and isinstance(self.stack[-2], _FunctionValue)
+                ):
+                    hidden_argument = self._pop()
             callable_value = self._callable()
             keyword_count = len(info.keyword_names)
             positional_count = argc - keyword_count
@@ -748,6 +747,23 @@ class _StraightLineDecompiler:
             self.stack.append(self._build_class(args, keywords))
             return
 
+        if isinstance(callable_value, _FunctionValue):
+            from decompyle3.parsers.p311.comprehensions import (
+                build_comprehension311,
+                is_comprehension_code,
+            )
+
+            if is_comprehension_code(callable_value.code):
+                if keywords or len(args) != 1:
+                    self._error(
+                        "Comprehension call does not have one hidden iterator"
+                    )
+                iterable = self._expression_value(args[0])
+                self.stack.append(
+                    build_comprehension311(self, callable_value, iterable)
+                )
+                return
+
         decorated = self._decorate(callable_value, args, keywords)
         if decorated is not None:
             self.stack.append(decorated)
@@ -758,6 +774,8 @@ class _StraightLineDecompiler:
             ast.keyword(arg=keyword.arg, value=self._expression_value(keyword.value))
             for keyword in keywords
         ]
+        if isinstance(callable_value, _FunctionValue):
+            callable_value = self._expression_value(callable_value)
         if not isinstance(callable_value, ast.expr):
             self._error(
                 "CALL target is not an expression: "
@@ -775,12 +793,6 @@ class _StraightLineDecompiler:
     def _function_node(self, value: _FunctionValue, name: str):
         code = value.code
         flags = int(getattr(code, "co_flags", 0))
-        if flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR):
-            self._error(
-                f"Function {name!r} is a generator or coroutine; recovery "
-                "belongs to phase 5",
-                UnsupportedPython311ControlFlow,
-            )
         arguments, returns = build_arguments311(
             code,
             defaults=value.defaults,
@@ -796,7 +808,12 @@ class _StraightLineDecompiler:
         body = nested.decompile_body()
         if not body:
             body = [ast.Pass()]
-        return ast.FunctionDef(
+        function_type = (
+            ast.AsyncFunctionDef
+            if flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)
+            else ast.FunctionDef
+        )
+        return function_type(
             name=name,
             args=arguments,
             body=body,
@@ -1093,6 +1110,8 @@ class _StraightLineDecompiler:
             if not isinstance(names, tuple):
                 self._error("KW_NAMES is not a tuple")
             self.pending_keywords = names
+        elif kind in ("GET_ITER", "GET_AITER"):
+            return
         elif kind == "PRECALL":
             return
         elif kind == "CALL":

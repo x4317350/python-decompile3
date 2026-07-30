@@ -13,8 +13,16 @@
  22          12 LOAD_CONST               2 (<code object nested_comprehension at 0x..., file "test/simple_source/311/03_comprehensions.py", line 22>)
              14 MAKE_FUNCTION            0
              16 STORE_NAME               2 (nested_comprehension)
-             18 LOAD_CONST               3 (None)
-             20 RETURN_VALUE
+
+ 26          18 LOAD_CONST               3 (<code object filtered_lambda at 0x..., file "test/simple_source/311/03_comprehensions.py", line 26>)
+             20 MAKE_FUNCTION            0
+             22 STORE_NAME               3 (filtered_lambda)
+
+ 35          24 LOAD_CONST               4 (<code object comprehension_scope at 0x..., file "test/simple_source/311/03_comprehensions.py", line 35>)
+             26 MAKE_FUNCTION            0
+             28 STORE_NAME               4 (comprehension_scope)
+             30 LOAD_CONST               5 (None)
+             32 RETURN_VALUE
 
 Disassembly of <code object comprehensions at 0x..., file "test/simple_source/311/03_comprehensions.py", line 4>:
   4           0 RESUME                   0
@@ -288,6 +296,105 @@ Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/03
         >>    6 FOR_ITER                 4 (to 16)
               8 STORE_FAST               1 (column)
              10 LOAD_FAST                1 (column)
+             12 LIST_APPEND              2
+             14 JUMP_BACKWARD            5 (to 6)
+        >>   16 RETURN_VALUE
+
+Disassembly of <code object filtered_lambda at 0x..., file "test/simple_source/311/03_comprehensions.py", line 26>:
+ 26           0 RESUME                   0
+
+ 27           2 LOAD_CONST               1 (<code object <listcomp> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 27>)
+              4 MAKE_FUNCTION            0
+
+ 29           6 LOAD_FAST                0 (values)
+
+ 27           8 GET_ITER
+             10 PRECALL                  0
+             12 CACHE                    0
+             14 CALL                     0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 RETURN_VALUE
+
+Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 27>:
+ 27           0 RESUME                   0
+              2 BUILD_LIST               0
+              4 LOAD_FAST                0 (.0)
+        >>    6 FOR_ITER                25 (to 58)
+
+ 29           8 STORE_FAST               1 (value)
+
+ 30          10 LOAD_FAST                1 (value)
+             12 LOAD_CONST               0 (0)
+             14 COMPARE_OP               4 (>)
+             16 CACHE                    0
+             18 CACHE                    0
+             20 POP_JUMP_BACKWARD_IF_FALSE     8 (to 6)
+
+ 31          22 LOAD_FAST                1 (value)
+             24 LOAD_CONST               1 (2)
+             26 BINARY_OP                6 (%)
+             28 CACHE                    0
+
+ 30          30 POP_JUMP_BACKWARD_IF_FALSE    13 (to 6)
+
+ 28          32 PUSH_NULL
+             34 LOAD_CONST               2 (<code object <lambda> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 28>)
+             36 MAKE_FUNCTION            0
+             38 LOAD_FAST                1 (value)
+             40 PRECALL                  1
+             42 CACHE                    0
+             44 CALL                     1
+             46 CACHE                    0
+             48 CACHE                    0
+             50 CACHE                    0
+             52 CACHE                    0
+
+ 30          54 LIST_APPEND              2
+             56 JUMP_BACKWARD           26 (to 6)
+        >>   58 RETURN_VALUE
+
+Disassembly of <code object <lambda> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 28>:
+ 28           0 RESUME                   0
+              2 LOAD_FAST                0 (item)
+              4 LOAD_CONST               1 (1)
+              6 BINARY_OP                0 (+)
+              8 CACHE                    0
+             10 RETURN_VALUE
+
+Disassembly of <code object comprehension_scope at 0x..., file "test/simple_source/311/03_comprehensions.py", line 35>:
+ 35           0 RESUME                   0
+
+ 36           2 LOAD_CONST               1 ('outer')
+              4 STORE_FAST               1 (value)
+
+ 37           6 LOAD_CONST               2 (<code object <listcomp> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 37>)
+              8 MAKE_FUNCTION            0
+             10 LOAD_FAST                0 (values)
+             12 GET_ITER
+             14 PRECALL                  0
+             16 CACHE                    0
+             18 CALL                     0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 STORE_FAST               2 (result)
+
+ 38          30 LOAD_FAST                1 (value)
+             32 LOAD_FAST                2 (result)
+             34 BUILD_TUPLE              2
+             36 RETURN_VALUE
+
+Disassembly of <code object <listcomp> at 0x..., file "test/simple_source/311/03_comprehensions.py", line 37>:
+ 37           0 RESUME                   0
+              2 BUILD_LIST               0
+              4 LOAD_FAST                0 (.0)
+        >>    6 FOR_ITER                 4 (to 16)
+              8 STORE_FAST               1 (value)
+             10 LOAD_FAST                1 (value)
              12 LIST_APPEND              2
              14 JUMP_BACKWARD            5 (to 6)
         >>   16 RETURN_VALUE

@@ -81,7 +81,7 @@ Scanner311 读取原始指令
 | 2 | 3.11 指令规范化 | 已完成 |
 | 3 | 无复杂控制流的源码恢复 | 已完成 |
 | 4 | CFG 和普通控制流恢复 | 已完成 |
-| 5 | 推导式、生成器和协程 | 未开始 |
+| 5 | 推导式、生成器和协程 | 已完成 |
 | 6 | 异常表、异常语句和 `with` | 未开始 |
 | 7 | `match/case`、`except*` 等新语法 | 未开始 |
 | 8 | 回归、可靠性、文档和发布准备 | 未开始 |
@@ -462,35 +462,35 @@ decompyle3/controlflow/structures.py
 
 ### 5.1 推导式
 
-- [ ] list comprehension。
-- [ ] set comprehension。
-- [ ] dict comprehension。
-- [ ] generator expression。
-- [ ] 多个 `for`。
-- [ ] 多个 `if`。
-- [ ] 嵌套推导式。
-- [ ] async comprehension。
+- [x] list comprehension。
+- [x] set comprehension。
+- [x] dict comprehension。
+- [x] generator expression。
+- [x] 多个 `for`。
+- [x] 多个 `if`。
+- [x] 嵌套推导式。
+- [x] async comprehension。
 
 ### 5.2 生成器和协程协议
 
-- [ ] `RETURN_GENERATOR`。
-- [ ] `YIELD_VALUE`。
-- [ ] `SEND`。
-- [ ] `ASYNC_GEN_WRAP`。
-- [ ] `GET_AWAITABLE`。
-- [ ] `GET_ANEXT`。
-- [ ] `END_ASYNC_FOR`。
-- [ ] `yield from`。
-- [ ] `await`。
-- [ ] async generator。
+- [x] `RETURN_GENERATOR`。
+- [x] `YIELD_VALUE`。
+- [x] `SEND`。
+- [x] `ASYNC_GEN_WRAP`。
+- [x] `GET_AWAITABLE`。
+- [x] `GET_ANEXT`。
+- [x] `END_ASYNC_FOR`。
+- [x] `yield from`。
+- [x] `await`。
+- [x] async generator。
 
 ### 阶段 5 验收条件
 
-- [ ] 各类推导式可解析和重新编译。
-- [ ] 推导式变量作用域正确。
-- [ ] lambda 与推导式嵌套正确。
-- [ ] generator 和 coroutine 样本通过行为验证。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 各类推导式可解析和重新编译。
+- [x] 推导式变量作用域正确。
+- [x] lambda 与推导式嵌套正确。
+- [x] generator 和 coroutine 样本通过行为验证。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -1021,3 +1021,69 @@ VerificationError
   - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
 - 下一步：
   - 阶段 5：恢复推导式、生成器、协程及 async 控制流协议。
+
+### 2026-07-30：阶段 5
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/parsers/p311/comprehensions.py`
+  - `decompyle3/parsers/p311/base.py`
+  - `decompyle3/controlflow/structures.py`
+  - `pytest/test_generators311.py`
+  - `pytest/test_deparse311.py`
+  - `test/simple_source/311/03_comprehensions.py`
+  - `test/simple_source/311/04_generators_async.py`
+  - `test/bytecode_3.11/golden/03_comprehensions.dis`
+  - `test/bytecode_3.11/golden/04_generators_async.dis`
+  - `test/bytecode_3.11/golden_tokens/03_comprehensions.tokens`
+  - `test/bytecode_3.11/golden_tokens/04_generators_async.tokens`
+- 已实现：
+  - 新增独立 `ComprehensionDecompiler311`，解析推导式 code object 的
+    隐藏 `.0` 迭代器参数和嵌套循环，直接生成标准库 comprehension
+    AST。
+  - 恢复 list/set/dict comprehension、generator expression、多个
+    `for`、多个 `if`、嵌套推导式，以及同步和异步推导式。
+  - 保留推导式独立 code object 的作用域语义；加入循环变量不泄漏及
+    lambda 位于推导式元素中的行为验证。
+  - 识别 `RETURN_GENERATOR` 恢复入口；普通 generator 生成
+    `FunctionDef`，coroutine 和 async generator 生成
+    `AsyncFunctionDef`。
+  - 恢复普通 `yield`、接收发送值的 yield expression、`yield from`
+    和 async generator 的 `ASYNC_GEN_WRAP -> YIELD_VALUE` 协议。
+  - 折叠 `GET_AWAITABLE -> SEND -> YIELD_VALUE -> RESUME` 为
+    `ast.Await`；异步推导式保留自身 async generator clause，不生成
+    多余的外层 `await`。
+  - 在 async comprehension 内恢复 `GET_AITER`、`GET_ANEXT`、
+    `SEND`、`END_ASYNC_FOR`，并通过异步行为对比验证。
+  - 对磁盘 `.pyc` 的阶段 5 源码执行 AST 解析、重新编译、同步生成器
+    send 流程及 asyncio 行为对比。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_corpus311.py pytest/test_scanner311.py pytest/test_normalize311.py pytest/test_deparse311.py pytest/test_controlflow311.py pytest/test_generators311.py`
+  - `.venv311/bin/pytest -q`
+  - `make -C test check-bytecode-3.7 PYTHON=../.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=../.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/parsers/p311/base.py decompyle3/parsers/p311/comprehensions.py decompyle3/controlflow/structures.py pytest/test_generators311.py pytest/test_deparse311.py test/simple_source/311/03_comprehensions.py test/simple_source/311/04_generators_async.py`
+  - `git diff --check`
+- 验证结果：
+  - 阶段 0 至阶段 5 定向测试：`36 passed`。
+  - 全部 pytest：`41 passed, 17 skipped`。
+  - 10 份 corpus 的 dis/Token golden 生成与一致性检查通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 推导式和 suspension 协议恢复只接入 3.11 Parser。
+  - 3.7 和 3.8 继续使用原有 Scanner、Spark Parser 与
+    SourceWalker，现有语料未新增失败。
+- 已知限制：
+  - 普通 `async for` 语句带有异常表清理区，其结构化与异常 CFG
+    一并留在阶段 6；阶段 5 已恢复 async comprehension 中的相同
+    iteration/suspension 协议。
+  - `async with` 留在阶段 6。
+  - `match/case` 与 `except*` 留在阶段 7。
+  - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
+- 下一步：
+  - 阶段 6：解码 `co_exceptiontable`，将异常边加入 CFG，并恢复
+    `try`、`except`、`finally`、`with` 和普通 `async for`。

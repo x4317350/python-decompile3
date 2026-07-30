@@ -153,11 +153,6 @@ def test_python_parser_returns_standard_ast_result():
     "source, message",
     [
         (
-            "def generate():\n"
-            "    yield 1\n",
-            "phase 5",
-        ),
-        (
             "def guarded():\n"
             "    try:\n"
             "        return 1\n"
