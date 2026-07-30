@@ -1299,3 +1299,39 @@ VerificationError
 - 下一步：
   - 阶段 0 至阶段 8 已全部完成；等待用户明确要求后提交、推送或
     发布。
+
+### 2026-07-30：阶段 8 发布前兼容性加固
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/errors.py`
+  - `decompyle3/controlflow/structures.py`
+  - `decompyle3/parsers/p311/{expressions,comprehensions}.py`
+  - `decompyle3/semantics/{customize311,pysource}.py`
+  - `pytest/{validate,test_build_const_key_map,test_deparse311}.py`
+  - `pytest/{test_deparse_offset,test_expressions311}.py`
+  - `README.rst`
+  - `PYTHON_311_SUPPORT.md`
+- 已实现：
+  - 恢复 `Python311SourceWalker.text` 返回契约，使
+    `code_deparse()` 和 `deparse_code2str()` 在 3.11 路径保持兼容。
+  - 修复旧 validator 的编译模式、错误反汇编对象、尾部指令遗漏和
+    差异未触发失败问题；解除 10 个字典构造回归用例的 3.11 跳过。
+  - 增加基于虚拟出口和后支配点的表达式 CFG 恢复，合并
+    `JUMP_IF_*_OR_POP`、`POP_JUMP_*` 分支栈，覆盖 `eval`、`single`
+    的短路表达式、条件表达式和求值顺序。
+  - 恢复推导式与生成器表达式过滤条件中的 CPython 3.11 链式比较
+    清理分支。
+  - 新增 `UnsupportedFeatureError`；3.11 非默认
+    `start_offset`/`stop_offset` 现在明确 fail closed，不再在 CFG
+    构建前不安全地切割 token。
+- 验证结果：
+  - 表达式、反编译、控制流和生成器专项：`37 passed`。
+  - 全部 pytest：`108 passed, 6 skipped`。
+  - flake8 和 `git diff --check`：通过。
+  - 10 份 CPython 3.11 corpus golden：通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+- 剩余跳过：
+  - 3 个旧 Spark compile-mode、1 个旧 offset 和 2 个旧 grammar
+    测试仍仅适用于 3.7/3.8；3.11 对应行为由独立测试覆盖。

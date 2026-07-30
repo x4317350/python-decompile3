@@ -17,10 +17,13 @@ TESTS = (
     "{0.0:'b',0.1:'d'}",  # BUILD_CONST_KEY_MAP
 )
 
+SUPPORTED_VERSIONS = {(3, 7), (3, 8), (3, 11)}
+
 
 @pytest.mark.parametrize("text", TESTS)
 @pytest.mark.skipif(
-    not (3, 7) <= PYTHON_VERSION_TRIPLE < (3, 9), reason="asssume Python 3.7 or 3.8"
+    PYTHON_VERSION_TRIPLE[:2] not in SUPPORTED_VERSIONS,
+    reason="requires a supported decompyle3 bytecode version",
 )
 def test_build_const_key_map(text):
     validate_decompile(text)

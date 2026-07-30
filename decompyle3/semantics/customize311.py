@@ -48,5 +48,8 @@ class Python311SourceWalker(SourceWalker):
                 returnNone=returnNone,
                 debug_opts=debug_opts,
             )
+        old_name = self.name
         self.name = name
-        self.println(tree.source)
+        self.text = tree.source
+        self.println(self.text)
+        self.name = old_name

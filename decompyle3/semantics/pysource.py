@@ -166,7 +166,11 @@ from decompyle3.semantics.parser_error import ParserError
 from decompyle3.semantics.transform import TreeTransform
 from decompyle3.show import maybe_show_tree
 from decompyle3.util import better_repr
-from decompyle3.errors import SemanticGenerationError, UnsupportedVersionError
+from decompyle3.errors import (
+    SemanticGenerationError,
+    UnsupportedFeatureError,
+    UnsupportedVersionError,
+)
 
 PARSER_DEFAULT_DEBUG = {
     "rules": False,
@@ -1123,6 +1127,20 @@ def code_deparse(
             "runtime",
             version=version,
             code_name=getattr(co, "co_name", "<unknown>"),
+        )
+
+    if version[:2] == (3, 11) and (
+        start_offset != 0 or stop_offset != -1
+    ):
+        requested_offset = (
+            start_offset if start_offset != 0 else stop_offset
+        )
+        raise UnsupportedFeatureError(
+            "CPython 3.11 partial offset decompilation is not supported "
+            "safely",
+            version=version,
+            code_name=getattr(co, "co_name", "<unknown>"),
+            offset=requested_offset,
         )
 
     if version[:2] == (3, 11) and walker is SourceWalker:

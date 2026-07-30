@@ -8,6 +8,7 @@ from typing import List, Tuple
 from decompyle3.controlflow.cfg import instruction_target
 from decompyle3.parsers.p311.base import (
     Python311ParseError,
+    _COMPARE_OPERATORS,
     _StraightLineDecompiler,
 )
 
@@ -123,6 +124,104 @@ class ComprehensionDecompiler311:
             return _negate(expression)
         return expression
 
+    def _chained_filter(
+        self,
+        start: int,
+        loop_offset: int,
+        body_limit: int,
+    ):
+        swap_index = next(
+            (
+                index
+                for index in range(start, body_limit)
+                if self.tokens[index].kind == "SWAP_STACK"
+            ),
+            None,
+        )
+        if (
+            swap_index is None
+            or swap_index + 3 >= body_limit
+            or self.tokens[swap_index].attr != 2
+            or self.tokens[swap_index + 1].kind != "COPY_STACK"
+            or self.tokens[swap_index + 1].attr != 2
+            or self.tokens[swap_index + 2].kind not in _COMPARE_OPERATORS
+            or not self.tokens[swap_index + 3].kind.startswith("POP_JUMP_")
+        ):
+            return None
+
+        initial = self._expressions(start, swap_index, 2)
+        left, first_comparator = initial
+        operators = [_COMPARE_OPERATORS[self.tokens[swap_index + 2].kind]()]
+        comparators = [first_comparator]
+        cleanup_offset = instruction_target(self.tokens[swap_index + 3])
+        cursor = swap_index + 4
+
+        while cursor < body_limit:
+            marker = next(
+                (
+                    index
+                    for index in range(cursor, body_limit)
+                    if self.tokens[index].kind in _COMPARE_OPERATORS
+                    or self.tokens[index].kind == "SWAP_STACK"
+                ),
+                None,
+            )
+            if marker is None:
+                return None
+            comparator = self._expression(cursor, marker)
+            marker_token = self.tokens[marker]
+            if marker_token.kind == "SWAP_STACK":
+                if (
+                    marker + 3 >= body_limit
+                    or self.tokens[marker + 1].kind != "COPY_STACK"
+                    or self.tokens[marker + 2].kind not in _COMPARE_OPERATORS
+                    or not self.tokens[marker + 3].kind.startswith("POP_JUMP_")
+                    or instruction_target(self.tokens[marker + 3])
+                    != cleanup_offset
+                ):
+                    return None
+                operators.append(
+                    _COMPARE_OPERATORS[self.tokens[marker + 2].kind]()
+                )
+                comparators.append(comparator)
+                cursor = marker + 4
+                continue
+
+            jump_index = marker + 1
+            continuation_index = marker + 2
+            if (
+                jump_index >= body_limit
+                or continuation_index >= body_limit
+                or not self.tokens[jump_index].kind.startswith("POP_JUMP_")
+                or instruction_target(self.tokens[jump_index]) != loop_offset
+                or self.tokens[continuation_index].kind != "JUMP_FORWARD"
+            ):
+                return None
+            cleanup_index = self.offset_to_index.get(cleanup_offset)
+            if (
+                cleanup_index is None
+                or self.tokens[cleanup_index].kind != "POP_TOP"
+                or cleanup_index + 1 >= body_limit
+                or self.tokens[cleanup_index + 1].kind != "JUMP_FORWARD"
+            ):
+                return None
+
+            operators.append(_COMPARE_OPERATORS[marker_token.kind]())
+            comparators.append(comparator)
+            success_offset = instruction_target(self.tokens[continuation_index])
+            success_index = self.offset_to_index.get(success_offset)
+            if success_index is None:
+                return None
+            return (
+                ast.Compare(
+                    left=left,
+                    ops=operators,
+                    comparators=comparators,
+                ),
+                success_index,
+            )
+        return None
+
     def _record_output(self, start: int, end: int, kind: str):
         count = 2 if kind == "MAP_ADD" else 1
         self.output = self._expressions(start, end, count)
@@ -152,6 +251,16 @@ class ComprehensionDecompiler311:
         expression_start = cursor
 
         while cursor < body_limit:
+            chained_filter = self._chained_filter(
+                expression_start,
+                token.offset,
+                body_limit,
+            )
+            if chained_filter is not None:
+                expression, cursor = chained_filter
+                generator.ifs.append(expression)
+                expression_start = cursor
+                continue
             current = self.tokens[cursor]
             target_offset = instruction_target(current)
             if (
@@ -246,6 +355,16 @@ class ComprehensionDecompiler311:
         self.generators.append(generator)
         expression_start = cursor
         while cursor < body_limit:
+            chained_filter = self._chained_filter(
+                expression_start,
+                self.tokens[header].offset,
+                body_limit,
+            )
+            if chained_filter is not None:
+                expression, cursor = chained_filter
+                generator.ifs.append(expression)
+                expression_start = cursor
+                continue
             current = self.tokens[cursor]
             target_offset = instruction_target(current)
             if (

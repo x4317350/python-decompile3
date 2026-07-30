@@ -11,7 +11,7 @@ import pytest
 from xdis.version_info import PythonImplementation
 
 from decompyle3.parsers.main import get_python_parser, python_parser
-from decompyle3.semantics.pysource import code_deparse
+from decompyle3.semantics.pysource import code_deparse, deparse_code2str
 from support311 import ROOT, compile_source
 
 
@@ -64,6 +64,29 @@ def test_parser311_registers_all_compile_modes():
             python_implementation=PythonImplementation.CPython,
         )
         assert parser.__class__.__name__ == class_name
+
+
+def test_python311_source_walker_preserves_text_contract():
+    code = compile("answer = 42", "<text-contract-311>", "exec")
+    output = io.StringIO()
+    deparsed = code_deparse(
+        code,
+        out=output,
+        version=(3, 11),
+        python_implementation=PythonImplementation.CPython,
+    )
+
+    assert deparsed.text == "answer = 42"
+    assert output.getvalue() == deparsed.text
+    assert (
+        deparse_code2str(
+            code,
+            out=io.StringIO(),
+            version=(3, 11),
+            python_implementation=PythonImplementation.CPython,
+        )
+        == deparsed.text
+    )
 
 
 def test_straight_line_pyc_deparses_and_recompiles(tmp_path):

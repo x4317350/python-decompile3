@@ -63,6 +63,7 @@ Public failures derive from `decompyle3.errors.Decompyle3Error`. The release
 error taxonomy includes:
 
 - `UnsupportedVersionError`
+- `UnsupportedFeatureError`
 - `UnsupportedOpcodeError`
 - `MalformedBytecodeError`
 - `ControlFlowError`
@@ -91,6 +92,10 @@ physical bytecode offset when an offset is available.
   Artificial or ambiguous case/body boundaries are rejected.
 - Source is rendered with `ast.unparse()`. Original whitespace, quote style,
   comments, and other non-semantic formatting are not preserved.
+- Partial decompilation with `start_offset` or `stop_offset` is rejected for
+  CPython 3.11. Slicing normalized instructions before CFG recovery can split
+  an operand-producing expression, jump, or exception-table region, so the
+  3.11 path fails closed until statement-span slicing is implemented.
 - Syntax and recompilation checks are necessary but do not prove semantic
   equivalence. Behavior tests remain important for security-sensitive uses.
 

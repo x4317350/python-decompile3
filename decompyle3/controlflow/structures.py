@@ -343,22 +343,15 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         return cursor
 
     def _expression_slice(self, start: int, end: int) -> ast.expr:
-        parser = _StraightLineDecompiler(
+        from decompyle3.parsers.p311.expressions import recover_expression311
+
+        return recover_expression311(
             self.code,
-            self.tokens[start:end],
-            compile_mode="expr",
-            is_class_body=self.is_class_body,
+            self.tokens,
+            start=start,
+            end=end,
+            terminal_kinds=frozenset(),
         )
-        for token in parser.tokens:
-            parser.current_token = token
-            parser._resolve_booleans(token.offset)
-            parser._dispatch(token)
-        parser._flush_assignment()
-        if parser.body or parser.pending_booleans or len(parser.stack) != 1:
-            raise Python311ParseError(
-                f"Instruction range {start}:{end} is not one expression"
-            )
-        return parser._expression_value(parser.stack[0])
 
     def _condition_jump(self, start: int) -> Optional[int]:
         for index in range(start, len(self.tokens)):
@@ -1117,6 +1110,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
     def decompile_body(self) -> List[ast.stmt]:
         self._validate_scope()
+        if self.compile_mode == "single" and any(
+            token.kind == "PRINT_EXPR" for token in self.tokens
+        ):
+            from decompyle3.parsers.p311.expressions import recover_expression311
+
+            expression = recover_expression311(
+                self.code,
+                self.tokens,
+                terminal_kinds=frozenset({"PRINT_EXPR"}),
+            )
+            return [ast.Expr(value=expression)]
         start = (
             2
             if self.tokens and self.tokens[0].kind == "RETURN_GENERATOR"
@@ -1127,3 +1131,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             self._inject_function_docstring()
         self._prepend_scope_declarations()
         return self.body
+
+    def decompile_expression(self) -> ast.expr:
+        from decompyle3.parsers.p311.expressions import recover_expression311
+
+        return recover_expression311(
+            self.code,
+            self.tokens,
+            terminal_kinds=frozenset({"RETURN_VALUE"}),
+        )

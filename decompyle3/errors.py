@@ -72,6 +72,10 @@ class UnsupportedVersionError(ContextualDecompilationError, RuntimeError):
     """The requested target bytecode or implementation is unsupported."""
 
 
+class UnsupportedFeatureError(ContextualDecompilationError, RuntimeError):
+    """A public option is not safely supported for the requested target."""
+
+
 class BytecodeError(ContextualDecompilationError, ValueError):
     """Base class for ingestion and normalization failures."""
 
@@ -166,6 +170,7 @@ __all__ = [
     "StackDepthError",
     "UnknownOpcodeError",
     "UnsupportedOpcodeError",
+    "UnsupportedFeatureError",
     "UnsupportedSpecializedOpcodeError",
     "UnsupportedVersionError",
     "VerificationError",

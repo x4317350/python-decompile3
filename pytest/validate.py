@@ -103,12 +103,12 @@ def are_code_objects_equal(co1, co2):
 
     :return: True if the two code objects are approximately equal, otherwise False.
     """
-    instructions1 = Bytecode(co1)
-    instructions2 = Bytecode(co2)
-    for opcode1, opcode2 in zip(instructions1, instructions2):
-        if not are_instructions_equal(opcode1, opcode2):
-            return False
-    return True
+    instructions1 = list(Bytecode(co1))
+    instructions2 = list(Bytecode(co2))
+    return len(instructions1) == len(instructions2) and all(
+        are_instructions_equal(opcode1, opcode2)
+        for opcode1, opcode2 in zip(instructions1, instructions2)
+    )
 
 
 def validate_decompile(text, mode="exec"):
@@ -134,11 +134,11 @@ def validate_decompile(text, mode="exec"):
         compile_mode=mode,
     )
     decompiled_text = deparsed.text
-    decompiled_code = compile(decompiled_text, "<string>", "exec")
+    decompiled_code = compile(decompiled_text, "<string>", mode)
 
     if not are_code_objects_equal(decompiled_code, original_code):
 
-        decompiled_dis = _dis_to_text(decompiled_text)
+        decompiled_dis = _dis_to_text(decompiled_code)
 
         def output(text, dis):
             width = 60
@@ -154,3 +154,4 @@ def validate_decompile(text, mode="exec"):
         original = output(original_text, original_dis)
         decompiled = output(decompiled_text, decompiled_dis)
         print_diff(original, decompiled)
+        raise AssertionError("Decompiled bytecode differs from original bytecode")

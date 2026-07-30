@@ -167,7 +167,9 @@ Handling pathologically long lists of expressions or statements is slow. We don'
 CPython 3.11 support is deliberately fail closed for structures that cannot
 yet be recovered reliably. This includes some uncommon stack manipulation
 and mapping-building layouts, and ``except*`` combined with an ``else`` suite
-or an enclosing ``finally``. See `CPython 3.11 support and limitations
+or an enclosing ``finally``. Partial ``start_offset``/``stop_offset``
+decompilation is also rejected for 3.11 until statement-span slicing is
+available. See `CPython 3.11 support and limitations
 <PYTHON_311_SUPPORT.md>`_ for the maintained list.
 
 There are numerous bugs in decompilation. And that's true for every
