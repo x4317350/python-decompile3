@@ -28,6 +28,23 @@ from decompyle3.errors import add_error_context
 from decompyle3.scanners.normalize311 import Normalizer311
 
 
+# Frozen from CPython 3.11's dis._inline_cache_entries. Keeping the protocol
+# local lets Scanner311 validate a 3.11 pyc while running on another version.
+INLINE_CACHE_ENTRIES_311 = {
+    "BINARY_SUBSCR": 4,
+    "STORE_SUBSCR": 1,
+    "UNPACK_SEQUENCE": 1,
+    "STORE_ATTR": 4,
+    "LOAD_ATTR": 4,
+    "COMPARE_OP": 2,
+    "LOAD_GLOBAL": 5,
+    "BINARY_OP": 1,
+    "LOAD_METHOD": 10,
+    "PRECALL": 1,
+    "CALL": 4,
+}
+
+
 class Scanner311(Scanner):
     """Load and tokenize an unnormalized CPython 3.11 instruction stream."""
 
@@ -106,6 +123,35 @@ class Scanner311(Scanner):
                     offset=offset,
                 )
 
+        offset = 0
+        cache_opcode = self.opc.opmap["CACHE"]
+        while offset < len(bytecode):
+            opcode = bytecode[offset]
+            opname = self.opname[opcode]
+            if opname == "CACHE":
+                raise MalformedBytecodeError(
+                    f"CACHE at offset {offset} has no owner",
+                    version=(3, 11),
+                    code_name=code_name,
+                    offset=offset,
+                )
+
+            cache_count = INLINE_CACHE_ENTRIES_311.get(opname, 0)
+            for cache_index in range(1, cache_count + 1):
+                cache_offset = offset + cache_index * 2
+                if (
+                    cache_offset >= len(bytecode)
+                    or bytecode[cache_offset] != cache_opcode
+                ):
+                    raise MalformedBytecodeError(
+                        f"{opname} at offset {offset} expected CACHE "
+                        f"at offset {cache_offset}",
+                        version=(3, 11),
+                        code_name=code_name,
+                        offset=cache_offset,
+                    )
+            offset += (cache_count + 1) * 2
+
     @staticmethod
     def iter_code_objects(co) -> Iterator[object]:
         """Yield a code object and every code object nested in its constants."""
@@ -157,6 +203,22 @@ class Scanner311(Scanner):
             )
         return tuple(attached)
 
+    def _attach_jump_targets(
+        self, instructions: Iterable[Instruction]
+    ) -> Tuple[Instruction, ...]:
+        instructions = tuple(instructions)
+        targets = {
+            instruction.argval
+            for instruction in instructions
+            if instruction.opcode in (self.opc.JREL_OPS | self.opc.JABS_OPS)
+        }
+        return tuple(
+            instruction._replace(
+                is_jump_target=instruction.offset in targets
+            )
+            for instruction in instructions
+        )
+
     def ingest_raw(self, co, classname=None, code_objects=None, show_asm=None):
         """Return physical 3.11 Tokens, including CACHE and EXTENDED_ARG."""
         if not iscode(co):
@@ -203,7 +265,8 @@ class Scanner311(Scanner):
 
         try:
             bytecode = Bytecode(co, self.opc)
-            self.insts = list(self._attach_positions(bytecode))
+            positioned = self._attach_positions(bytecode)
+            self.insts = list(self._attach_jump_targets(positioned))
         except (IndexError, KeyError, TypeError, ValueError) as error:
             raise MalformedBytecodeError(
                 f"Unable to decode CPython 3.11 code object: {error}",

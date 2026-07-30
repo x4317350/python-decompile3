@@ -383,15 +383,15 @@ shape 矩阵至少包含：
 
 任务：
 
-- [ ] 为 110 个 opcode 建立参数化 Scanner 测试；
-- [ ] 验证编号、名称、参数和物理 offset；
-- [ ] 验证 CACHE owner；
-- [ ] 验证 EXTENDED_ARG；
-- [ ] 验证 jump target；
-- [ ] 验证 line/position；
-- [ ] 验证 nested code object；
-- [ ] 验证 exception table 读取；
-- [ ] 保留非法 opcode、奇数长度和非法 CACHE 测试。
+- [x] 为 110 个 opcode 建立参数化 Scanner 测试；
+- [x] 验证编号、名称、参数和物理 offset；
+- [x] 验证 CACHE owner；
+- [x] 验证 EXTENDED_ARG；
+- [x] 验证 jump target；
+- [x] 验证 line/position；
+- [x] 验证 nested code object；
+- [x] 验证 exception table 读取；
+- [x] 保留非法 opcode、奇数长度和非法 CACHE 测试。
 
 验收：
 
@@ -827,13 +827,15 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1 和阶段 2 已完成；
+- 阶段 0、阶段 1、阶段 2 和阶段 3 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
   108/110；
-- 阶段 3 尚未开始；
-- 尚未修改 Scanner、Normalizer 或 Parser。
+- Scanner 层已达到 110/110 pass；
+- 阶段 4 尚未开始；
+- 本阶段修改了 Scanner 的 CACHE 布局校验和 jump-target 标记；
+- 尚未修改 Normalizer 或 Parser。
 
 阶段 0：
 
@@ -888,4 +890,24 @@ Behavior：未修改；新增语料只验证编译、pyc 加载、raw/normalized
 全量测试：156 passed, 6 skipped；本阶段无新增 skip
 已知限制：CACHE 为内部缓存；SETUP_ANNOTATIONS 的 Normalizer 栈效应留待阶段 4 修复
 失败现场：SETUP_ANNOTATIONS 在模块 offset 2 和类体 offset 10 触发 StackDepthError，已固化到 token/CFG golden
+```
+
+阶段 3：
+
+```text
+阶段：3，Scanner 110/110
+提交：本文件所在 Git 提交，提交说明为“测试：完成 Python 3.11 Scanner 的 110 项 opcode 覆盖”
+新增语料：0；复用阶段 2 的 23 个 corpus、131 个 code object
+新增 opcode 覆盖：Scanner 从 0/110 提升到 110/110 pass
+新增 shape 覆盖：0
+Scanner：新增 110 项参数化 dis 对照；拒绝孤立/缺失 CACHE；重新计算前向和后向 jump-target 标记
+Normalizer：未修改；CACHE owner 仅通过现有规范化接口交叉验证
+Parser：未修改；逐 opcode Parser 状态仍为 missing
+Behavior：未修改；逐 opcode Behavior 状态仍为 missing
+定向测试：pytest/test_opcode_scanner311.py，116 passed
+相邻测试：Scanner、Normalizer、控制流和异常表，145 passed
+全量测试：272 passed, 6 skipped；本阶段无新增 skip
+golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
+已知限制：SETUP_ANNOTATIONS 的 Normalizer StackDepthError 留待阶段 4
+失败现场：Scanner 原先接受非法 CACHE 布局；xdis 原始结果遗漏部分后向 jump-target 标记，均已修复并回归
 ```
