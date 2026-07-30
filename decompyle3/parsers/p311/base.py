@@ -10,6 +10,7 @@ recovery extend this core in separate modules.
 from __future__ import annotations
 
 import ast
+import __future__
 from dataclasses import dataclass, field, replace
 from typing import Any, List, Optional, Tuple
 
@@ -177,6 +178,18 @@ _COMPARE_OPERATORS = {
     "IS_NOT": ast.IsNot,
 }
 
+PARSER_INTERNAL_CONSUMERS = {
+    "CACHE": "Scanner311 cache owner mapping",
+    "RESUME": "_IGNORED_INTERNAL scope protocol",
+    "EXTENDED_ARG": "_IGNORED_INTERNAL combined argument",
+    "PUSH_NULL": "_NullValue consumed by CALL",
+    "PRECALL": "CallInfo consumed by CALL",
+    "KW_NAMES": "pending keyword names consumed by CALL",
+    "MAKE_CELL": "_IGNORED_INTERNAL scope protocol",
+    "COPY_FREE_VARS": "_IGNORED_INTERNAL scope protocol",
+}
+PARSER_INTERNAL_OPNAMES = frozenset(PARSER_INTERNAL_CONSUMERS)
+
 _IGNORED_INTERNAL = {
     "INTERNAL_RESUME",
     "INTERNAL_EXTENDED_ARG",
@@ -203,7 +216,6 @@ _UNSUPPORTED_OPS = {
     "GET_ANEXT",
     "GET_AWAITABLE",
     "GET_ITER",
-    "IMPORT_STAR",
     "JUMP_FORWARD",
     "LIST_APPEND",
     "MAP_ADD",
@@ -212,7 +224,6 @@ _UNSUPPORTED_OPS = {
     "RETURN_GENERATOR",
     "SEND",
     "SET_ADD",
-    "SETUP_ANNOTATIONS",
     "WITH_EXCEPT_START",
     "YIELD_VALUE",
 }
@@ -598,6 +609,71 @@ class _StraightLineDecompiler:
             return
         self._error("Unknown import value")
 
+    def _store_annotation(
+        self,
+        owner: ast.expr,
+        key: ast.expr,
+        annotation: ast.expr,
+    ) -> bool:
+        if (
+            not isinstance(owner, ast.Name)
+            or owner.id != "__annotations__"
+            or not isinstance(key, ast.Constant)
+            or not isinstance(key.value, str)
+        ):
+            return False
+
+        if (
+            int(getattr(self.code, "co_flags", 0))
+            & __future__.annotations.compiler_flag
+            and isinstance(annotation, ast.Constant)
+            and isinstance(annotation.value, str)
+        ):
+            try:
+                annotation = ast.parse(
+                    annotation.value,
+                    mode="eval",
+                ).body
+            except SyntaxError:
+                self._error(
+                    "Future annotation is not a valid expression"
+                )
+
+        assigned_value = None
+        if self.body and isinstance(self.body[-1], ast.Assign):
+            assignment = self.body[-1]
+            if (
+                len(assignment.targets) == 1
+                and isinstance(assignment.targets[0], ast.Name)
+                and assignment.targets[0].id == key.value
+            ):
+                assigned_value = assignment.value
+                self.body.pop()
+
+        self.body.append(
+            ast.AnnAssign(
+                target=ast.Name(id=key.value, ctx=ast.Store()),
+                annotation=annotation,
+                value=assigned_value,
+                simple=1,
+            )
+        )
+        return True
+
+    def _import_star(self):
+        value = self._pop()
+        if not isinstance(value, _ImportValue):
+            self._error("IMPORT_STAR has no owning IMPORT_NAME")
+        if value.fromlist != ("*",):
+            self._error("IMPORT_STAR owner does not request the '*' name")
+        self.body.append(
+            ast.ImportFrom(
+                module=value.module or None,
+                names=[ast.alias(name="*", asname=None)],
+                level=value.level,
+            )
+        )
+
     def _make_function(self, token):
         info = token.attr
         if not isinstance(info, FunctionInfo):
@@ -953,6 +1029,16 @@ class _StraightLineDecompiler:
         name = token.attr if isinstance(token.attr, str) else token.pattr
         if not isinstance(name, str):
             self._error("DELETE name is not a string")
+        if token.kind == "DELETE_GLOBAL" and getattr(
+            self.code,
+            "co_name",
+            "<module>",
+        ) != "<module>":
+            self.global_names.add(name)
+        if token.kind == "DELETE_DEREF" and name in tuple(
+            getattr(self.code, "co_freevars", ())
+        ):
+            self.nonlocal_names.add(name)
         self.body.append(
             ast.Delete(targets=[ast.Name(id=name, ctx=ast.Del())])
         )
@@ -1051,8 +1137,16 @@ class _StraightLineDecompiler:
             index = self._pop_expr()
             owner = self._pop_expr()
             value = self._pop()
-            target = ast.Subscript(value=owner, slice=index, ctx=ast.Store())
-            self._store_value(target, value)
+            if not (
+                isinstance(value, ast.expr)
+                and self._store_annotation(owner, index, value)
+            ):
+                target = ast.Subscript(
+                    value=owner,
+                    slice=index,
+                    ctx=ast.Store(),
+                )
+                self._store_value(target, value)
         elif kind == "DELETE_SUBSCR":
             index = self._pop_expr()
             owner = self._pop_expr()
@@ -1134,6 +1228,10 @@ class _StraightLineDecompiler:
                 self._error("IMPORT_FROM has no owning IMPORT_NAME")
             name = token.attr if isinstance(token.attr, str) else token.pattr
             self.stack.append(_ImportedName(self.stack[-1], name))
+        elif kind == "IMPORT_STAR":
+            self._import_star()
+        elif kind == "SETUP_ANNOTATIONS":
+            return
         elif kind == "POP_TOP":
             value = self._pop()
             if isinstance(value, _ImportValue):

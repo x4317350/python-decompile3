@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 4,
+  "phase": 5,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -267,79 +267,98 @@
       "notes": "Large generated functions cover EXTENDED_ARG and deep constants."
     },
     {
+      "name": "compound_assert_condition",
+      "category": "statement",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Python311ParseError",
+      "tests": [
+        "pytest/test_opcode_parser311.py::test_compound_assertions_fail_closed"
+      ],
+      "notes": "Compound and/or assert predicates remain explicitly fail-closed pending shape recovery."
+    },
+    {
       "name": "closure_class_scope",
       "category": "scope",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
       ],
-      "notes": "Phase 2 attributes LOAD_CLASSDEREF; end-to-end scope behavior remains for a later phase."
+      "notes": "Phase 5 verifies closure reads from class bodies and preserves captured values."
     },
     {
       "name": "variable_annotations",
       "category": "scope",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
       ],
-      "notes": "Phase 4 normalizes SETUP_ANNOTATIONS; parser and behavior coverage remain missing."
+      "notes": "Phase 5 recovers module and class annotation protocols as AnnAssign nodes."
     },
     {
       "name": "assert_statement",
       "category": "statement",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
       ],
-      "notes": "Phase 2 attributes LOAD_ASSERTION_ERROR; parser and behavior coverage remain missing."
+      "notes": "Phase 5 recovers LOAD_ASSERTION_ERROR control flow as an Assert node."
     },
     {
       "name": "import_star",
       "category": "import",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/imports/import_star.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_assert_annotation_and_import_star_preserve_behavior"
       ],
-      "notes": "Phase 2 attributes IMPORT_STAR; parser and behavior coverage remain missing."
+      "notes": "Phase 5 recovers IMPORT_STAR as a wildcard ImportFrom node."
     },
     {
       "name": "starred_collection_build",
       "category": "collection",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
       ],
-      "notes": "Phase 2 attributes LIST_TO_TUPLE and SET_UPDATE; behavior coverage remains missing."
+      "notes": "Phase 5 verifies starred tuple and set construction behavior."
     },
     {
       "name": "incremental_mapping_build",
       "category": "collection",
-      "status": "missing",
-      "fixture": null,
+      "status": "pass",
+      "fixture": "test/simple_source/311/08_imports_unpacking.py",
       "expected_error": null,
-      "tests": [],
-      "notes": "Uncommon incrementally built mapping layouts remain a documented limitation."
+      "tests": [
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
+      ],
+      "notes": "Phase 5 verifies incremental DICT_UPDATE mapping construction behavior."
     },
     {
       "name": "scope_deletion",
       "category": "scope",
-      "status": "missing",
+      "status": "pass",
       "fixture": "test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py",
       "expected_error": null,
       "tests": [
-        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
+        "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode",
+        "pytest/test_opcode_parser311.py::test_scope_deletion_starred_collection_and_mapping_preserve_behavior"
       ],
-      "notes": "Phase 2 attributes DELETE_ATTR, DELETE_DEREF, and DELETE_GLOBAL; behavior remains missing."
+      "notes": "Phase 5 verifies local, global, nonlocal, attribute, and subscript deletion recovery."
     }
   ]
 }

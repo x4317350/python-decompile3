@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import __future__
 from typing import Dict, List, Optional, Tuple
 
 
@@ -30,13 +31,32 @@ def _keyword_defaults(value) -> Dict[str, ast.expr]:
     return result
 
 
-def _annotations(value) -> Tuple[Dict[str, ast.expr], Optional[ast.expr]]:
+def _annotation_expression(node, future_annotations):
+    if (
+        future_annotations
+        and isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+    ):
+        try:
+            return ast.parse(node.value, mode="eval").body
+        except SyntaxError:
+            return node
+    return node
+
+
+def _annotations(
+    value,
+    future_annotations=False,
+) -> Tuple[Dict[str, ast.expr], Optional[ast.expr]]:
     elements = _constant_nodes(value)
     result = {}
     returns = None
     for index in range(0, len(elements) - 1, 2):
         key = elements[index]
-        annotation = elements[index + 1]
+        annotation = _annotation_expression(
+            elements[index + 1],
+            future_annotations,
+        )
         if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
             continue
         if key.value == "return":
@@ -54,7 +74,10 @@ def build_arguments311(code, defaults=None, kwdefaults=None, annotations=None):
     kwonly_count = int(getattr(code, "co_kwonlyargcount", 0))
     flags = int(getattr(code, "co_flags", 0))
 
-    annotation_map, returns = _annotations(annotations)
+    annotation_map, returns = _annotations(
+        annotations,
+        bool(flags & __future__.annotations.compiler_flag),
+    )
 
     positional = [
         ast.arg(arg=name, annotation=annotation_map.get(name))

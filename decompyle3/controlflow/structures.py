@@ -62,7 +62,6 @@ _STATEMENT_BOUNDARIES = {
 _LATER_PHASE_OPS = {
     "MAP_ADD",
     "SET_ADD",
-    "SETUP_ANNOTATIONS",
 }
 
 
@@ -541,6 +540,53 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             ast.IfExp(test=plan.expression, body=body, orelse=orelse)
         )
         return join_index
+
+    def _try_assert_statement(self, start: int, end: int) -> Optional[int]:
+        jump_index = self._condition_jump(start)
+        if jump_index is None:
+            return None
+        jump = self.tokens[jump_index]
+        if jump.kind not in (
+            "POP_JUMP_FORWARD_IF_FALSE",
+            "POP_JUMP_FORWARD_IF_NOT_NONE",
+            "POP_JUMP_FORWARD_IF_NONE",
+            "POP_JUMP_FORWARD_IF_TRUE",
+        ):
+            return None
+
+        target = instruction_target(jump)
+        target_index = self.offset_to_index.get(target)
+        failure_start = jump_index + 1
+        if (
+            target_index is None
+            or target_index > end
+            or failure_start >= target_index
+            or self.tokens[failure_start].kind != "LOAD_ASSERTION_ERROR"
+            or self.tokens[target_index - 1].kind != "RAISE_VARARGS"
+            or self.tokens[target_index - 1].attr != 1
+        ):
+            return None
+
+        message = None
+        message_start = failure_start + 1
+        raise_index = target_index - 1
+        if message_start < raise_index:
+            if (
+                raise_index - message_start < 2
+                or self.tokens[raise_index - 2].kind != "PRECALL"
+                or self.tokens[raise_index - 1].kind != "CALL"
+            ):
+                return None
+            message = self._expression_slice(
+                message_start,
+                raise_index - 2,
+            )
+
+        test = self._predicate(start, jump_index)
+        if "IF_FALSE" in jump.kind:
+            test = _negate(test)
+        self.body.append(ast.Assert(test=test, msg=message))
+        return target_index
 
     def _if_statement(
         self,
@@ -1138,6 +1184,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
             if token.kind == "YIELD_VALUE":
                 index = self._yield_value(index, end)
+                continue
+
+            assert_end = self._try_assert_statement(index, end)
+            if assert_end is not None:
+                index = assert_end
                 continue
 
             condition = self._condition_plan(index)

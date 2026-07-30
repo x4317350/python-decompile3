@@ -477,12 +477,25 @@ def render_opcode_report(data: Mapping[str, Any]) -> str:
             f"{counts['not_applicable']} | {counts['missing']} |"
         )
 
+    complete_layers = [
+        layer
+        for layer in LAYERS
+        if _status_counts(opcodes, layer)["missing"] == 0
+    ]
+    pending_layers = [
+        layer
+        for layer in LAYERS
+        if _status_counts(opcodes, layer)["missing"] != 0
+    ]
+    complete_text = "、".join(complete_layers) or "无"
+    pending_text = "、".join(pending_layers) or "无"
+
     lines.extend(
         [
             "",
-            f"截至阶段 {data['phase']}，逐 opcode 四层正式状态仍从 `missing`",
-            "开始归因。Corpus 中观察到指令不等同于完成 Scanner、Normalizer、",
-            "Parser 和行为验证。",
+            f"截至阶段 {data['phase']}，已完成明确状态的层级："
+            f"{complete_text}；仍待完成：{pending_text}。",
+            "Corpus 中观察到指令不等同于完成对应层级验证。",
             "",
             "## Opcode 明细",
             "",

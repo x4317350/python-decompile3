@@ -5,12 +5,12 @@
 
 ## 汇总
 
-- Shape inventory：30
-- pass：20
+- Shape inventory：31
+- pass：27
 - internal_consumed：0
-- unsupported_fail_closed：3
+- unsupported_fail_closed：4
 - not_applicable：0
-- missing：7
+- missing：0
 
 ## Shape 明细
 
@@ -39,24 +39,18 @@
 | `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 1 |
 | `single_mode_print_expr` | compile_mode | pass | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` | `—` | 1 |
 | `extended_arg` | internal | pass | `—` | `—` | 1 |
-| `closure_class_scope` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 1 |
-| `variable_annotations` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 1 |
-| `assert_statement` | statement | missing | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 1 |
-| `import_star` | import | missing | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` | `—` | 1 |
-| `starred_collection_build` | collection | missing | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` | `—` | 1 |
-| `incremental_mapping_build` | collection | missing | `—` | `—` | 0 |
-| `scope_deletion` | scope | missing | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 1 |
+| `compound_assert_condition` | statement | unsupported_fail_closed | `—` | `Python311ParseError` | 1 |
+| `closure_class_scope` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 2 |
+| `variable_annotations` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 2 |
+| `assert_statement` | statement | pass | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 2 |
+| `import_star` | import | pass | `test/bytecode_3.11/opcode_fixtures/imports/import_star.py` | `—` | 2 |
+| `starred_collection_build` | collection | pass | `test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py` | `—` | 2 |
+| `incremental_mapping_build` | collection | pass | `test/simple_source/311/08_imports_unpacking.py` | `—` | 1 |
+| `scope_deletion` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 2 |
 
 ## Missing
 
 ```text
-closure_class_scope
-variable_annotations
-assert_statement
-import_star
-starred_collection_build
-incremental_mapping_build
-scope_deletion
 ```
 
 ## Fail-closed
@@ -64,3 +58,4 @@ scope_deletion
 - `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed.
 - `except_star_with_else`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an else suite.
 - `except_star_with_finally`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an enclosing finally.
+- `compound_assert_condition`：`Python311ParseError`；Compound and/or assert predicates remain explicitly fail-closed pending shape recovery.

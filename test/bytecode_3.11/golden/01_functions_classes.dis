@@ -21,64 +21,88 @@
 
  17          26 NOP
 
- 15          28 LOAD_CONST              22 ((2,))
+ 15          28 LOAD_CONST              21 ((2,))
 
  20          30 LOAD_CONST               5 (1)
 
  15          32 LOAD_CONST               6 (('scale',))
              34 BUILD_CONST_KEY_MAP      1
-             36 LOAD_CONST              23 (('left', 'int', 'right', 'int', 'values', 'int', 'scale', 'int', 'options', 'int', 'return', 'int'))
-             38 LOAD_CONST              14 (<code object combine at 0x..., file "test/simple_source/311/01_functions_classes.py", line 14>)
-             40 MAKE_FUNCTION            7 (defaults, kwdefaults, annotations)
+             36 LOAD_CONST               7 ('left')
 
- 14          42 PRECALL                  0
-             44 CACHE                    0
-             46 CALL                     0
-             48 CACHE                    0
-             50 CACHE                    0
-             52 CACHE                    0
-             54 CACHE                    0
+ 16          38 LOAD_NAME                4 (int)
 
- 15          56 STORE_NAME               4 (combine)
+ 15          40 LOAD_CONST               8 ('right')
 
- 27          58 PUSH_NULL
-             60 LOAD_BUILD_CLASS
-             62 LOAD_CONST              15 (<code object Accumulator at 0x..., file "test/simple_source/311/01_functions_classes.py", line 27>)
-             64 MAKE_FUNCTION            0
-             66 LOAD_CONST              16 ('Accumulator')
-             68 PRECALL                  2
-             70 CACHE                    0
-             72 CALL                     2
+ 17          42 LOAD_NAME                4 (int)
+
+ 15          44 LOAD_CONST               9 ('values')
+
+ 19          46 LOAD_NAME                4 (int)
+
+ 15          48 LOAD_CONST              10 ('scale')
+
+ 20          50 LOAD_NAME                4 (int)
+
+ 15          52 LOAD_CONST              11 ('options')
+
+ 21          54 LOAD_NAME                4 (int)
+
+ 15          56 LOAD_CONST              12 ('return')
+
+ 22          58 LOAD_NAME                4 (int)
+
+ 15          60 BUILD_TUPLE             12
+             62 LOAD_CONST              13 (<code object combine at 0x..., file "test/simple_source/311/01_functions_classes.py", line 14>)
+             64 MAKE_FUNCTION            7 (defaults, kwdefaults, annotations)
+
+ 14          66 PRECALL                  0
+             68 CACHE                    0
+             70 CALL                     0
+             72 CACHE                    0
              74 CACHE                    0
              76 CACHE                    0
              78 CACHE                    0
-             80 CACHE                    0
-             82 STORE_NAME               5 (Accumulator)
 
- 49          84 PUSH_NULL
-             86 LOAD_BUILD_CLASS
-             88 LOAD_CONST              17 (<code object NamedAccumulator at 0x..., file "test/simple_source/311/01_functions_classes.py", line 49>)
-             90 MAKE_FUNCTION            0
-             92 LOAD_CONST              18 ('NamedAccumulator')
-             94 LOAD_NAME                5 (Accumulator)
-             96 PRECALL                  3
+ 15          80 STORE_NAME               5 (combine)
+
+ 27          82 PUSH_NULL
+             84 LOAD_BUILD_CLASS
+             86 LOAD_CONST              14 (<code object Accumulator at 0x..., file "test/simple_source/311/01_functions_classes.py", line 27>)
+             88 MAKE_FUNCTION            0
+             90 LOAD_CONST              15 ('Accumulator')
+             92 PRECALL                  2
+             94 CACHE                    0
+             96 CALL                     2
              98 CACHE                    0
-            100 CALL                     3
+            100 CACHE                    0
             102 CACHE                    0
             104 CACHE                    0
-            106 CACHE                    0
-            108 CACHE                    0
-            110 STORE_NAME               6 (NamedAccumulator)
+            106 STORE_NAME               6 (Accumulator)
 
- 55         112 LOAD_CONST              19 (<code object make_counter at 0x..., file "test/simple_source/311/01_functions_classes.py", line 55>)
+ 49         108 PUSH_NULL
+            110 LOAD_BUILD_CLASS
+            112 LOAD_CONST              16 (<code object NamedAccumulator at 0x..., file "test/simple_source/311/01_functions_classes.py", line 49>)
             114 MAKE_FUNCTION            0
-            116 STORE_NAME               7 (make_counter)
+            116 LOAD_CONST              17 ('NamedAccumulator')
+            118 LOAD_NAME                6 (Accumulator)
+            120 PRECALL                  3
+            122 CACHE                    0
+            124 CALL                     3
+            126 CACHE                    0
+            128 CACHE                    0
+            130 CACHE                    0
+            132 CACHE                    0
+            134 STORE_NAME               7 (NamedAccumulator)
 
- 66         118 LOAD_CONST              20 (<code object make_scaler at 0x..., file "test/simple_source/311/01_functions_classes.py", line 66>)
-            120 MAKE_FUNCTION            0
-            122 STORE_NAME               8 (make_scaler)
-            124 LOAD_CONST              21 (None)
-            126 RETURN_VALUE
+ 55         136 LOAD_CONST              18 (<code object make_counter at 0x..., file "test/simple_source/311/01_functions_classes.py", line 55>)
+            138 MAKE_FUNCTION            0
+            140 STORE_NAME               8 (make_counter)
+
+ 66         142 LOAD_CONST              19 (<code object make_scaler at 0x..., file "test/simple_source/311/01_functions_classes.py", line 66>)
+            144 MAKE_FUNCTION            0
+            146 STORE_NAME               9 (make_scaler)
+            148 LOAD_CONST              20 (None)
+            150 RETURN_VALUE
 
 Disassembly of <code object marker at 0x..., file "test/simple_source/311/01_functions_classes.py", line 6>:
               0 MAKE_CELL                0 (function)

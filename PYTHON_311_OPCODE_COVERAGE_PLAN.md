@@ -452,13 +452,13 @@ Unknown normalized kind: 0
 
 每个语义族必须：
 
-- [ ] 更新 opcode 矩阵；
-- [ ] 更新 shape 矩阵；
-- [ ] 增加 AST 测试；
-- [ ] 增加行为测试；
-- [ ] 增加不支持形态的 fail-closed 测试；
-- [ ] 运行该语义族相关测试；
-- [ ] 运行全量测试。
+- [x] 更新 opcode 矩阵；
+- [x] 更新 shape 矩阵；
+- [x] 增加 AST 测试；
+- [x] 增加行为测试；
+- [x] 增加不支持形态的 fail-closed 测试；
+- [x] 运行该语义族相关测试；
+- [x] 运行全量测试。
 
 建议修复优先级：
 
@@ -789,18 +789,18 @@ failure.json
 ## 15. 最终验收清单
 
 - [x] 110/110 opcode 已进入矩阵；
-- [ ] Scanner 110/110 有明确状态；
-- [ ] Normalizer 110/110 有明确状态；
-- [ ] Parser 110/110 有明确状态；
+- [x] Scanner 110/110 有明确状态；
+- [x] Normalizer 110/110 有明确状态；
+- [x] Parser 110/110 有明确状态；
 - [ ] 行为层 110/110 有明确状态；
-- [ ] 内部协议 opcode 全部标记为 `internal_consumed`；
-- [ ] 13 个未触达 opcode 已补齐语料；
-- [ ] shape 矩阵不存在未解释空白；
+- [x] 内部协议 opcode 全部标记为 `internal_consumed`；
+- [x] 13 个未触达 opcode 已补齐语料；
+- [x] shape 矩阵不存在未解释空白；
 - [ ] 所有声明支持项都有行为测试；
-- [ ] 所有不支持项都有 fail-closed 测试；
-- [ ] golden 检查通过；
-- [ ] 3.11 定向回归通过；
-- [ ] 全量 pytest 无新增失败和 skip；
+- [x] 所有不支持项都有 fail-closed 测试；
+- [x] golden 检查通过；
+- [x] 3.11 定向回归通过；
+- [x] 全量 pytest 无新增失败和 skip；
 - [ ] 标准库和真实项目结果已归档；
 - [ ] CI 能阻止矩阵、报告和实现不同步；
 - [ ] `PYTHON_311_SUPPORT.md` 与最终矩阵一致。
@@ -827,16 +827,18 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1、阶段 2、阶段 3 和阶段 4 已完成；
+- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4 和阶段 5 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
   109/110，`CACHE` 由 owner 消费；
 - Scanner 层已达到 110/110 pass；
 - Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
-- 阶段 5 尚未开始；
-- 本阶段修复了 `SETUP_ANNOTATIONS` 栈效应并统一内部协议标记；
-- 尚未修改 Parser。
+- Parser 层已达到 102 pass + 8 internal_consumed，即 110/110；
+- shape inventory 为 31 项：27 pass、4 unsupported_fail_closed、
+  0 missing；
+- 本阶段补齐 assert、annotation、import-star、删除声明和未来注解恢复；
+- 行为层逐 opcode 状态仍为 missing，留待阶段 6 建立统一框架。
 
 阶段 0：
 
@@ -931,4 +933,24 @@ Behavior：未修改；逐 opcode Behavior 状态仍为 missing
 golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
 已知限制：CACHE 不生成独立 normalized instruction，由 owner 的 cache_offsets 消费
 失败现场：xdis 将 SETUP_ANNOTATIONS 表示为 1 pop/1 push，导致入口深度误判；已按 CPython dis 的零栈效应修复
+```
+
+阶段 5：
+
+```text
+阶段：5，Parser 按语义族补齐
+提交：本文件所在 Git 提交，提交说明为“功能：完成 Python 3.11 Parser 的 110 项 opcode 覆盖”
+新增语料：0 个文件；新增 1 项 inline 标准 CPython compound-assert shape
+新增 opcode 覆盖：Parser 从 0/110 提升到 102 pass + 8 internal_consumed
+新增 shape 覆盖：7 项 missing 转为 pass；新增 compound_assert_condition fail-closed；合计 27 pass、4 fail-closed、0 missing
+Scanner：未修改；维持 110/110 pass
+Normalizer：未修改；维持 102 pass + 8 internal_consumed
+Parser：新增 110 项参数化契约与十个语义族 AST 验证；恢复 IMPORT_STAR、SETUP_ANNOTATIONS、LOAD_ASSERTION_ERROR、DELETE_GLOBAL/DELETE_DEREF 声明和未来注解
+Behavior：新增阶段 5 聚焦语义验证；逐 opcode 统一行为状态留待阶段 6
+定向测试：pytest/test_opcode_parser311.py，131 passed；连同矩阵门禁为 137 passed
+相邻测试：Parser、矩阵、控制流、表达式、生成器、异常表、语法和可靠性，215 passed
+全量测试：588 passed, 6 skipped；本阶段无新增 skip
+golden/报告：23 个 corpus golden 已按 dont_inherit=True 刷新；opcode/shape 报告已更新
+已知限制：compound and/or assert、except* + else、except* + finally 和人工不可约 CFG 保持显式 fail-closed
+失败现场：IMPORT_STAR、SETUP_ANNOTATIONS、LOAD_ASSERTION_ERROR 初始失败；延迟注解二次加引号及删除声明缺失已修复
 ```

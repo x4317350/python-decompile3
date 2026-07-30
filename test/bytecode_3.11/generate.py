@@ -58,6 +58,7 @@ def compile_source(source: Path):
         source.read_text(encoding="utf-8"),
         display_name,
         source_compile_mode(source),
+        dont_inherit=True,
     )
 
 

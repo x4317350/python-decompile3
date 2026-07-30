@@ -39,87 +39,111 @@
 
  21          52 NOP
 
- 19          54 LOAD_CONST              29 ((2,))
+ 19          54 LOAD_CONST              27 ((2,))
 
  24          56 LOAD_CONST               9 (1)
 
  19          58 LOAD_CONST              10 (('scale',))
              60 BUILD_CONST_KEY_MAP      1
-             62 LOAD_CONST              30 (('left', 'int', 'right', 'int', 'values', 'int', 'scale', 'int', 'options', 'int', 'return', 'str'))
-             64 LOAD_CONST              19 (<code object calculate at 0x..., file "test/simple_source/311/09_straight_line.py", line 18>)
-             66 MAKE_FUNCTION            7 (defaults, kwdefaults, annotations)
+             62 LOAD_CONST              11 ('left')
 
- 18          68 PRECALL                  0
-             70 CACHE                    0
-             72 CALL                     0
-             74 CACHE                    0
-             76 CACHE                    0
-             78 CACHE                    0
-             80 CACHE                    0
+ 20          64 LOAD_NAME               11 (int)
 
- 19          82 STORE_NAME              11 (calculate)
+ 19          66 LOAD_CONST              12 ('right')
 
- 61          84 PUSH_NULL
-             86 LOAD_BUILD_CLASS
-             88 LOAD_CONST              20 (<code object Accumulator at 0x..., file "test/simple_source/311/09_straight_line.py", line 61>)
-             90 MAKE_FUNCTION            0
-             92 LOAD_CONST              21 ('Accumulator')
-             94 PRECALL                  2
-             96 CACHE                    0
-             98 CALL                     2
+ 21          68 LOAD_NAME               11 (int)
+
+ 19          70 LOAD_CONST              13 ('values')
+
+ 23          72 LOAD_NAME               11 (int)
+
+ 19          74 LOAD_CONST              14 ('scale')
+
+ 24          76 LOAD_NAME               11 (int)
+
+ 19          78 LOAD_CONST              15 ('options')
+
+ 25          80 LOAD_NAME               11 (int)
+
+ 19          82 LOAD_CONST              16 ('return')
+
+ 26          84 LOAD_NAME               12 (str)
+
+ 19          86 BUILD_TUPLE             12
+             88 LOAD_CONST              17 (<code object calculate at 0x..., file "test/simple_source/311/09_straight_line.py", line 18>)
+             90 MAKE_FUNCTION            7 (defaults, kwdefaults, annotations)
+
+ 18          92 PRECALL                  0
+             94 CACHE                    0
+             96 CALL                     0
+             98 CACHE                    0
             100 CACHE                    0
             102 CACHE                    0
             104 CACHE                    0
-            106 CACHE                    0
-            108 STORE_NAME              12 (Accumulator)
 
- 76         110 LOAD_NAME               10 (marker)
+ 19         106 STORE_NAME              13 (calculate)
 
- 77         112 PUSH_NULL
-            114 LOAD_BUILD_CLASS
-            116 LOAD_CONST              22 (<code object Child at 0x..., file "test/simple_source/311/09_straight_line.py", line 76>)
-            118 MAKE_FUNCTION            0
-            120 LOAD_CONST              23 ('Child')
-            122 LOAD_NAME               12 (Accumulator)
-            124 PRECALL                  3
+ 61         108 PUSH_NULL
+            110 LOAD_BUILD_CLASS
+            112 LOAD_CONST              18 (<code object Accumulator at 0x..., file "test/simple_source/311/09_straight_line.py", line 61>)
+            114 MAKE_FUNCTION            0
+            116 LOAD_CONST              19 ('Accumulator')
+            118 PRECALL                  2
+            120 CACHE                    0
+            122 CALL                     2
+            124 CACHE                    0
             126 CACHE                    0
-            128 CALL                     3
+            128 CACHE                    0
             130 CACHE                    0
-            132 CACHE                    0
-            134 CACHE                    0
-            136 CACHE                    0
+            132 STORE_NAME              14 (Accumulator)
 
- 76         138 PRECALL                  0
-            140 CACHE                    0
-            142 CALL                     0
-            144 CACHE                    0
-            146 CACHE                    0
-            148 CACHE                    0
+ 76         134 LOAD_NAME               10 (marker)
+
+ 77         136 PUSH_NULL
+            138 LOAD_BUILD_CLASS
+            140 LOAD_CONST              20 (<code object Child at 0x..., file "test/simple_source/311/09_straight_line.py", line 76>)
+            142 MAKE_FUNCTION            0
+            144 LOAD_CONST              21 ('Child')
+            146 LOAD_NAME               14 (Accumulator)
+            148 PRECALL                  3
             150 CACHE                    0
+            152 CALL                     3
+            154 CACHE                    0
+            156 CACHE                    0
+            158 CACHE                    0
+            160 CACHE                    0
 
- 77         152 STORE_NAME              13 (Child)
+ 76         162 PRECALL                  0
+            164 CACHE                    0
+            166 CALL                     0
+            168 CACHE                    0
+            170 CACHE                    0
+            172 CACHE                    0
+            174 CACHE                    0
 
- 83         154 LOAD_CONST              24 (<code object make_adder at 0x..., file "test/simple_source/311/09_straight_line.py", line 83>)
-            156 MAKE_FUNCTION            0
-            158 STORE_NAME              14 (make_adder)
+ 77         176 STORE_NAME              15 (Child)
 
- 90         160 LOAD_CONST              25 (<code object make_counter at 0x..., file "test/simple_source/311/09_straight_line.py", line 90>)
-            162 MAKE_FUNCTION            0
-            164 STORE_NAME              15 (make_counter)
-
-101         166 LOAD_CONST              26 (<code object make_lambda at 0x..., file "test/simple_source/311/09_straight_line.py", line 101>)
-            168 MAKE_FUNCTION            0
-            170 STORE_NAME              16 (make_lambda)
-
-105         172 LOAD_CONST              27 (<code object unpack at 0x..., file "test/simple_source/311/09_straight_line.py", line 105>)
-            174 MAKE_FUNCTION            0
-            176 STORE_NAME              17 (unpack)
-
-110         178 LOAD_CONST              28 (<code object fail at 0x..., file "test/simple_source/311/09_straight_line.py", line 110>)
+ 83         178 LOAD_CONST              22 (<code object make_adder at 0x..., file "test/simple_source/311/09_straight_line.py", line 83>)
             180 MAKE_FUNCTION            0
-            182 STORE_NAME              18 (fail)
-            184 LOAD_CONST               2 (None)
-            186 RETURN_VALUE
+            182 STORE_NAME              16 (make_adder)
+
+ 90         184 LOAD_CONST              23 (<code object make_counter at 0x..., file "test/simple_source/311/09_straight_line.py", line 90>)
+            186 MAKE_FUNCTION            0
+            188 STORE_NAME              17 (make_counter)
+
+101         190 LOAD_CONST              24 (<code object make_lambda at 0x..., file "test/simple_source/311/09_straight_line.py", line 101>)
+            192 MAKE_FUNCTION            0
+            194 STORE_NAME              18 (make_lambda)
+
+105         196 LOAD_CONST              25 (<code object unpack at 0x..., file "test/simple_source/311/09_straight_line.py", line 105>)
+            198 MAKE_FUNCTION            0
+            200 STORE_NAME              19 (unpack)
+
+110         202 LOAD_CONST              26 (<code object fail at 0x..., file "test/simple_source/311/09_straight_line.py", line 110>)
+            204 MAKE_FUNCTION            0
+            206 STORE_NAME              20 (fail)
+            208 LOAD_CONST               2 (None)
+            210 RETURN_VALUE
 
 Disassembly of <code object marker at 0x..., file "test/simple_source/311/09_straight_line.py", line 13>:
  13           0 RESUME                   0
@@ -453,16 +477,30 @@ Disassembly of <code object make_adder at 0x..., file "test/simple_source/311/09
 
  83           2 RESUME                   0
 
- 84           4 LOAD_CONST               6 ((1,))
-              6 LOAD_CONST               7 (('value', 'int', 'return', 'int'))
-              8 LOAD_CLOSURE             0 (amount)
-             10 BUILD_TUPLE              1
-             12 LOAD_CONST               5 (<code object add at 0x..., file "test/simple_source/311/09_straight_line.py", line 84>)
-             14 MAKE_FUNCTION           13 (defaults, annotations, closure)
-             16 STORE_FAST               1 (add)
+ 84           4 LOAD_CONST               5 ((1,))
+              6 LOAD_CONST               2 ('value')
+              8 LOAD_GLOBAL              0 (int)
+             10 CACHE                    0
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 LOAD_CONST               3 ('return')
+             22 LOAD_GLOBAL              0 (int)
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 BUILD_TUPLE              4
+             36 LOAD_CLOSURE             0 (amount)
+             38 BUILD_TUPLE              1
+             40 LOAD_CONST               4 (<code object add at 0x..., file "test/simple_source/311/09_straight_line.py", line 84>)
+             42 MAKE_FUNCTION           13 (defaults, annotations, closure)
+             44 STORE_FAST               1 (add)
 
- 87          18 LOAD_FAST                1 (add)
-             20 RETURN_VALUE
+ 87          46 LOAD_FAST                1 (add)
+             48 RETURN_VALUE
 
 Disassembly of <code object add at 0x..., file "test/simple_source/311/09_straight_line.py", line 84>:
               0 COPY_FREE_VARS           1
