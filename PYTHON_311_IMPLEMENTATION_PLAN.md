@@ -76,7 +76,7 @@ Scanner311 读取原始指令
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 0 | 环境、基线和测试语料 | 未开始 |
+| 0 | 环境、基线和测试语料 | 已完成 |
 | 1 | 3.11 `.pyc` 装载和原始扫描 | 未开始 |
 | 2 | 3.11 指令规范化 | 未开始 |
 | 3 | 无复杂控制流的源码恢复 | 未开始 |
@@ -94,13 +94,13 @@ Scanner311 读取原始指令
 
 ### 0.1 记录修改前状态
 
-- [ ] 记录当前 Git 提交和工作区状态。
-- [ ] 记录当前 Python、操作系统和依赖版本。
-- [ ] 确认工作区中的已有修改，禁止覆盖无关用户改动。
-- [ ] 建立独立的 Python 3.11 开发环境。
-- [ ] 安装项目及测试依赖。
-- [ ] 确认所用 `xdis` 能读取 CPython 3.11 `.pyc`。
-- [ ] 如需提高 `xdis` 最低版本，先通过测试确认，再修改 `pyproject.toml`。
+- [x] 记录当前 Git 提交和工作区状态。
+- [x] 记录当前 Python、操作系统和依赖版本。
+- [x] 确认工作区中的已有修改，禁止覆盖无关用户改动。
+- [x] 建立独立的 Python 3.11 开发环境。
+- [x] 安装项目及测试依赖。
+- [x] 确认所用 `xdis` 能读取 CPython 3.11 `.pyc`。
+- [x] 如需提高 `xdis` 最低版本，先通过测试确认，再修改 `pyproject.toml`。（当前无需提高最低版本。）
 
 建议记录命令：
 
@@ -117,10 +117,10 @@ python3.11 -m venv .venv311
 
 ### 0.2 建立回归基线
 
-- [ ] 运行当前 pytest 测试。
-- [ ] 运行项目现有 `make check`。
-- [ ] 记录现有失败、跳过和预期失败，不能把历史失败归因于 3.11 修改。
-- [ ] 保存一份简短基线报告到 `test/bytecode_3.11/BASELINE.md`。
+- [x] 运行当前 pytest 测试。
+- [x] 运行项目现有 `make check`。
+- [x] 记录现有失败、跳过和预期失败，不能把历史失败归因于 3.11 修改。
+- [x] 保存一份简短基线报告到 `test/bytecode_3.11/BASELINE.md`。
 
 建议验证命令：
 
@@ -142,35 +142,35 @@ pytest/test_controlflow311.py
 pytest/test_exceptiontable311.py
 ```
 
-- [ ] 创建测试目录。
-- [ ] 编写生成 `.pyc` 的可重复脚本或 Makefile 目标。
-- [ ] 保留原始 `.py`，必要时生成 `.pyc`，避免只提交不可审查的二进制样本。
-- [ ] 为 Token 测试建立可审查的 golden 输出。
-- [ ] 为行为验证建立统一辅助函数。
+- [x] 创建测试目录。
+- [x] 编写生成 `.pyc` 的可重复脚本或 Makefile 目标。
+- [x] 保留原始 `.py`，必要时生成 `.pyc`，避免只提交不可审查的二进制样本。
+- [x] 为 Token 测试建立可审查的 golden 输出格式。
+- [x] 为行为验证建立统一辅助函数。
 
 ### 0.4 建立最小语法语料
 
-- [ ] 常量、赋值和删除。
-- [ ] 一元、二元和原地运算。
-- [ ] 属性、下标和切片。
-- [ ] 位置参数和关键字参数调用。
-- [ ] 函数、lambda、默认参数和注解。
-- [ ] 类、继承、方法和装饰器。
-- [ ] `if/elif/else` 和布尔短路。
-- [ ] `for/while`、`break/continue` 和 loop-else。
-- [ ] list/set/dict comprehension 和 generator expression。
-- [ ] `yield`、`yield from` 和 `await`。
-- [ ] `try/except/else/finally`。
-- [ ] `with` 和 `async with`。
-- [ ] `match/case`。
-- [ ] `except*` 和 ExceptionGroup。
+- [x] 常量、赋值和删除。
+- [x] 一元、二元和原地运算。
+- [x] 属性、下标和切片。
+- [x] 位置参数和关键字参数调用。
+- [x] 函数、lambda、默认参数和注解。
+- [x] 类、继承、方法和装饰器。
+- [x] `if/elif/else` 和布尔短路。
+- [x] `for/while`、`break/continue` 和 loop-else。
+- [x] list/set/dict comprehension 和 generator expression。
+- [x] `yield`、`yield from` 和 `await`。
+- [x] `try/except/else/finally`。
+- [x] `with` 和 `async with`。
+- [x] `match/case`。
+- [x] `except*` 和 ExceptionGroup。
 
 ### 阶段 0 验收条件
 
-- [ ] 现有测试基线已记录。
-- [ ] 3.11 测试语料可以重复生成。
-- [ ] 测试能够区分装载、扫描、解析、源码生成和行为验证失败。
-- [ ] 原始工作区无关文件未被修改。
+- [x] 现有测试基线已记录。
+- [x] 3.11 测试语料可以重复生成。
+- [x] 测试能够区分装载、扫描、解析、源码生成和行为验证失败。
+- [x] 原始工作区无关文件未被修改。
 
 ### 阶段 0 交付物
 
@@ -727,5 +727,48 @@ VerificationError
 
 ## 9. 执行记录
 
-当前尚未开始代码实现。
+### 2026-07-30：阶段 0
 
+- 状态：已完成
+- 基线提交：
+  - `78b1d89e402ff9a94e309be73213ccec0c7aee53`
+- 修改文件：
+  - `pyproject.toml`
+  - `pytest/support311.py`
+  - `pytest/test_corpus311.py`
+  - `pytest/test_scanner311.py`
+  - `pytest/test_deparse311.py`
+  - `pytest/test_controlflow311.py`
+  - `pytest/test_exceptiontable311.py`
+  - `test/simple_source/311/*.py`
+  - `test/bytecode_3.11/*`
+- 已实现：
+  - 创建 CPython 3.11.9 独立虚拟环境并安装完整开发依赖。
+  - 验证 `xdis 6.3.0` 可以装载版本 `(3, 11)`、magic `3495` 的 `.pyc`。
+  - 建立 9 份覆盖基础语法、控制流、推导式、异步、异常表、
+    `match/case` 和 `except*` 的源码语料。
+  - 建立 hash-based `.pyc` 和稳定标准 `dis` golden 生成器。
+  - 建立 Scanner、Parser、CFG 和异常表的分阶段 pytest 入口。
+  - 将 pytest 收集范围限制到 `pytest/`，不再误收集 Python 2 源码语料。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/python -m pytest pytest/test_corpus311.py -q`
+  - `.venv311/bin/python -m pytest -q`
+  - `make check PYTHON=/absolute/path/to/.venv311/bin/python`
+- 验证结果：
+  - 生成并检查 9 份 CPython 3.11 corpus：成功。
+  - corpus 测试：`3 passed`。
+  - 全部 pytest：`1 failed, 7 passed, 20 skipped`。
+  - `make check`：在相同的单一基线失败处停止。
+- 3.7/3.8 回归：
+  - 阶段 0 没有引入新的 Scanner 失败。
+  - 当前基线中 3.7/3.8 Scanner 因 `xdis 6.3.0` opcode 模块迁移而无法导入。
+- 已知限制：
+  - `xdis 6.3.0` 将 3.x opcode 模块移动到
+    `xdis.opcodes.opcode_3x`，现有 Scanner 仍使用旧导入路径。
+  - Scanner311 尚未实现，相关阶段测试按计划跳过。
+  - Token golden 当前只固定格式，实际 Token 文件将在阶段 1 生成。
+- 下一步：
+  - 阶段 1：先恢复现有 Scanner 对 `xdis 6.3.0` 的兼容导入，
+    再注册 `(3, 11)` 并实现原始 `Scanner311`。

@@ -55,3 +55,6 @@ version = {attr = "decompyle3.version.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["decompyle3*"]  # Include all subpackages
+
+[tool.pytest.ini_options]
+testpaths = ["pytest"]
