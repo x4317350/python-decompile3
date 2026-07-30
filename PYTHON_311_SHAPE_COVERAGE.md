@@ -6,9 +6,9 @@
 ## 汇总
 
 - Shape inventory：31
-- pass：27
+- pass：30
 - internal_consumed：0
-- unsupported_fail_closed：4
+- unsupported_fail_closed：1
 - not_applicable：0
 - missing：0
 
@@ -34,12 +34,12 @@
 | `with_statement` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
 | `async_with` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
 | `except_star_basic` | exception_group | pass | `test/simple_source/311/07_exception_group.py` | `—` | 2 |
-| `except_star_with_else` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 2 |
-| `except_star_with_finally` | exception_group | unsupported_fail_closed | `—` | `UnsupportedPython311ControlFlow` | 2 |
+| `except_star_with_else` | exception_group | pass | `—` | `—` | 2 |
+| `except_star_with_finally` | exception_group | pass | `—` | `—` | 2 |
 | `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 2 |
 | `single_mode_print_expr` | compile_mode | pass | `test/bytecode_3.11/opcode_fixtures/internal/print_expr.py` | `—` | 2 |
 | `extended_arg` | internal | pass | `—` | `—` | 2 |
-| `compound_assert_condition` | statement | unsupported_fail_closed | `—` | `Python311ParseError` | 2 |
+| `compound_assert_condition` | statement | pass | `—` | `—` | 2 |
 | `closure_class_scope` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/load_classderef.py` | `—` | 3 |
 | `variable_annotations` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py` | `—` | 3 |
 | `assert_statement` | statement | pass | `test/bytecode_3.11/opcode_fixtures/statements/load_assertion_error.py` | `—` | 3 |
@@ -55,7 +55,4 @@
 
 ## Fail-closed
 
-- `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 6 verifies its fail-closed contract before behavior execution.
-- `except_star_with_else`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an else suite. Phase 6 verifies its fail-closed contract before behavior execution.
-- `except_star_with_finally`：`UnsupportedPython311ControlFlow`；The current parser rejects except* combined with an enclosing finally. Phase 6 verifies its fail-closed contract before behavior execution.
-- `compound_assert_condition`：`Python311ParseError`；Compound and/or assert predicates remain explicitly fail-closed pending shape recovery. Phase 6 verifies its fail-closed contract before behavior execution.
+- `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes.

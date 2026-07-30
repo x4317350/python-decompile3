@@ -488,16 +488,87 @@ class ExceptionStructureDecompiler311:
         )
         if join_jump is None:
             self._error("except* cleanup has no normal continuation")
+        join_offset = instruction_target(self.tokens[join_jump])
+        join_index = self.offset_to_index[join_offset]
+
+        normal_jump = next(
+            (
+                index
+                for index in range(try_end, handler_index)
+                if self.tokens[index].kind == "JUMP_FORWARD"
+            ),
+            None,
+        )
+        orelse = []
+        if normal_jump is not None:
+            else_offset = instruction_target(self.tokens[normal_jump])
+            if else_offset != join_offset:
+                else_index = self.offset_to_index.get(else_offset)
+                if (
+                    else_index is None
+                    or not prep_index < else_index < join_index
+                ):
+                    self._error(
+                        "except* else suite has an invalid normal-path jump"
+                    )
+                orelse = self._capture_suppressed(
+                    else_index,
+                    join_index,
+                    loop,
+                )
+
+        finalbody = []
+        outer_finally = next(
+            (
+                candidate
+                for candidate in self.entries
+                if candidate is not entry
+                and not candidate.lasti
+                and self.tokens[prep_index].offset
+                <= candidate.start
+                < candidate.end
+                <= self.tokens[join_index].offset
+                and self.tokens[
+                    self.offset_to_index[candidate.target]
+                ].kind
+                == "PUSH_EXC_INFO"
+            ),
+            None,
+        )
+        if outer_finally is not None:
+            final_handler_index = self.offset_to_index[
+                outer_finally.target
+            ]
+            finalbody_end = final_handler_index
+            if finalbody_end <= join_index:
+                self._error("except* finally suite has no normal-path body")
+            next_index = self._handler_cleanup_end(
+                final_handler_index + 1
+            )
+            terminal = self.tokens[finalbody_end - 1]
+            if terminal.kind == "JUMP_FORWARD":
+                target = instruction_target(terminal)
+                is_break = (
+                    loop is not None and target == loop.break_target
+                )
+                if target > terminal.offset and not is_break:
+                    finalbody_end -= 1
+                    next_index = self.offset_to_index[target]
+            finalbody = self._capture_suppressed(
+                join_index,
+                finalbody_end,
+                loop,
+            )
+            join_index = next_index
+
         return (
             ast.TryStar(
                 body=body or [ast.Pass()],
                 handlers=handlers,
-                orelse=[],
-                finalbody=[],
+                orelse=orelse,
+                finalbody=finalbody,
             ),
-            self.offset_to_index[
-                instruction_target(self.tokens[join_jump])
-            ],
+            join_index,
         )
 
     def _try_finally(self, entry, loop) -> Tuple[ast.Try, int]:

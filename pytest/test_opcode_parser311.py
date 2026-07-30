@@ -376,34 +376,56 @@ def test_assert_predicate_variants_preserve_behavior(
 
 
 @pytest.mark.parametrize(
-    "assertion, expected_error",
+    "assertion, accepted, rejected",
     [
         (
             "left and right",
-            "Unsupported phase-3 opcode LOAD_ASSERTION_ERROR",
+            ((1, 2),),
+            ((0, 2), (1, 0)),
         ),
         (
             "left or right",
-            "Invalid expression instruction range",
+            ((1, 0), (0, 2)),
+            ((0, 0),),
         ),
     ],
 )
-def test_compound_assertions_fail_closed(assertion, expected_error):
+def test_compound_assertions_preserve_behavior(
+    assertion,
+    accepted,
+    rejected,
+):
     source = (
         "def require(left, right):\n"
         f"    assert {assertion}, 'both values are required'\n"
     )
-    with pytest.raises(Python311ParseError, match=expected_error) as raised:
-        recover_code(
-            compile(
-                source,
-                "<stage5-compound-assert>",
-                "exec",
-                dont_inherit=True,
-            )
+    original = execute(source, "stage7_compound_assert_original")
+    recovered_source = recover_code(
+        compile(
+            source,
+            "<stage7-compound-assert>",
+            "exec",
+            dont_inherit=True,
         )
-    assert raised.value.version == (3, 11)
-    assert raised.value.code_name == "require"
+    )
+    recovered = execute(
+        recovered_source,
+        "stage7_compound_assert_recovered",
+    )
+    tree = ast.parse(recovered_source)
+    assertion_node = next(
+        node for node in ast.walk(tree) if isinstance(node, ast.Assert)
+    )
+    assert isinstance(assertion_node.test, ast.BoolOp)
+
+    for arguments in accepted:
+        assert original["require"](*arguments) is None
+        assert recovered["require"](*arguments) is None
+    for arguments in rejected:
+        for namespace in (original, recovered):
+            with pytest.raises(AssertionError) as raised:
+                namespace["require"](*arguments)
+            assert raised.value.args == ("both values are required",)
 
 
 def test_scope_deletion_starred_collection_and_mapping_preserve_behavior():

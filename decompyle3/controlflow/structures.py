@@ -172,100 +172,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         self.exception_states = {}
         self._suppressed_exception_starts = set()
-        self._validate_exception_group_shapes()
         self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
-
-    def _validate_exception_group_shapes(self):
-        """Reject except* layouts whose else/finally semantics are ambiguous."""
-        if not any(token.kind == "CHECK_EG_MATCH" for token in self.tokens):
-            return
-
-        for entry in self.exception_regions:
-            handler_index = self.offset_to_index[entry.target]
-            if (
-                entry.lasti
-                or self.tokens[handler_index].kind != "PUSH_EXC_INFO"
-            ):
-                continue
-            prep_index = next(
-                (
-                    index
-                    for index in range(handler_index, len(self.tokens))
-                    if self.tokens[index].kind == "PREP_RERAISE_STAR"
-                ),
-                None,
-            )
-            check_index = next(
-                (
-                    index
-                    for index in range(handler_index, prep_index or handler_index)
-                    if self.tokens[index].kind == "CHECK_EG_MATCH"
-                ),
-                None,
-            )
-            if prep_index is None or check_index is None:
-                continue
-
-            continuation_jump = next(
-                (
-                    token
-                    for token in self.tokens[prep_index + 1 :]
-                    if token.kind == "JUMP_FORWARD"
-                ),
-                None,
-            )
-            continuation = (
-                instruction_target(continuation_jump)
-                if continuation_jump is not None
-                else None
-            )
-            if entry.end < entry.target:
-                gap = self.tokens[
-                    self.offset_to_index[entry.end] : handler_index
-                ]
-                if any(
-                    token.kind
-                    not in ("INTERNAL_EXTENDED_ARG", "JUMP_FORWARD", "NOP")
-                    for token in gap
-                ) or any(
-                    token.kind == "JUMP_FORWARD"
-                    and instruction_target(token) != continuation
-                    for token in gap
-                ):
-                    raise UnsupportedPython311ControlFlow(
-                        "except* with an else suite is not yet supported safely",
-                        version=(3, 11),
-                        code_name=self.code.co_name,
-                        offset=entry.end,
-                    )
-
-            if continuation_jump is None:
-                continue
-            outer_finally = next(
-                (
-                    candidate
-                    for candidate in self.exception_regions
-                    if candidate is not entry
-                    and not candidate.lasti
-                    and self.tokens[prep_index].offset
-                    <= candidate.start
-                    < candidate.end
-                    <= continuation
-                    and self.tokens[
-                        self.offset_to_index[candidate.target]
-                    ].kind
-                    == "PUSH_EXC_INFO"
-                ),
-                None,
-            )
-            if outer_finally is not None:
-                raise UnsupportedPython311ControlFlow(
-                    "except* combined with finally is not yet supported safely",
-                    version=(3, 11),
-                    code_name=self.code.co_name,
-                    offset=outer_finally.start,
-                )
 
     def _validate_scope(self):
         for token in self.tokens:
@@ -542,34 +450,73 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         return join_index
 
     def _try_assert_statement(self, start: int, end: int) -> Optional[int]:
-        jump_index = self._condition_jump(start)
-        if jump_index is None:
+        failure_index = next(
+            (
+                index
+                for index in range(start, end)
+                if self.tokens[index].kind == "LOAD_ASSERTION_ERROR"
+            ),
+            None,
+        )
+        if failure_index is None:
             return None
-        jump = self.tokens[jump_index]
-        if jump.kind not in (
-            "POP_JUMP_FORWARD_IF_FALSE",
-            "POP_JUMP_FORWARD_IF_NOT_NONE",
-            "POP_JUMP_FORWARD_IF_NONE",
-            "POP_JUMP_FORWARD_IF_TRUE",
+
+        raise_index = next(
+            (
+                index
+                for index in range(failure_index + 1, end)
+                if self.tokens[index].kind == "RAISE_VARARGS"
+            ),
+            None,
+        )
+        if (
+            raise_index is None
+            or self.tokens[raise_index].attr != 1
         ):
             return None
 
-        target = instruction_target(jump)
-        target_index = self.offset_to_index.get(target)
-        failure_start = jump_index + 1
-        if (
-            target_index is None
-            or target_index > end
-            or failure_start >= target_index
-            or self.tokens[failure_start].kind != "LOAD_ASSERTION_ERROR"
-            or self.tokens[target_index - 1].kind != "RAISE_VARARGS"
-            or self.tokens[target_index - 1].attr != 1
-        ):
+        failure_offset = self.tokens[failure_index].offset
+        success_offsets = set()
+        active_offsets = set()
+        saw_failure = [False]
+
+        def build(offset: int) -> ast.expr:
+            if offset == failure_offset:
+                saw_failure[0] = True
+                return ast.Constant(value=False)
+            index = self.offset_to_index.get(offset)
+            if index is None:
+                raise ValueError("assert branch has no instruction target")
+            if index > raise_index:
+                success_offsets.add(offset)
+                return ast.Constant(value=True)
+            if index >= failure_index or offset in active_offsets:
+                raise ValueError("assert condition has an unsafe branch")
+
+            jump_index = self._condition_jump(index)
+            if jump_index is None or jump_index >= failure_index:
+                raise ValueError("assert condition has no decision jump")
+            active_offsets.add(offset)
+            try:
+                predicate = self._predicate(index, jump_index)
+                true_offset, false_offset = self._jump_outcomes(jump_index)
+                return _combine_decision(
+                    predicate,
+                    build(true_offset),
+                    build(false_offset),
+                )
+            finally:
+                active_offsets.remove(offset)
+
+        try:
+            test = build(self.tokens[start].offset)
+        except (Python311ParseError, ValueError):
+            return None
+        if not saw_failure[0] or not success_offsets:
             return None
 
         message = None
-        message_start = failure_start + 1
-        raise_index = target_index - 1
+        message_start = failure_index + 1
         if message_start < raise_index:
             if (
                 raise_index - message_start < 2
@@ -582,11 +529,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 raise_index - 2,
             )
 
-        test = self._predicate(start, jump_index)
-        if "IF_FALSE" in jump.kind:
-            test = _negate(test)
         self.body.append(ast.Assert(test=test, msg=message))
-        return target_index
+        return min(
+            self.offset_to_index[offset] for offset in success_offsets
+        )
 
     def _if_statement(
         self,
@@ -1098,21 +1044,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if token.kind not in store_kinds:
                 self._flush_assignment()
 
-            if token.linestart is not None:
-                from decompyle3.controlflow.match_structures import (
-                    recover_match_statement311,
-                )
-
-                match_end = recover_match_statement311(
-                    self,
-                    index,
-                    end,
-                    loop,
-                )
-                if match_end is not None:
-                    index = match_end
-                    continue
-
             if (
                 self.exception_regions
                 and token.offset not in self._suppressed_exception_starts
@@ -1147,6 +1078,31 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                         end,
                         loop,
                     )
+                    continue
+
+            if token.kind in (
+                "COPY_FREE_VARS",
+                "INTERNAL_EXTENDED_ARG",
+                "INTERNAL_RESUME",
+                "MAKE_CELL",
+            ):
+                self._dispatch(token)
+                index += 1
+                continue
+
+            if token.linestart is not None:
+                from decompyle3.controlflow.match_structures import (
+                    recover_match_statement311,
+                )
+
+                match_end = recover_match_statement311(
+                    self,
+                    index,
+                    end,
+                    loop,
+                )
+                if match_end is not None:
+                    index = match_end
                     continue
 
             chained_end = self._try_chained_compare(index)

@@ -414,6 +414,61 @@ INLINE_SHAPE_SOURCES = {
         )
         + "    return item_0 + item_299\n"
     ),
+    "except_star_with_else": _probe(
+        """
+        def apply(group, events):
+            try:
+                if group is not None:
+                    raise group
+            except* ValueError as errors:
+                events.append(("handled", len(errors.exceptions)))
+            else:
+                events.append(("else",))
+            return events
+        """
+    ),
+    "except_star_with_finally": _probe(
+        """
+        def apply(group, events):
+            try:
+                raise group
+            except* ValueError as errors:
+                events.append(("handled", len(errors.exceptions)))
+            finally:
+                events.append(("finally",))
+            return events
+        """
+    ),
+    "compound_assert_condition": _probe(
+        """
+        def require_and(left, right, events):
+            def mark(name, value):
+                events.append(name)
+                return value
+            assert mark("left", left) and mark("right", right), "and failed"
+            return events
+
+        def require_or(left, right, events):
+            def mark(name, value):
+                events.append(name)
+                return value
+            assert mark("left", left) or mark("right", right), "or failed"
+            return events
+
+        def require_nested(left, middle, right, events):
+            def mark(name, value):
+                events.append(name)
+                return value
+            assert (
+                mark("left", left)
+                and (
+                    mark("middle", middle)
+                    or mark("right", right)
+                )
+            ), "nested failed"
+            return events
+        """
+    ),
 }
 
 
@@ -443,39 +498,117 @@ INLINE_SHAPE_PROBES = {
         "apply(0, 5), apply(2, -2), apply(2, 5)])\n"
     ),
     "extended_arg": '_record("shape", lambda: apply(7))\n',
-}
-
-
-FAIL_CLOSED_SHAPE_SOURCES = {
     "except_star_with_else": _probe(
         """
-        def unsafe(group, events):
+        def exercise(group):
+            events = []
             try:
-                if group is not None:
-                    raise group
-            except* ValueError:
-                events.append("handled")
-            else:
-                events.append("else")
-            return events
+                result = apply(group, events)
+            except BaseExceptionGroup as error:
+                return (
+                    "raise",
+                    error.args[0],
+                    tuple(type(item).__name__ for item in error.exceptions),
+                    events,
+                )
+            return ("return", result, events)
+
+        _record("else_none", lambda: exercise(None))
+        _record(
+            "else_handled",
+            lambda: exercise(
+                ExceptionGroup(
+                    "values",
+                    [ValueError("one"), ValueError("two")],
+                )
+            ),
+        )
+        _record(
+            "else_split",
+            lambda: exercise(
+                ExceptionGroup(
+                    "mixed",
+                    [ValueError("value"), TypeError("type")],
+                )
+            ),
+        )
         """
     ),
     "except_star_with_finally": _probe(
         """
-        def unsafe(group, events):
+        def exercise(group):
+            events = []
             try:
-                raise group
-            except* ValueError:
-                events.append("handled")
-            finally:
-                events.append("finally")
-            return events
+                result = apply(group, events)
+            except BaseException as error:
+                nested = getattr(error, "exceptions", ())
+                return (
+                    "raise",
+                    type(error).__name__,
+                    error.args[0],
+                    tuple(type(item).__name__ for item in nested),
+                    events,
+                )
+            return ("return", result, events)
+
+        _record(
+            "finally_handled",
+            lambda: exercise(
+                ExceptionGroup(
+                    "values",
+                    [ValueError("one"), ValueError("two")],
+                )
+            ),
+        )
+        _record(
+            "finally_split",
+            lambda: exercise(
+                ExceptionGroup(
+                    "mixed",
+                    [ValueError("value"), TypeError("type")],
+                )
+            ),
+        )
+        _record(
+            "finally_plain",
+            lambda: exercise(RuntimeError("plain")),
+        )
         """
     ),
     "compound_assert_condition": _probe(
         """
-        def require(left, right):
-            assert left and right, "both values are required"
+        def exercise(operation, left, right):
+            events = []
+            function = require_and if operation == "and" else require_or
+            try:
+                result = function(left, right, events)
+            except AssertionError as error:
+                return ("raise", error.args, events)
+            return ("return", result, events)
+
+        def exercise_nested(left, middle, right):
+            events = []
+            try:
+                result = require_nested(left, middle, right, events)
+            except AssertionError as error:
+                return ("raise", error.args, events)
+            return ("return", result, events)
+
+        _record(
+            "assertions",
+            lambda: [
+                exercise("and", 1, 2),
+                exercise("and", 0, 2),
+                exercise("and", 1, 0),
+                exercise("or", 1, 0),
+                exercise("or", 0, 2),
+                exercise("or", 0, 0),
+                exercise_nested(1, 2, 0),
+                exercise_nested(1, 0, 3),
+                exercise_nested(1, 0, 0),
+                exercise_nested(0, 2, 3),
+            ],
+        )
         """
     ),
 }

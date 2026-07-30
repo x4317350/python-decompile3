@@ -25,7 +25,6 @@ from decompyle3.errors import (
     VerificationError,
 )
 from decompyle3.main import verify_source
-from decompyle3.parsers.p311.base import UnsupportedPython311ControlFlow
 from decompyle3.scanner import get_scanner
 from decompyle3.scanners.scanner311 import Scanner311
 from decompyle3.semantics.pysource import code_deparse
@@ -250,7 +249,7 @@ def test_large_function_deep_nesting_and_long_collection_stress():
 
 
 @pytest.mark.parametrize(
-    "source, expected",
+    "source, has_else, has_finally",
     [
         (
             """
@@ -264,7 +263,8 @@ def unsafe(group, events):
         events.append("else")
     return events
 """,
-            "else suite",
+            True,
+            False,
         ),
         (
             """
@@ -277,24 +277,100 @@ def unsafe(group, events):
         events.append("finally")
     return events
 """,
-            "combined with finally",
+            False,
+            True,
+        ),
+        (
+            """
+def unsafe(group, events):
+    try:
+        if group is not None:
+            raise group
+    except* ValueError:
+        events.append("handled")
+    else:
+        events.append("else")
+    finally:
+        events.append("finally")
+    return events
+""",
+            True,
+            True,
+        ),
+        (
+            """
+def unsafe(group, events):
+    try:
+        raise group
+    except* ValueError:
+        events.append("handled")
+    finally:
+        events.append("finally")
+        return tuple(events)
+""",
+            False,
+            True,
         ),
     ],
 )
-def test_unsafe_except_star_combinations_fail_closed_with_context(
+def test_except_star_else_and_finally_preserve_behavior(
     source,
-    expected,
+    has_else,
+    has_finally,
 ):
-    with pytest.raises(
-        UnsupportedPython311ControlFlow,
-        match=expected,
-    ) as raised:
-        recover_code(compile(source, "<unsafe-except-star>", "exec"))
-    error = raised.value
-    assert isinstance(error, ControlFlowError)
-    assert error.version == (3, 11)
-    assert error.code_name == "unsafe"
-    assert isinstance(error.offset, int)
+    recovered_source = recover_code(
+        compile(
+            source,
+            "<stage7-except-star-combination>",
+            "exec",
+            dont_inherit=True,
+        )
+    )
+    tree = ast.parse(recovered_source)
+    statement = next(
+        node for node in ast.walk(tree) if isinstance(node, ast.TryStar)
+    )
+    assert bool(statement.orelse) is has_else
+    assert bool(statement.finalbody) is has_finally
+
+    original = execute(source, "stage7_except_star_original")
+    recovered = execute(
+        recovered_source,
+        "stage7_except_star_recovered",
+    )
+
+    def outcome(namespace, group):
+        events = []
+        try:
+            result = namespace["unsafe"](group, events)
+        except BaseException as error:
+            nested = getattr(error, "exceptions", ())
+            return (
+                "raise",
+                type(error).__name__,
+                error.args[0] if error.args else None,
+                tuple(type(item).__name__ for item in nested),
+                events,
+            )
+        return ("return", result, events)
+
+    group_factories = [
+        lambda: ExceptionGroup(
+            "values",
+            [ValueError("one"), ValueError("two")],
+        ),
+        lambda: ExceptionGroup(
+            "mixed",
+            [ValueError("value"), TypeError("type")],
+        ),
+    ]
+    if has_else:
+        group_factories.insert(0, lambda: None)
+    for factory in group_factories:
+        assert outcome(recovered, factory()) == outcome(
+            original,
+            factory(),
+        )
 
 
 def compile_cli_input(source: Path, destination: Path):

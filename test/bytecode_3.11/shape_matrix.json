@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 6,
+  "phase": 7,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -131,7 +131,7 @@
         "pytest/test_controlflow311.py::test_irreducible_graph_is_rejected_explicitly",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Artificial irreducible graphs are rejected instead of guessed. Phase 6 verifies its fail-closed contract before behavior execution."
+      "notes": "Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes."
     },
     {
       "name": "nested_comprehension_filter",
@@ -232,26 +232,26 @@
     {
       "name": "except_star_with_else",
       "category": "exception_group",
-      "status": "unsupported_fail_closed",
+      "status": "pass",
       "fixture": null,
-      "expected_error": "UnsupportedPython311ControlFlow",
+      "expected_error": null,
       "tests": [
-        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context",
+        "pytest/test_reliability311.py::test_except_star_else_and_finally_preserve_behavior",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "The current parser rejects except* combined with an else suite. Phase 6 verifies its fail-closed contract before behavior execution."
+      "notes": "Phase 7 recovers the normal-path else suite and verifies handled, unraised, and partially reraised ExceptionGroup behavior."
     },
     {
       "name": "except_star_with_finally",
       "category": "exception_group",
-      "status": "unsupported_fail_closed",
+      "status": "pass",
       "fixture": null,
-      "expected_error": "UnsupportedPython311ControlFlow",
+      "expected_error": null,
       "tests": [
-        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context",
+        "pytest/test_reliability311.py::test_except_star_else_and_finally_preserve_behavior",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "The current parser rejects except* combined with an enclosing finally. Phase 6 verifies its fail-closed contract before behavior execution."
+      "notes": "Phase 7 attaches the duplicated normal-path finally suite to TryStar and verifies handled, reraised, and combined else/finally behavior."
     },
     {
       "name": "match_patterns_and_guards",
@@ -292,14 +292,14 @@
     {
       "name": "compound_assert_condition",
       "category": "statement",
-      "status": "unsupported_fail_closed",
+      "status": "pass",
       "fixture": null,
-      "expected_error": "Python311ParseError",
+      "expected_error": null,
       "tests": [
-        "pytest/test_opcode_parser311.py::test_compound_assertions_fail_closed",
+        "pytest/test_opcode_parser311.py::test_compound_assertions_preserve_behavior",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Compound and/or assert predicates remain explicitly fail-closed pending shape recovery. Phase 6 verifies its fail-closed contract before behavior execution."
+      "notes": "Phase 7 rebuilds multi-jump and/or assertion predicates while preserving messages and short-circuit evaluation order."
     },
     {
       "name": "closure_class_scope",

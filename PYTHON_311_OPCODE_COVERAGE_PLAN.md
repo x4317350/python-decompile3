@@ -519,13 +519,16 @@ recovered.py
 
 重点项目：
 
-- `except*` 与 `else`；
-- `except*` 与外层 `finally`；
-- assertion paths；
-- import-star namespace 行为；
-- uncommon stack rotations；
-- incrementally built mapping；
-- canonical 之外的 match 边界。
+- [x] `except*` 与 `else` 转为 `pass`；
+- [x] `except*` 与外层 `finally` 转为 `pass`，并覆盖
+  `else + finally` 和 `finally return`；
+- [x] compound `and/or` assertion paths 转为 `pass`；
+- [x] import-star namespace 行为复核通过；
+- [x] uncommon stack rotations 既有语料和行为契约复核通过；
+- [x] incrementally built mapping 既有语料和行为契约复核通过；
+- [x] 修正异常表与 canonical 之外 match 启发式的识别优先级；
+- [x] 人工不可约 CFG 保持 `unsupported_fail_closed`，继续抛出
+  `IrreducibleControlFlowError`。
 
 ### 阶段 8：标准库和真实项目回归
 
@@ -827,8 +830,8 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5 和阶段 6
-  已完成；
+- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5、阶段 6
+  和阶段 7 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
@@ -837,10 +840,11 @@ Behavior：
 - Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Parser 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Behavior 层已达到 102 pass + 8 internal_consumed，即 110/110；
-- shape inventory 为 31 项：27 pass、4 unsupported_fail_closed、
+- shape inventory 为 31 项：30 pass、1 unsupported_fail_closed、
   0 missing；
-- 本阶段建立 checked-hash pyc、反编译、隔离子进程和富观测值差分链路；
-- 失败现场、超时和非确定性字段清洗已有自动化回归。
+- `except* + else`、`except* + finally` 和 compound assertion
+  已由 fail-closed 转为差分行为验证的正式支持；
+- 人工不可约 CFG 是当前 shape 矩阵中唯一保留的 fail-closed 边界。
 
 阶段 0：
 
@@ -975,4 +979,23 @@ Behavior：新增 checked-hash pyc、decompyle3 恢复、隔离子进程和 JSON
 golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
 已知限制：compound and/or assert、except* + else、except* + finally 和人工不可约 CFG 继续显式 fail-closed
 失败现场：受控 mismatch 和 timeout 均保留文档规定的 13 类文件；实际 corpus 无行为差异
+```
+
+阶段 7：
+
+```text
+阶段：7，补齐已知不支持组合
+提交：本文件所在 Git 提交，建议提交说明为“功能：补齐 Python 3.11 已知不支持组合”
+新增语料：0 个 checked-in fixture；新增 3 项 inline shape 差分 probe，并扩展 finally-return 与嵌套 assertion 观测
+新增 opcode 覆盖：0；110 项四层状态保持完整，补充 PUSH_EXC_INFO、CHECK_EG_MATCH、PREP_RERAISE_STAR 和 LOAD_ASSERTION_ERROR 的阶段 7 契约
+新增 shape 覆盖：except_star_with_else、except_star_with_finally、compound_assert_condition 从 fail-closed 转为 pass；合计 30 pass、1 fail-closed、0 missing
+Scanner：未修改；维持 110/110 pass
+Normalizer：未修改；维持 102 pass + 8 internal_consumed
+Parser：恢复 compound and/or assertion 决策图；恢复 TryStar 的 else、finally、else+finally 和 finally-return；异常表结构优先于启发式 match/condition 识别
+Behavior：新增 ExceptionGroup 全处理、部分重抛、普通异常、else/finally 副作用，以及 assertion 短路顺序和异常参数差分
+定向测试：Parser、shape behavior、reliability、syntax、control-flow 和 opcode behavior，315 passed
+全量测试：735 passed, 6 skipped；6 项均为既有 Python 3.7/3.8 legacy skip
+golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
+已知限制：人工不可约 CFG 继续显式 fail-closed，并由 IrreducibleControlFlowError 契约保护
+失败现场：入口 INTERNAL_RESUME 曾使条件启发式跨过 NOP 抢先消费异常区；现已在结构恢复前跳过入口协议并给予异常表精确结构更高优先级
 ```
