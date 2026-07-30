@@ -326,13 +326,13 @@ shape 矩阵至少包含：
 
 任务：
 
-- [ ] 实现 `generate_opcode_matrix.py`；
-- [ ] 验证 JSON schema；
-- [ ] 生成 `PYTHON_311_OPCODE_COVERAGE.md`；
-- [ ] 生成 `PYTHON_311_SHAPE_COVERAGE.md`；
-- [ ] 增加 `--check` 模式；
-- [ ] 检查报告是否过期；
-- [ ] 未知状态或缺少字段时返回非零状态。
+- [x] 实现 `generate_opcode_matrix.py`；
+- [x] 验证 JSON schema；
+- [x] 生成 `PYTHON_311_OPCODE_COVERAGE.md`；
+- [x] 生成 `PYTHON_311_SHAPE_COVERAGE.md`；
+- [x] 增加 `--check` 模式；
+- [x] 检查报告是否过期；
+- [x] 未知状态或缺少字段时返回非零状态。
 
 验收命令：
 
@@ -827,9 +827,10 @@ Behavior：
 
 当前状态：
 
-- 阶段 0 已完成，产物位于本文件所在的阶段 0 Git 提交；
-- 已创建 `opcode_matrix.json`，尚未创建 `shape_matrix.json`；
-- 阶段 1 尚未开始；
+- 阶段 0 和阶段 1 已完成；
+- 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
+- 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
+- 阶段 2 尚未开始；
 - 尚未修改 Scanner、Normalizer 或 Parser。
 
 阶段 0：
@@ -848,4 +849,22 @@ Behavior：逐 opcode 正式状态暂为 missing，后续阶段归因
 全量测试：110 passed, 6 skipped；连续两次结果一致
 已知限制：见 test/bytecode_3.11/OPCODE_COVERAGE_BASELINE.md
 失败现场：无
+```
+
+阶段 1：
+
+```text
+阶段：1，实现矩阵生成和一致性检查
+提交：本文件所在 Git 提交，提交说明为“测试：建立 Python 3.11 opcode 覆盖矩阵基础设施”
+新增语料：0
+新增 opcode 覆盖：0；沿用阶段 0 inventory 110/110、raw 97/110、normalized 96/110
+新增 shape 覆盖：建立 30 项 shape inventory；pass 20、fail-closed 3、missing 7
+Scanner：未修改；110 项状态仍为 missing
+Normalizer：未修改；110 项状态仍为 missing
+Parser：未修改；110 项状态仍为 missing
+Behavior：未修改；110 项状态仍为 missing
+定向测试：pytest/test_opcode_inventory311.py，6 passed
+全量测试：116 passed, 6 skipped；本阶段无新增 skip
+已知限制：7 项 shape 尚为 missing；逐 opcode 四层状态将在后续阶段归因
+失败现场：未知状态和缺少字段返回 2；过期或缺失报告返回 1
 ```

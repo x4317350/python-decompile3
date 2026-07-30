@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "phase": 1,
+  "target": {
+    "implementation": "CPython",
+    "version": "3.11"
+  },
+  "status_values": [
+    "pass",
+    "internal_consumed",
+    "unsupported_fail_closed",
+    "not_applicable",
+    "missing"
+  ],
+  "shapes": [
+    {
+      "name": "nested_and_or",
+      "category": "expression",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_eval_short_circuit_expressions_preserve_values"
+      ],
+      "notes": "eval mode covers nested and/or value preservation."
+    },
+    {
+      "name": "mixed_short_circuit_return",
+      "category": "expression",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_exec_return_mixed_short_circuit_preserves_false_values"
+      ],
+      "notes": "exec-mode nested closure covers false values, result fallback, type, and lazy addition."
+    },
+    {
+      "name": "short_circuit_evaluation_order",
+      "category": "expression",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_short_circuit_expressions_preserve_evaluation_order"
+      ],
+      "notes": "Observable call order is compared between original and recovered expressions."
+    },
+    {
+      "name": "conditional_expression",
+      "category": "expression",
+      "status": "pass",
+      "fixture": "test/simple_source/311/02_control_flow.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_control_flow_source_reparses_recompiles_and_has_all_structures"
+      ],
+      "notes": "Recovered AST must contain ast.IfExp."
+    },
+    {
+      "name": "chained_comparison",
+      "category": "expression",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_chained_comparison_comprehension_filters"
+      ],
+      "notes": "Covers chained comparison filters for all comprehension forms."
+    },
+    {
+      "name": "explicit_if_multiple_return",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_exec_explicit_if_return_keeps_statement_control_flow"
+      ],
+      "notes": "Explicit if statements with multiple return sites remain statement control flow."
+    },
+    {
+      "name": "if_elif_else",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/simple_source/311/02_control_flow.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+      ],
+      "notes": "Behavior coverage includes classify, nested conditions, and choose."
+    },
+    {
+      "name": "for_break_continue_else",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/simple_source/311/02_control_flow.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+      ],
+      "notes": "Behavior coverage includes for loops, nested loops, break, continue, and loop else."
+    },
+    {
+      "name": "while_break_continue_else",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/simple_source/311/02_control_flow.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_recovered_control_flow_has_equivalent_behavior"
+      ],
+      "notes": "Behavior coverage includes while, None predicates, and continue."
+    },
+    {
+      "name": "irreducible_control_flow",
+      "category": "control_flow",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "IrreducibleControlFlowError",
+      "tests": [
+        "pytest/test_controlflow311.py::test_irreducible_graph_is_rejected_explicitly"
+      ],
+      "notes": "Artificial irreducible graphs are rejected instead of guessed."
+    },
+    {
+      "name": "nested_comprehension_filter",
+      "category": "comprehension",
+      "status": "pass",
+      "fixture": "test/simple_source/311/03_comprehensions.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_generators311.py::test_recovered_comprehensions_preserve_behavior_and_scope"
+      ],
+      "notes": "Covers nested comprehensions, filters, lambdas, and scope isolation."
+    },
+    {
+      "name": "generator_and_yield_from",
+      "category": "generator_async",
+      "status": "pass",
+      "fixture": "test/simple_source/311/04_generators_async.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior"
+      ],
+      "notes": "Covers generator yield, yield from, send, and return behavior."
+    },
+    {
+      "name": "coroutine_await",
+      "category": "generator_async",
+      "status": "pass",
+      "fixture": "test/simple_source/311/04_generators_async.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_generators311.py::test_recovered_generators_and_coroutines_preserve_behavior"
+      ],
+      "notes": "Coroutine and await behavior is compared through asyncio."
+    },
+    {
+      "name": "async_for",
+      "category": "generator_async",
+      "status": "pass",
+      "fixture": "test/simple_source/311/04_generators_async.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior"
+      ],
+      "notes": "Async iteration protocol and loop behavior are covered."
+    },
+    {
+      "name": "try_except_else_finally",
+      "category": "exception",
+      "status": "pass",
+      "fixture": "test/simple_source/311/05_exceptions_with.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_exceptiontable311.py::test_recovered_exception_structures_preserve_behavior"
+      ],
+      "notes": "Covers normal, handled, else, finally, and reraised paths."
+    },
+    {
+      "name": "with_statement",
+      "category": "exception",
+      "status": "pass",
+      "fixture": "test/simple_source/311/05_exceptions_with.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_exceptiontable311.py::test_recovered_with_structures_preserve_exit_behavior"
+      ],
+      "notes": "Context-manager enter, exit, suppression, and propagation are compared."
+    },
+    {
+      "name": "async_with",
+      "category": "exception",
+      "status": "pass",
+      "fixture": "test/simple_source/311/05_exceptions_with.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_exceptiontable311.py::test_recovered_async_with_and_async_for_preserve_behavior"
+      ],
+      "notes": "Async context-manager behavior is compared."
+    },
+    {
+      "name": "except_star_basic",
+      "category": "exception_group",
+      "status": "pass",
+      "fixture": "test/simple_source/311/07_exception_group.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_syntax311.py::test_recovered_except_star_preserves_splitting_and_reraise"
+      ],
+      "notes": "Covers ExceptionGroup splitting, handling, and reraising."
+    },
+    {
+      "name": "except_star_with_else",
+      "category": "exception_group",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "UnsupportedPython311ControlFlow",
+      "tests": [
+        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context"
+      ],
+      "notes": "The current parser rejects except* combined with an else suite."
+    },
+    {
+      "name": "except_star_with_finally",
+      "category": "exception_group",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "UnsupportedPython311ControlFlow",
+      "tests": [
+        "pytest/test_reliability311.py::test_unsafe_except_star_combinations_fail_closed_with_context"
+      ],
+      "notes": "The current parser rejects except* combined with an enclosing finally."
+    },
+    {
+      "name": "match_patterns_and_guards",
+      "category": "match",
+      "status": "pass",
+      "fixture": "test/simple_source/311/06_match.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_syntax311.py::test_recovered_match_preserves_bindings_guards_and_behavior"
+      ],
+      "notes": "Covers canonical mapping, sequence, class, OR, AS, star, and guard forms."
+    },
+    {
+      "name": "single_mode_print_expr",
+      "category": "compile_mode",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_expressions311.py::test_single_mode_uses_expression_cfg_instead_of_statement_if"
+      ],
+      "notes": "compile(..., mode='single') exercises PRINT_EXPR outside the file corpus."
+    },
+    {
+      "name": "extended_arg",
+      "category": "internal",
+      "status": "pass",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [
+        "pytest/test_reliability311.py::test_large_function_deep_nesting_and_long_collection_stress"
+      ],
+      "notes": "Large generated functions cover EXTENDED_ARG and deep constants."
+    },
+    {
+      "name": "closure_class_scope",
+      "category": "scope",
+      "status": "missing",
+      "fixture": "test/simple_source/311/01_functions_classes.py",
+      "expected_error": null,
+      "tests": [],
+      "notes": "General closure and class coverage exists, but LOAD_CLASSDEREF needs an attributed fixture."
+    },
+    {
+      "name": "variable_annotations",
+      "category": "scope",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "SETUP_ANNOTATIONS is not present in the current file corpus."
+    },
+    {
+      "name": "assert_statement",
+      "category": "statement",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "LOAD_ASSERTION_ERROR is not present in the current file corpus."
+    },
+    {
+      "name": "import_star",
+      "category": "import",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "IMPORT_STAR is not present in the current file corpus."
+    },
+    {
+      "name": "starred_collection_build",
+      "category": "collection",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "LIST_TO_TUPLE and SET_UPDATE require attributed fixtures."
+    },
+    {
+      "name": "incremental_mapping_build",
+      "category": "collection",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "Uncommon incrementally built mapping layouts remain a documented limitation."
+    },
+    {
+      "name": "scope_deletion",
+      "category": "scope",
+      "status": "missing",
+      "fixture": null,
+      "expected_error": null,
+      "tests": [],
+      "notes": "DELETE_ATTR, DELETE_DEREF, and DELETE_GLOBAL need attributed fixtures."
+    }
+  ]
+}
