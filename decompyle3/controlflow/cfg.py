@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from decompyle3.controlflow.basicblock import BasicBlock
+from decompyle3.errors import ControlFlowError
 
 
 UNCONDITIONAL_JUMPS = {
@@ -151,8 +152,10 @@ def build_cfg(
     for region in exception_regions:
         for offset in (region.start, region.target):
             if offset not in offset_set:
-                raise ValueError(
-                    f"Exception region references missing offset {offset}"
+                raise ControlFlowError(
+                    "Exception region references a missing offset",
+                    version=(3, 11),
+                    offset=offset,
                 )
             leaders.add(offset)
         if region.end in offset_set:
@@ -161,9 +164,10 @@ def build_cfg(
         target = instruction_target(instruction)
         if target is not None:
             if target not in offset_set:
-                raise ValueError(
-                    f"{instruction.kind} at offset {instruction.offset} "
-                    f"targets missing offset {target}"
+                raise ControlFlowError(
+                    f"{instruction.kind} targets missing offset {target}",
+                    version=(3, 11),
+                    offset=instruction.offset,
                 )
             leaders.add(target)
         if (

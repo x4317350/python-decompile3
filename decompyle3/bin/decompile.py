@@ -64,7 +64,11 @@ def usage():
     "-o",
     "outfile",
     type=click.Path(
-        exists=True, file_okay=True, dir_okay=True, writable=True, resolve_path=True
+        exists=False,
+        file_okay=True,
+        dir_okay=True,
+        writable=True,
+        resolve_path=True,
     ),
     required=False,
 )
@@ -75,7 +79,6 @@ def usage():
     default=0,
     help="start decompilation at offset; default is 0 or the starting offset.",
 )
-@click.version_option(version=__version__)
 @click.option(
     "--stop-offset",
     "stop_offset",
@@ -101,8 +104,9 @@ def main_bin(
     """
     Cross Python bytecode decompiler for Python 3.7, 3.8, and CPython 3.11.
 
-    CPython 3.11 source recovery currently covers straight-line phase-3
-    constructs. Later-phase control flow is rejected with an explicit error.
+    CPython 3.11 decompilation requires running this command on Python 3.11
+    or newer. Unsupported bytecode is rejected instead of emitting guessed
+    source.
     """
     version_tuple = sys.version_info[0:2]
     if version_tuple < (3, 7):
@@ -128,6 +132,8 @@ def main_bin(
                     for df in dir_files:
                         if df.endswith(".pyc") or df.endswith(".pyo"):
                             expanded_files.append(os.path.join(root, df))
+            else:
+                expanded_files.append(f)
         pyc_paths = expanded_files
 
     # argl, commonprefix works on strings, not on path parts,
@@ -193,12 +199,13 @@ def main_bin(
             if len(pyc_paths) > 1:
                 mess = status_msg(verify, *result)
                 print("# " + mess)
-                pass
+            if result[2] or result[3]:
+                raise click.exceptions.Exit(1)
         except ImportError as e:
             print(str(e))
-            sys.exit(2)
+            raise click.exceptions.Exit(2)
         except KeyboardInterrupt:
-            pass
+            raise click.Abort()
     else:
         from multiprocessing import Process, Queue
         from queue import Empty

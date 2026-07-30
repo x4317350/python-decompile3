@@ -166,6 +166,7 @@ from decompyle3.semantics.parser_error import ParserError
 from decompyle3.semantics.transform import TreeTransform
 from decompyle3.show import maybe_show_tree
 from decompyle3.util import better_repr
+from decompyle3.errors import SemanticGenerationError, UnsupportedVersionError
 
 PARSER_DEFAULT_DEBUG = {
     "rules": False,
@@ -185,12 +186,13 @@ DEFAULT_DEBUG_OPTS = {
 }
 
 
-class SourceWalkerError(Exception):
+class SourceWalkerError(SemanticGenerationError):
     def __init__(self, errmsg):
         self.errmsg = errmsg
+        super().__init__(errmsg)
 
     def __str__(self):
-        return self.errmsg
+        return super().__str__()
 
 
 class SourceWalker(GenericASTTraversal, NonterminalActions, ComprehensionMixin):
@@ -1114,6 +1116,14 @@ def code_deparse(
 
     if version is None:
         version = PYTHON_VERSION_TRIPLE
+
+    if version[:2] == (3, 11) and sys.version_info[:2] < (3, 11):
+        raise UnsupportedVersionError(
+            "CPython 3.11 source recovery requires a Python 3.11 or newer "
+            "runtime",
+            version=version,
+            code_name=getattr(co, "co_name", "<unknown>"),
+        )
 
     if version[:2] == (3, 11) and walker is SourceWalker:
         from decompyle3.semantics.customize311 import Python311SourceWalker

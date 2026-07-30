@@ -67,9 +67,11 @@ Unless you are a sponsor of this project, it may take a while, maybe a week or s
 
 ## Do you have valid bytecode?
 
-As mentioned in README.rst, this project doesn't handle obfuscated
-code, release candidates, and the most recent versions of Python: version 3.9 and up. See README.rst for suggestions for how to remove some kinds of
-obfuscation.
+As mentioned in README.rst, this project doesn't handle obfuscated code,
+release candidates, or arbitrary Python versions. Supported target bytecodes
+are Python 3.7, Python 3.8, and released CPython 3.11 on-disk `.pyc` files.
+PyPy 3.11 and live specialized/adaptive bytecode are outside the CPython 3.11
+file contract. See `PYTHON_311_SUPPORT.md` for the maintained support matrix.
 
 Checking if bytecode is valid is pretty simple: disassemble the code.
 Python comes with a disassembly module called `dis`. A prerequisite
@@ -145,8 +147,10 @@ So just because the text isn't the same, this does not necessarily mean there's 
 
 The basic requirement is pretty simple:
 
-* Python bytecode
-* Python source text
+* The smallest Python bytecode file that reproduces the failure
+* The corresponding minimal Python source whenever it is available
+* The exact command and complete output, without removing the contextual
+  target version, code object name, or bytecode offset
 
 Please don't put files on download services that one has to register
 for or can't get to by issuing a simple `curl` or `wget`. If you can't
@@ -163,7 +167,8 @@ and what version of *uncompyle6* was used. Therefore, if you _don't_ provide the
 
 * _decompyle3_ version used
 * OS that you used this on
-* Python interpreter version used
+* Python interpreter version used to run _decompyle3_
+* Python version and implementation that produced the target bytecode
 
 
 ## But I don't *have* the source code!
@@ -191,6 +196,19 @@ what doesn't. That is useful. Or maybe the same file will decompile
 properly on a neighboring version of Python. That is helpful too.
 
 In sum, the more you can isolate or narrow the problem, the more likely the problem will be fixed and fixed sooner.
+
+For a CPython 3.11 report, save the reduced example as `minimal.py` and
+generate a reviewable bytecode input with:
+
+```console
+python3.11 -c "import py_compile; py_compile.compile('minimal.py', cfile='minimal.pyc', doraise=True)"
+decompyle3 --output recovered.py --verify syntax minimal.pyc
+python3.11 -m dis minimal.py
+```
+
+Attach `minimal.py`, `minimal.pyc`, the generated `recovered.py` or
+`recovered.py_failed`, and the full terminal output. Do not attach sensitive
+or proprietary material that you are not authorized to share.
 
 # Karma
 

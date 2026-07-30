@@ -29,6 +29,7 @@ from typing import Union
 
 from spark_parser import GenericASTBuilder
 
+from decompyle3.errors import ParserError as Decompyle3ParserError
 from decompyle3.parsers.treenode import SyntaxTree
 
 
@@ -36,11 +37,15 @@ def nop_func(self, args):
     return None
 
 
-class ParserError(Exception):
+class ParserError(Decompyle3ParserError):
     def __init__(self, token, offset: int, debug: bool):
         self.token = token
         self.offset = offset
         self.debug = debug
+        super().__init__(
+            "Parse error",
+            offset=offset if isinstance(offset, int) and offset >= 0 else None,
+        )
 
     def __str__(self) -> str:
         return "Parse error at or near `%r' instruction at offset %s\n" % (

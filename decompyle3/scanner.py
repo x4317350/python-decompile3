@@ -43,6 +43,16 @@ from xdis.version_info import (
     version_tuple_to_str,
 )
 
+from decompyle3.errors import (  # noqa: F401
+    BytecodeNormalizationError,
+    BytecodeScanError,
+    InvalidJumpTargetError,
+    MalformedBytecodeError,
+    StackDepthError,
+    UnknownOpcodeError,
+    UnsupportedSpecializedOpcodeError,
+    UnsupportedVersionError,
+)
 from decompyle3.scanners.tok import Token
 
 # The byte code versions we support.
@@ -55,34 +65,6 @@ CANONIC2VERSION = dict(
 )
 
 L65536 = 65536
-
-
-class BytecodeScanError(ValueError):
-    """Base error for bytecode that cannot be scanned safely."""
-
-
-class MalformedBytecodeError(BytecodeScanError):
-    """Raised when the physical bytecode layout is malformed."""
-
-
-class UnknownOpcodeError(BytecodeScanError):
-    """Raised when the opcode table cannot identify an instruction."""
-
-
-class BytecodeNormalizationError(BytecodeScanError):
-    """Raised when raw bytecode cannot be normalized without guessing."""
-
-
-class UnsupportedSpecializedOpcodeError(BytecodeNormalizationError):
-    """Raised when adaptive runtime bytecode cannot be de-specialized."""
-
-
-class InvalidJumpTargetError(BytecodeNormalizationError):
-    """Raised when a jump targets a cache slot or invalid code offset."""
-
-
-class StackDepthError(BytecodeNormalizationError):
-    """Raised when reachable instructions have inconsistent stack depths."""
 
 
 def long(num):
@@ -569,11 +551,14 @@ def get_scanner(
     # If version is a string, turn that into the corresponding float.
     if isinstance(version, str):
         if version not in canonic_python_version:
-            raise RuntimeError(f"Unknown Python version in xdis {version}")
+            raise UnsupportedVersionError(
+                f"Unknown Python version in xdis {version}"
+            )
         canonic_version = canonic_python_version[version]
         if canonic_version not in CANONIC2VERSION:
-            raise RuntimeError(
-                f"Unsupported Python version {version} (canonic {canonic_version})"
+            raise UnsupportedVersionError(
+                f"Unsupported Python version {version} "
+                f"(canonic {canonic_version})"
             )
         version = CANONIC2VERSION[canonic_version]
 
@@ -581,8 +566,9 @@ def get_scanner(
         version[:2] == (3, 11)
         and python_implementation is PythonImplementation.PyPy
     ):
-        raise RuntimeError(
-            "Python 3.11 raw scanning currently supports CPython bytecode only"
+        raise UnsupportedVersionError(
+            "Python 3.11 raw scanning supports CPython bytecode only",
+            version=version,
         )
 
     # Pick up appropriate scanner
@@ -600,15 +586,17 @@ def get_scanner(
             scanner_module = importlib.import_module(module_name)
             scanner_class = getattr(scanner_module, class_name)
         except (ImportError, AttributeError) as error:
-            raise RuntimeError(
+            raise UnsupportedVersionError(
                 f"Scanner for {python_implementation} "
-                f"{version_tuple_to_str(version)} is not available"
+                f"{version_tuple_to_str(version)} is not available",
+                version=version,
             ) from error
         scanner = scanner_class(show_asm=show_asm)
     else:
-        raise RuntimeError(
+        raise UnsupportedVersionError(
             "Unsupported Python version, "
-            f"{version_tuple_to_str(version)}, for decompilation"
+            f"{version_tuple_to_str(version)}, for decompilation",
+            version=version,
         )
     return scanner
 

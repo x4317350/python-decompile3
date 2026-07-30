@@ -6,9 +6,10 @@ from dataclasses import dataclass
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 from decompyle3.controlflow.cfg import ControlFlowGraph
+from decompyle3.errors import ControlFlowError
 
 
-class IrreducibleControlFlowError(Exception):
+class IrreducibleControlFlowError(ControlFlowError):
     """Raised for an SCC with more than one external entry."""
 
 

@@ -84,7 +84,7 @@ Scanner311 读取原始指令
 | 5 | 推导式、生成器和协程 | 已完成 |
 | 6 | 异常表、异常语句和 `with` | 已完成 |
 | 7 | `match/case`、`except*` 等新语法 | 已完成 |
-| 8 | 回归、可靠性、文档和发布准备 | 未开始 |
+| 8 | 回归、可靠性、文档和发布准备 | 已完成 |
 
 允许的状态只有：`未开始`、`进行中`、`已完成`、`阻塞`。
 
@@ -603,18 +603,18 @@ ExceptionRegion(
 
 ### 8.1 测试层级
 
-- [ ] Scanner 单元测试。
-- [ ] Token golden 测试。
-- [ ] CFG 单元测试。
-- [ ] 异常表单元测试。
-- [ ] Parser 语法树测试。
-- [ ] 源码生成测试。
-- [ ] `ast.parse` 验证。
-- [ ] 重新编译验证。
-- [ ] 原程序与反编译程序行为对比。
-- [ ] 3.7/3.8 全量回归。
-- [ ] Python 3.11 标准库子集测试。
-- [ ] 大函数、深层嵌套和长集合压力测试。
+- [x] Scanner 单元测试。
+- [x] Token golden 测试。
+- [x] CFG 单元测试。
+- [x] 异常表单元测试。
+- [x] Parser 语法树测试。
+- [x] 源码生成测试。
+- [x] `ast.parse` 验证。
+- [x] 重新编译验证。
+- [x] 原程序与反编译程序行为对比。
+- [x] 3.7/3.8 全量回归。
+- [x] Python 3.11 标准库子集测试。
+- [x] 大函数、深层嵌套和长集合压力测试。
 
 ### 8.2 错误类型
 
@@ -631,32 +631,32 @@ SemanticGenerationError
 VerificationError
 ```
 
-- [ ] 错误中包含目标版本、code object 名称和 offset。
-- [ ] CLI 失败时返回非零状态。
-- [ ] 批量处理时单个失败不会隐藏其他结果。
-- [ ] 不完整输出文件要明确标记或清理。
+- [x] 错误中包含目标版本、code object 名称和 offset。
+- [x] CLI 失败时返回非零状态。
+- [x] 批量处理时单个失败不会隐藏其他结果。
+- [x] 不完整输出文件要明确标记或清理。
 
 ### 8.3 文档
 
-- [ ] 更新 README 支持版本。
-- [ ] 更新 CLI 帮助。
-- [ ] 说明“运行 Python 版本”和“目标字节码版本”的区别。
-- [ ] 列出已支持语法。
-- [ ] 列出已知限制。
-- [ ] 更新 bug 报告指南。
-- [ ] 记录如何生成最小复现 `.py` 和 `.pyc`。
-- [ ] 检查 GPL-3.0-or-later 分发要求。
+- [x] 更新 README 支持版本。
+- [x] 更新 CLI 帮助。
+- [x] 说明“运行 Python 版本”和“目标字节码版本”的区别。
+- [x] 列出已支持语法。
+- [x] 列出已知限制。
+- [x] 更新 bug 报告指南。
+- [x] 记录如何生成最小复现 `.py` 和 `.pyc`。
+- [x] 检查 GPL-3.0-or-later 分发要求。
 
 ### 8.4 最终验收
 
-- [ ] 3.11 测试语料全部通过。
-- [ ] 3.7/3.8 没有新增失败。
-- [ ] 不支持结构可以被明确检测。
-- [ ] CLI 可以批量反编译 3.11 `.pyc`。
-- [ ] 生成源码通过语法和重新编译验证。
-- [ ] 行为测试结果已记录。
-- [ ] 已知问题清单已完成。
-- [ ] 在用户明确要求后再进行提交、推送或发布。
+- [x] 3.11 测试语料全部通过。
+- [x] 3.7/3.8 没有新增失败。
+- [x] 不支持结构可以被明确检测。
+- [x] CLI 可以批量反编译 3.11 `.pyc`。
+- [x] 生成源码通过语法和重新编译验证。
+- [x] 行为测试结果已记录。
+- [x] 已知问题清单已完成。
+- [x] 在用户明确要求后再进行提交、推送或发布。
 
 ---
 
@@ -1225,3 +1225,77 @@ VerificationError
 - 下一步：
   - 阶段 8：执行标准库子集、压力和 CLI 可靠性回归，更新支持文档
     并准备发布验收。
+
+### 2026-07-30：阶段 8
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/errors.py`
+  - `decompyle3/main.py`
+  - `decompyle3/bin/decompile.py`
+  - `decompyle3/scanner.py`
+  - `decompyle3/scanners/scanner311.py`
+  - `decompyle3/controlflow/{cfg,dominators,exceptiontable311,structures}.py`
+  - `decompyle3/parsers/main.py`
+  - `decompyle3/parsers/parse_heads.py`
+  - `decompyle3/parsers/p311/{__init__,base}.py`
+  - `decompyle3/semantics/{customize311,parser_error,pysource}.py`
+  - `pytest/test_reliability311.py`
+  - `README.rst`
+  - `PYTHON_311_SUPPORT.md`
+  - `HOW-TO-REPORT-A-BUG.md`
+  - `MANIFEST.in`
+  - `pyproject.toml`
+- 已实现：
+  - 建立公开、可机器识别的上下文错误体系，覆盖版本、opcode、
+    畸形字节码、控制流、异常表、Parser、源码生成和验证失败；
+    3.11 管线错误附带目标版本、code object 名称和可用的物理 offset。
+  - 将不可靠的 `except* + else` 和 `except* + finally` 编译形态改为
+    明确 fail closed，避免输出语法正确但语义错误的源码。
+  - 修复 CLI 批量可靠性：单文件失败后继续处理、任一失败返回非零
+    状态、半成品重命名为 `_failed`、新输出文件无需预先存在，并
+    修复递归模式遗漏显式文件及重复 `--version` 选项。
+  - 对全部 10 份 3.11 corpus 统一执行磁盘 `.pyc` 装载、源码生成、
+    `ast.parse`、重新编译和进程行为对比。
+  - 增加 CPython 3.11 标准库 `abc`、`colorsys`、`copy`、`hmac`、
+    `keyword` 子集验收，并对选择的纯函数执行行为对比。
+  - 增加 600 条语句大函数、30 层嵌套函数和 1500 项集合压力测试，
+    同时覆盖 `EXTENDED_ARG`。
+  - 更新支持矩阵、CLI、已支持语法、已知限制、bug 最小复现流程和
+    GPL-3.0-or-later 分发检查；修复 PEP 621 license 兼容写法和
+    sdist 清单中的本地生成物。
+- 验证命令：
+  - `.venv311/bin/pytest -q pytest/test_reliability311.py`
+  - `.venv311/bin/python -m pytest -q`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `make -C test check-bytecode-3.7 PYTHON=../.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=../.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/errors.py decompyle3/bin/decompile.py decompyle3/main.py decompyle3/scanner.py decompyle3/scanners/scanner311.py decompyle3/controlflow decompyle3/parsers/p311 pytest/test_reliability311.py`
+  - `.venv311/bin/decompyle3 --help`
+  - `.venv311/bin/python -c 'from setuptools.build_meta import build_sdist; build_sdist("/tmp/decompyle3-phase8-dist")'`
+  - `git diff --check`
+- 验证结果：
+  - 阶段 8 可靠性专项：`23 passed`。
+  - 全部 pytest：`79 passed, 16 skipped`。
+  - 10 份 corpus 的标准 dis 和 Token/CFG golden 一致性检查通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - CLI 单文件、全成功批量和混合失败批量测试通过；混合失败批量
+    保留成功输出、标记失败输出并返回状态 1。
+  - sdist 构建成功，归档包含 `COPYING`、3.11 支持文档、新错误模块
+    和可靠性测试，不包含本地 `generated` 或 `__pycache__`。
+  - flake8、CLI 帮助警告检查和 `git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 新错误基类保留既有 `ValueError`/`RuntimeError` 兼容关系。
+  - 3.7 和 3.8 的 Scanner、Parser 与 SourceWalker 路径未改写；
+    全量既有 bytecode 语料无新增失败。
+- 已知限制：
+  - CPython 3.11 标准库只声明已验证子集，不宣称全量支持。
+  - `except*` 与 `else` 或外层 `finally` 的组合现会明确拒绝；
+    后续可在建立独立结构恢复算法后扩展。
+  - 其他已知不支持形态及运行时/目标版本要求记录在
+    `PYTHON_311_SUPPORT.md`。
+  - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
+- 下一步：
+  - 阶段 0 至阶段 8 已全部完成；等待用户明确要求后提交、推送或
+    发布。

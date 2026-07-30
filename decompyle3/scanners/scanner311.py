@@ -6,9 +6,8 @@
 # (at your option) any later version.
 """Raw CPython 3.11 bytecode scanner.
 
-This scanner intentionally preserves the physical instruction stream,
-including CACHE and EXTENDED_ARG entries. Normalization for the parser belongs
-to the next implementation phase.
+This scanner preserves the physical instruction stream, including CACHE and
+EXTENDED_ARG entries, and exposes a separate normalized parser-facing stream.
 """
 
 from __future__ import annotations
@@ -20,10 +19,12 @@ from xdis import Bytecode, iscode
 from xdis.instruction import Instruction
 
 from decompyle3.scanner import (
+    BytecodeScanError,
     MalformedBytecodeError,
     Scanner,
     UnknownOpcodeError,
 )
+from decompyle3.errors import add_error_context
 from decompyle3.scanners.normalize311 import Normalizer311
 
 
@@ -73,13 +74,17 @@ class Scanner311(Scanner):
         """Validate the fixed-width 3.11 physical instruction layout."""
         if not isinstance(bytecode, (bytes, bytearray, memoryview)):
             raise MalformedBytecodeError(
-                f"CPython 3.11 code object {code_name!r} has a non-bytes co_code"
+                "CPython 3.11 code object has a non-bytes co_code",
+                version=(3, 11),
+                code_name=code_name,
             )
 
         if len(bytecode) % 2:
             raise MalformedBytecodeError(
-                f"CPython 3.11 code object {code_name!r} has an odd co_code "
-                f"length ({len(bytecode)} bytes)"
+                f"CPython 3.11 code object has an odd co_code length "
+                f"({len(bytecode)} bytes)",
+                version=(3, 11),
+                code_name=code_name,
             )
 
         for offset in range(0, len(bytecode), 2):
@@ -88,13 +93,17 @@ class Scanner311(Scanner):
                 opname = self.opname[opcode]
             except IndexError as error:
                 raise UnknownOpcodeError(
-                    f"Unknown CPython 3.11 opcode {opcode} at offset {offset} "
-                    f"in {code_name!r}"
+                    f"Unknown CPython 3.11 opcode {opcode} at offset {offset}",
+                    version=(3, 11),
+                    code_name=code_name,
+                    offset=offset,
                 ) from error
             if opname.startswith("<") and opname.endswith(">"):
                 raise UnknownOpcodeError(
-                    f"Unknown CPython 3.11 opcode {opcode} at offset {offset} "
-                    f"in {code_name!r}"
+                    f"Unknown CPython 3.11 opcode {opcode} at offset {offset}",
+                    version=(3, 11),
+                    code_name=code_name,
+                    offset=offset,
                 )
 
     @staticmethod
@@ -102,7 +111,9 @@ class Scanner311(Scanner):
         """Yield a code object and every code object nested in its constants."""
         if not iscode(co):
             raise MalformedBytecodeError(
-                f"Scanner311 expected a code object, got {type(co).__name__}"
+                f"Scanner311 expected a code object, got {type(co).__name__}",
+                version=(3, 11),
+                code_name="<unknown>",
             )
 
         pending = [co]
@@ -150,7 +161,9 @@ class Scanner311(Scanner):
         """Return physical 3.11 Tokens, including CACHE and EXTENDED_ARG."""
         if not iscode(co):
             raise MalformedBytecodeError(
-                f"Scanner311 expected a code object, got {type(co).__name__}"
+                f"Scanner311 expected a code object, got {type(co).__name__}",
+                version=(3, 11),
+                code_name="<unknown>",
             )
 
         code_name = getattr(co, "co_name", "<unknown>")
@@ -158,7 +171,9 @@ class Scanner311(Scanner):
             raw_code = bytes(co.co_code)
         except (AttributeError, TypeError, ValueError) as error:
             raise MalformedBytecodeError(
-                f"CPython 3.11 code object {code_name!r} has invalid co_code"
+                "CPython 3.11 code object has invalid co_code",
+                version=(3, 11),
+                code_name=code_name,
             ) from error
         self._validate_bytecode(raw_code, code_name)
 
@@ -191,22 +206,28 @@ class Scanner311(Scanner):
             self.insts = list(self._attach_positions(bytecode))
         except (IndexError, KeyError, TypeError, ValueError) as error:
             raise MalformedBytecodeError(
-                f"Unable to decode CPython 3.11 code object {code_name!r}: {error}"
+                f"Unable to decode CPython 3.11 code object: {error}",
+                version=(3, 11),
+                code_name=code_name,
             ) from error
 
         expected_offsets = list(range(0, len(raw_code), 2))
         actual_offsets = [instruction.offset for instruction in self.insts]
         if actual_offsets != expected_offsets:
             raise MalformedBytecodeError(
-                f"CPython 3.11 code object {code_name!r} did not decode into "
-                "one instruction per two-byte code unit"
+                "CPython 3.11 code object did not decode into one instruction "
+                "per two-byte code unit",
+                version=(3, 11),
+                code_name=code_name,
             )
 
         for instruction in self.insts:
             if instruction.opcode != raw_code[instruction.offset]:
                 raise MalformedBytecodeError(
-                    f"Decoded opcode mismatch at offset {instruction.offset} "
-                    f"in {code_name!r}"
+                    f"Decoded opcode mismatch at offset {instruction.offset}",
+                    version=(3, 11),
+                    code_name=code_name,
+                    offset=instruction.offset,
                 )
 
         self.offset2inst_index = {
@@ -282,12 +303,20 @@ class Scanner311(Scanner):
 
     def _normalize(self, co, source_kind, instructions):
         normalizer = Normalizer311(self.opc)
-        self.normalized_instructions = normalizer.normalize(
-            instructions,
-            co,
-            exception_entries=self.exception_entries,
-            source_kind=source_kind,
-        )
+        try:
+            self.normalized_instructions = normalizer.normalize(
+                instructions,
+                co,
+                exception_entries=self.exception_entries,
+                source_kind=source_kind,
+            )
+        except BytecodeScanError as error:
+            add_error_context(
+                error,
+                version=(3, 11),
+                code_name=getattr(co, "co_name", "<unknown>"),
+            )
+            raise
         self.physical_to_logical = normalizer.physical_to_logical
         self.logical_to_physical = normalizer.logical_to_physical
         self.cache_owner = normalizer.cache_owner
@@ -320,12 +349,20 @@ class Scanner311(Scanner):
         self.ingest_raw(co, classname=classname, show_asm=None)
         normalizer = Normalizer311(self.opc)
         runtime_instructions = normalizer.runtime_instructions(co)
-        self.normalized_instructions = normalizer.normalize(
-            runtime_instructions,
-            co,
-            exception_entries=self.exception_entries,
-            source_kind="runtime",
-        )
+        try:
+            self.normalized_instructions = normalizer.normalize(
+                runtime_instructions,
+                co,
+                exception_entries=self.exception_entries,
+                source_kind="runtime",
+            )
+        except BytecodeScanError as error:
+            add_error_context(
+                error,
+                version=(3, 11),
+                code_name=getattr(co, "co_name", "<unknown>"),
+            )
+            raise
         self.physical_to_logical = normalizer.physical_to_logical
         self.logical_to_physical = normalizer.logical_to_physical
         self.cache_owner = normalizer.cache_owner

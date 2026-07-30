@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Tuple
 
+from decompyle3.errors import ExceptionTableError
 
-class ExceptionTableDecodeError(ValueError):
+
+class ExceptionTableDecodeError(ExceptionTableError):
     """Raised when a CPython 3.11 exception table is truncated or invalid."""
 
 
@@ -107,9 +109,18 @@ def decode_exception_table(code) -> Tuple[ExceptionRegion, ...]:
         code_length = len(code.co_code)
     except (AttributeError, TypeError, ValueError) as error:
         raise ExceptionTableDecodeError(
-            "Object has no valid CPython 3.11 exception table"
+            "Object has no valid CPython 3.11 exception table",
+            version=(3, 11),
+            code_name=getattr(code, "co_name", "<unknown>"),
         ) from error
-    return validate_exception_regions(
-        decode_exception_table_bytes(data),
-        code_length,
-    )
+    try:
+        return validate_exception_regions(
+            decode_exception_table_bytes(data),
+            code_length,
+        )
+    except ExceptionTableDecodeError as error:
+        error.add_context(
+            version=(3, 11),
+            code_name=getattr(code, "co_name", "<unknown>"),
+        )
+        raise

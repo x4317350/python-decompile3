@@ -20,6 +20,11 @@ class ParserError(python_parser.ParserError):
         self.error = error  # previous exception
         self.tokens = tokens
         self.debug = debug
+        super().__init__(
+            getattr(error, "token", None),
+            getattr(error, "offset", -1),
+            debug,
+        )
 
     def __str__(self):
         lines = ["--- This code section failed: ---"]

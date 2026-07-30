@@ -173,8 +173,100 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         self.exception_states = {}
         self._suppressed_exception_starts = set()
+        self._validate_exception_group_shapes()
         self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
+
+    def _validate_exception_group_shapes(self):
+        """Reject except* layouts whose else/finally semantics are ambiguous."""
+        if not any(token.kind == "CHECK_EG_MATCH" for token in self.tokens):
+            return
+
+        for entry in self.exception_regions:
+            handler_index = self.offset_to_index[entry.target]
+            if (
+                entry.lasti
+                or self.tokens[handler_index].kind != "PUSH_EXC_INFO"
+            ):
+                continue
+            prep_index = next(
+                (
+                    index
+                    for index in range(handler_index, len(self.tokens))
+                    if self.tokens[index].kind == "PREP_RERAISE_STAR"
+                ),
+                None,
+            )
+            check_index = next(
+                (
+                    index
+                    for index in range(handler_index, prep_index or handler_index)
+                    if self.tokens[index].kind == "CHECK_EG_MATCH"
+                ),
+                None,
+            )
+            if prep_index is None or check_index is None:
+                continue
+
+            continuation_jump = next(
+                (
+                    token
+                    for token in self.tokens[prep_index + 1 :]
+                    if token.kind == "JUMP_FORWARD"
+                ),
+                None,
+            )
+            continuation = (
+                instruction_target(continuation_jump)
+                if continuation_jump is not None
+                else None
+            )
+            if entry.end < entry.target:
+                gap = self.tokens[
+                    self.offset_to_index[entry.end] : handler_index
+                ]
+                if any(
+                    token.kind
+                    not in ("INTERNAL_EXTENDED_ARG", "JUMP_FORWARD", "NOP")
+                    for token in gap
+                ) or any(
+                    token.kind == "JUMP_FORWARD"
+                    and instruction_target(token) != continuation
+                    for token in gap
+                ):
+                    raise UnsupportedPython311ControlFlow(
+                        "except* with an else suite is not yet supported safely",
+                        version=(3, 11),
+                        code_name=self.code.co_name,
+                        offset=entry.end,
+                    )
+
+            if continuation_jump is None:
+                continue
+            outer_finally = next(
+                (
+                    candidate
+                    for candidate in self.exception_regions
+                    if candidate is not entry
+                    and not candidate.lasti
+                    and self.tokens[prep_index].offset
+                    <= candidate.start
+                    < candidate.end
+                    <= continuation
+                    and self.tokens[
+                        self.offset_to_index[candidate.target]
+                    ].kind
+                    == "PUSH_EXC_INFO"
+                ),
+                None,
+            )
+            if outer_finally is not None:
+                raise UnsupportedPython311ControlFlow(
+                    "except* combined with finally is not yet supported safely",
+                    version=(3, 11),
+                    code_name=self.code.co_name,
+                    offset=outer_finally.start,
+                )
 
     def _validate_scope(self):
         for token in self.tokens:

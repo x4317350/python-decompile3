@@ -1,9 +1,4 @@
-"""CPython 3.11 parser package.
-
-Stage 3 deliberately accepts only bytecode that can be recovered without a
-general control-flow graph. Later stages extend the same parser-facing
-normalized instruction stream.
-"""
+"""Fail-closed CPython 3.11 normalized-token to standard-AST parser."""
 
 from decompyle3.parsers.p311.base import (
     Python311ParseError,

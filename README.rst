@@ -16,7 +16,8 @@ Introduction
 ------------
 
 *decompyle3* translates Python bytecode back into equivalent Python
-source code. It accepts bytecodes from Python version 3.7 on.
+source code. The supported target bytecodes are Python 3.7, Python 3.8,
+and standard on-disk CPython 3.11 ``.pyc`` files.
 
 For decompilation of older Python bytecode, see uncompyle6_.
 
@@ -53,12 +54,23 @@ appreciated isn't commensurate with the amount of effort, and
 currently I have a full-time job. So it may take time before it is
 available publicly, if at all.
 
-Requirements
-------------
+Requirements and Supported Versions
+-----------------------------------
 
-The code here can be run on Python versions 3.7 or 3.8. The bytecode
-files it can read have been tested on Python bytecodes from versions
-3.7 and 3.8.
+The interpreter running *decompyle3* and the interpreter that produced the
+target bytecode are separate versions.
+
+* Python 3.7 and 3.8 target bytecode can be processed while running
+  *decompyle3* on Python 3.7 or newer.
+* CPython 3.11 target bytecode requires running *decompyle3* on Python 3.11
+  or newer.
+* PyPy 3.11 and non-CPython 3.11 bytecode are not supported.
+
+The CPython 3.11 path covers functions, classes, expressions, ordinary
+control flow, comprehensions, generators and coroutines, exception-table
+statements, ``with``/``async with``, ``match``/``case``, and the documented
+``except*`` protocol shapes. See `CPython 3.11 support and limitations
+<PYTHON_311_SUPPORT.md>`_ for the exact scope and fail-closed limitations.
 
 Installation
 ------------
@@ -108,14 +120,22 @@ For usage help:
 
    $ decompyle3 -h
 
+To process a batch into an output directory and validate generated syntax::
+
+   $ decompyle3 --output recovered --verify syntax first.pyc second.pyc
+
+A batch continues after an individual input failure and returns a non-zero
+status if any input or verification failed. Partial output is marked with an
+``_failed`` suffix.
+
 Verification
 ------------
 
-If you want Python syntax verification of the correctness of the
-decompilation process, add the :code:`--syntax-verify` option. However since
-Python syntax changes. You should use this option if the bytecode is
-the right bytecode for the Python interpreter that will be checking
-the syntax.
+If you want Python syntax and recompilation verification of the
+decompilation result, add :code:`--verify syntax`. The running interpreter
+must understand the target source syntax. Use :code:`--verify run` only when
+executing the generated program is safe and its target version matches the
+running interpreter.
 
 You can also cross-compare the results with another Python decompiler
 like unpyc37_ . Since they work differently, bugs here often aren't in
@@ -144,20 +164,20 @@ the bytecode properly. `Pydeinstaller <https://github.com/charles-dyfis-net/pyde
 
 Handling pathologically long lists of expressions or statements is slow. We don't handle Cython_ or MicroPython, which don't use bytecode.
 
+CPython 3.11 support is deliberately fail closed for structures that cannot
+yet be recovered reliably. This includes some uncommon stack manipulation
+and mapping-building layouts, and ``except*`` combined with an ``else`` suite
+or an enclosing ``finally``. See `CPython 3.11 support and limitations
+<PYTHON_311_SUPPORT.md>`_ for the maintained list.
+
 There are numerous bugs in decompilation. And that's true for every
 other CPython decompilers I have encountered, even the ones that
 claimed to be "perfect" on some particular version like 2.4.
 
 As Python progresses, decompilation also gets harder because the
 compilation is more sophisticated and the language itself is more
-sophisticated. I suspect that attempts there will be fewer ad-hoc
-attempts like unpyc37_ (which is based on a 3.3 decompiler) simply
-because it is harder to do so. The good news, at least from my
-standpoint, is that I think I understand what's needed to address the
-problems in a more robust way. But right now, until such time as
-the project is better funded, I do not intend to make any serious effort
-to support Python versions 3.8 or 3.9, including bugs that might come
-in. I imagine at some point I may be interested in it.
+sophisticated. This makes syntax, recompilation, and behavior regression
+tests essential even when generated source looks plausible.
 
 You can easily find bugs by running the tests against the standard
 test suite that Python uses to check itself. At any given time, there are

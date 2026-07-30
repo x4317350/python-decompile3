@@ -60,6 +60,7 @@ from decompyle3.parsers.p311.heads import (
     Python311ParserSingle,
 )
 from decompyle3.parsers.treenode import SyntaxTree
+from decompyle3.errors import UnsupportedVersionError
 from decompyle3.show import maybe_show_asm
 
 
@@ -103,7 +104,10 @@ def get_python_parser(
 
     version = version[:2]
     if version < (3, 7):
-        raise RuntimeError(f"Unsupported Python version {version}")
+        raise UnsupportedVersionError(
+            f"Unsupported Python version {version}",
+            version=version,
+        )
     elif version == (3, 7):
         if compile_mode == "exec":
             p = Python37ParserExec(debug_parser=debug_parser)
@@ -151,7 +155,10 @@ def get_python_parser(
 
     elif version == (3, 11):
         if python_implementation is not PythonImplementation.CPython:
-            raise RuntimeError("Parser311 currently supports CPython only")
+            raise UnsupportedVersionError(
+                "Parser311 supports CPython bytecode only",
+                version=version,
+            )
         parser_classes = {
             "exec": Python311ParserExec,
             "single": Python311ParserSingle,
@@ -162,12 +169,16 @@ def get_python_parser(
         try:
             parser_class = parser_classes[compile_mode]
         except KeyError as error:
-            raise RuntimeError(
-                f"Unsupported CPython 3.11 compile mode {compile_mode!r}"
+            raise UnsupportedVersionError(
+                f"Unsupported CPython 3.11 compile mode {compile_mode!r}",
+                version=version,
             ) from error
         p = parser_class(debug_parser=debug_parser)
     elif version > (3, 8):
-        raise RuntimeError(f"Version {version_tuple_to_str(version)} is not supported.")
+        raise UnsupportedVersionError(
+            f"Version {version_tuple_to_str(version)} is not supported",
+            version=version,
+        )
 
     p.version = version
     # p.dump_grammar() # debug

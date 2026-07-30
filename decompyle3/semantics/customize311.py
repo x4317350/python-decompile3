@@ -1,4 +1,4 @@
-"""SourceWalker adapter for the CPython 3.11 phase-3 parser."""
+"""SourceWalker adapter for the CPython 3.11 standard-AST parser."""
 
 import ast
 

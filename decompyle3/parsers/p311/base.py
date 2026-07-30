@@ -16,6 +16,12 @@ from typing import Any, List, Optional, Tuple
 from xdis import iscode
 from xdis.version_info import PythonImplementation
 
+from decompyle3.errors import (
+    ControlFlowError,
+    ParserError,
+    SemanticGenerationError,
+    add_error_context,
+)
 from decompyle3.ir import CallInfo, FunctionInfo
 from decompyle3.scanner import get_scanner
 from decompyle3.semantics.make_function311 import build_arguments311
@@ -26,11 +32,11 @@ CO_COROUTINE = 0x80
 CO_ASYNC_GENERATOR = 0x200
 
 
-class Python311ParseError(Exception):
+class Python311ParseError(ParserError):
     """Base error for a 3.11 token stream that cannot be recovered safely."""
 
 
-class UnsupportedPython311ControlFlow(Python311ParseError):
+class UnsupportedPython311ControlFlow(Python311ParseError, ControlFlowError):
     """Raised instead of emitting source for a not-yet-supported structure."""
 
 
@@ -286,14 +292,14 @@ class _StraightLineDecompiler:
 
     def _error(self, message, error_type=Python311ParseError):
         token = self.current_token
-        if token is None:
-            location = getattr(self.code, "co_name", "<unknown>")
-        else:
-            location = (
-                f"{getattr(self.code, 'co_name', '<unknown>')!r}, "
-                f"opcode {token.kind} at offset {token.offset}"
-            )
-        raise error_type(f"{message} ({location})")
+        if token is not None:
+            message = f"{message} (opcode {token.kind})"
+        raise error_type(
+            message,
+            version=(3, 11),
+            code_name=getattr(self.code, "co_name", "<unknown>"),
+            offset=token.offset if token is not None else None,
+        )
 
     def _validate_scope(self):
         if bytes(getattr(self.code, "co_exceptiontable", b"") or b""):
@@ -1277,44 +1283,59 @@ class Python311BaseParser:
     def parse(self, tokens):
         if self.code_object is None:
             raise Python311ParseError(
-                "Parser311 requires the active code object from SourceWalker"
+                "Parser311 requires the active code object from SourceWalker",
+                version=(3, 11),
+                code_name="<unknown>",
             )
-        decompiler = _new_decompiler311(
-            self.code_object,
-            tokens,
-            compile_mode=self.compile_mode,
-        )
-
-        if self.compile_mode in ("eval", "expr"):
-            expression = decompiler.decompile_expression()
-            tree = ast.Expression(body=expression)
-            kind = "expr_start"
-        elif self.compile_mode == "lambda":
-            value = _FunctionValue(code=self.code_object)
-            expression = decompiler._lambda_node(value)
-            tree = ast.Expression(body=expression)
-            kind = "lambda_start"
-        else:
-            body = decompiler.decompile_body()
-            tree = ast.Module(body=body, type_ignores=[])
-            kind = "single_start" if self.compile_mode == "single" else "stmts"
-
-        tree = ast.fix_missing_locations(tree)
         try:
-            unparse = ast.unparse
-        except AttributeError as error:
-            raise Python311ParseError(
-                "Parser311 source generation requires ast.unparse "
-                "(run decompyle3 on Python 3.9 or newer)"
-            ) from error
-        source = unparse(tree)
-        self.cfg = decompiler.cfg
-        self.control_flow = decompiler.control_flow
-        if self.debug.get("cfg", False):
-            print(self.cfg.format())
-        return Python311ParseResult(
-            kind=kind,
-            tree=tree,
-            source=source,
-            code=self.code_object,
-        )
+            decompiler = _new_decompiler311(
+                self.code_object,
+                tokens,
+                compile_mode=self.compile_mode,
+            )
+
+            if self.compile_mode in ("eval", "expr"):
+                expression = decompiler.decompile_expression()
+                tree = ast.Expression(body=expression)
+                kind = "expr_start"
+            elif self.compile_mode == "lambda":
+                value = _FunctionValue(code=self.code_object)
+                expression = decompiler._lambda_node(value)
+                tree = ast.Expression(body=expression)
+                kind = "lambda_start"
+            else:
+                body = decompiler.decompile_body()
+                tree = ast.Module(body=body, type_ignores=[])
+                kind = (
+                    "single_start"
+                    if self.compile_mode == "single"
+                    else "stmts"
+                )
+
+            tree = ast.fix_missing_locations(tree)
+            try:
+                unparse = ast.unparse
+            except AttributeError as error:
+                raise SemanticGenerationError(
+                    "Parser311 source generation requires ast.unparse",
+                    version=(3, 11),
+                    code_name=self.code_object.co_name,
+                ) from error
+            source = unparse(tree)
+            self.cfg = decompiler.cfg
+            self.control_flow = decompiler.control_flow
+            if self.debug.get("cfg", False):
+                print(self.cfg.format())
+            return Python311ParseResult(
+                kind=kind,
+                tree=tree,
+                source=source,
+                code=self.code_object,
+            )
+        except (ParserError, ControlFlowError, SemanticGenerationError) as error:
+            add_error_context(
+                error,
+                version=(3, 11),
+                code_name=self.code_object.co_name,
+            )
+            raise

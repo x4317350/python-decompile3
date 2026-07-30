@@ -32,8 +32,12 @@ from xdis.version_info import (
 )
 
 from decompyle3.disas import check_object_path
-from decompyle3.parsers.parse_heads import ParserError
-from decompyle3.semantics import pysource
+from decompyle3.errors import (
+    Decompyle3Error,
+    SemanticGenerationError,
+    VerificationError,
+    add_error_context,
+)
 from decompyle3.semantics.fragments import code_deparse as code_deparse_fragments
 from decompyle3.semantics.linemap import deparse_code_with_map
 from decompyle3.semantics.pysource import PARSER_DEFAULT_DEBUG, code_deparse
@@ -54,15 +58,39 @@ def _get_outstream(outfile: str) -> Any:
     return open(outfile, mode="w", encoding="utf-8")
 
 
-def syntax_check(filename: str) -> bool:
-    with open(filename) as f:
-        source = f.read()
-    valid = True
+def verify_source(
+    source: str,
+    filename: str = "<decompiled>",
+    bytecode_version: Optional[Tuple[int, ...]] = None,
+    code_name: str = "<module>",
+) -> None:
+    """Parse and compile generated source or raise a contextual error."""
     try:
-        ast.parse(source)
-    except SyntaxError:
-        valid = False
-    return valid
+        tree = ast.parse(source, filename=filename)
+        compile(tree, filename, "exec")
+    except (SyntaxError, ValueError, TypeError) as error:
+        raise VerificationError(
+            f"Generated source failed syntax/compile verification: {error}",
+            version=bytecode_version,
+            code_name=code_name,
+        ) from error
+
+
+def syntax_check(
+    filename: str,
+    bytecode_version: Optional[Tuple[int, ...]] = None,
+) -> bool:
+    with open(filename, encoding="utf-8") as source_file:
+        source = source_file.read()
+    try:
+        verify_source(
+            source,
+            filename=filename,
+            bytecode_version=bytecode_version,
+        )
+    except VerificationError:
+        return False
+    return True
 
 
 def decompile(
@@ -174,9 +202,26 @@ def decompile(
             pass
         real_out.write("\n")
         return deparsed
-    except pysource.SourceWalkerError as e:
-        # deparsing failed
-        raise pysource.SourceWalkerError(str(e))
+    except Decompyle3Error as error:
+        add_error_context(
+            error,
+            version=bytecode_version,
+            code_name=getattr(co, "co_name", "<unknown>"),
+        )
+        raise
+    except RecursionError as error:
+        raise SemanticGenerationError(
+            "Source recovery exceeded the recursion limit",
+            version=bytecode_version,
+            code_name=getattr(co, "co_name", "<unknown>"),
+        ) from error
+    except Exception as error:
+        raise SemanticGenerationError(
+            f"Unexpected source recovery failure "
+            f"({type(error).__name__}: {error})",
+            version=bytecode_version,
+            code_name=getattr(co, "co_name", "<unknown>"),
+        ) from error
 
 
 def compile_file(source_path: str) -> str:
@@ -303,15 +348,24 @@ def main(
     verify_failed_files = 0 if do_verify else 0
     current_outfile = outfile
     linemap_stream = None
+    verification_base = (
+        tempfile.mkdtemp(prefix="py-dis-")
+        if out_base is None and do_verify
+        else None
+    )
 
     for source_path in source_files:
         compiled_files.append(compile_file(source_path))
 
     for filename in compiled_files:
         infile = osp.join(in_base, filename)
+        current_outfile = outfile
+        outstream = None
         # print("XXX", infile)
         if not osp.exists(infile):
             sys.stderr.write(f"File '{infile}' doesn't exist. Skipped\n")
+            failed_files += 1
+            tot_files += 1
             continue
 
         if do_linemaps:
@@ -323,10 +377,12 @@ def main(
         if outfile:  # outfile was given as parameter
             outstream = _get_outstream(outfile)
         elif out_base is None:
-            out_base = tempfile.mkdtemp(prefix="py-dis-")
             if do_verify and filename.endswith(".pyc"):
-                current_outfile = osp.join(out_base, filename[0:-1])
-                outstream = open(current_outfile, "w")
+                current_outfile = osp.join(
+                    verification_base,
+                    filename[0:-1],
+                )
+                outstream = _get_outstream(current_outfile)
             else:
                 outstream = sys.stdout
             if do_linemaps:
@@ -369,13 +425,14 @@ def main(
                             outstream.write(f"{line}\n{e[0]}\n{line}\n")
                         last_mod = e[0]
                         info = offsets[e]
-                        extract_info = deparse_object.extract_node_info(info)
+                        extract_info = deparsed_object.extract_node_info(info)
                         outstream.write(f"{info.node.format().strip()}" + "\n")
                         outstream.write(extract_info.selectedLine + "\n")
                         outstream.write(extract_info.markerLine + "\n\n")
                     pass
                 pass
             if do_verify:
+                file_verification_failed = False
                 for deparsed_object in deparsed_objects:
                     deparsed_object.f.close()
                     if PYTHON_VERSION_TRIPLE[:2] != deparsed_object.version[:2]:
@@ -402,9 +459,13 @@ def main(
                                 print(result.stderr.decode())
 
                         else:
-                            valid = syntax_check(deparsed_object.f.name)
+                            valid = syntax_check(
+                                deparsed_object.f.name,
+                                deparsed_object.version,
+                            )
 
                         if not valid:
+                            file_verification_failed = True
                             verify_failed_files += 1
                             sys.stderr.write(
                                 f"\n# {check_type} failed on file {deparsed_object.f.name}\n"
@@ -413,30 +474,28 @@ def main(
                     # sys.stderr.write(f"Ran {deparsed_object.f.name}\n")
                 pass
             tot_files += 1
-        except (ValueError, SyntaxError, ParserError, pysource.SourceWalkerError) as e:
-            sys.stdout.write("\n")
-            sys.stderr.write(f"\n# file {infile}\n# {e}\n")
-            failed_files += 1
-            tot_files += 1
         except KeyboardInterrupt:
-            if outfile:
+            if outstream is not None and outstream is not sys.stdout:
                 outstream.close()
-                os.remove(outfile)
+            if current_outfile and osp.exists(current_outfile):
+                os.replace(current_outfile, current_outfile + "_failed")
             sys.stdout.write("\n")
             sys.stderr.write(f"\nLast file: {infile}   ")
             raise
-        except RuntimeError as e:
-            sys.stdout.write(f"\n{str(e)}\n")
-            if str(e).startswith("Unsupported Python"):
-                sys.stdout.write("\n")
-                sys.stderr.write(f"\n# Unsupported bytecode in file {infile}\n# {e}\n")
-            else:
-                if outfile:
-                    outstream.close()
-                    os.remove(outfile)
-                sys.stdout.write("\n")
-                sys.stderr.write(f"\nLast file: {infile}   ")
-                raise
+        except Exception as e:
+            sys.stdout.write("\n")
+            sys.stderr.write(
+                f"\n# file {infile}\n# {type(e).__name__}: {e}\n"
+            )
+            failed_files += 1
+            tot_files += 1
+            if outstream is not None and outstream is not sys.stdout:
+                outstream.close()
+            if current_outfile and osp.exists(current_outfile):
+                failed_output = current_outfile + "_failed"
+                if osp.exists(failed_output):
+                    os.remove(failed_output)
+                os.replace(current_outfile, failed_output)
 
         # except:
         #     failed_files += 1
@@ -449,6 +508,11 @@ def main(
         else:  # uncompile successful
             if current_outfile:
                 outstream.close()
+                if do_verify and file_verification_failed:
+                    failed_output = current_outfile + "_failed"
+                    if osp.exists(failed_output):
+                        os.remove(failed_output)
+                    os.replace(current_outfile, failed_output)
                 okay_files += 1
                 pass
             else:
