@@ -60,8 +60,6 @@ _STATEMENT_BOUNDARIES = {
 }
 
 _LATER_PHASE_OPS = {
-    "CHECK_EG_MATCH",
-    "LIST_APPEND",
     "MAP_ADD",
     "SET_ADD",
     "SETUP_ANNOTATIONS",
@@ -180,11 +178,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
     def _validate_scope(self):
         for token in self.tokens:
-            if token.kind in _LATER_PHASE_OPS or token.kind.startswith("MATCH_"):
+            if token.kind in _LATER_PHASE_OPS:
                 self.current_token = token
                 self._error(
-                    "This opcode belongs to a later Python 3.11 "
-                    "implementation phase",
+                    "This opcode is not supported by the CPython 3.11 "
+                    "structure decompiler",
                     UnsupportedPython311ControlFlow,
                 )
 
@@ -904,6 +902,21 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if token.kind not in store_kinds:
                 self._flush_assignment()
 
+            if token.linestart is not None:
+                from decompyle3.controlflow.match_structures import (
+                    recover_match_statement311,
+                )
+
+                match_end = recover_match_statement311(
+                    self,
+                    index,
+                    end,
+                    loop,
+                )
+                if match_end is not None:
+                    index = match_end
+                    continue
+
             if (
                 self.exception_regions
                 and token.offset not in self._suppressed_exception_starts
@@ -913,7 +926,21 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     recover_with_statement311,
                 )
 
-                try_end = recover_try_statement311(self, index, loop)
+                try_index = index
+                if (
+                    token.kind == "NOP"
+                    and index + 1 < end
+                    and any(
+                        region.start == self.tokens[index + 1].offset
+                        for region in self.exception_regions
+                    )
+                ):
+                    try_index += 1
+                try_end = recover_try_statement311(
+                    self,
+                    try_index,
+                    loop,
+                )
                 if try_end is not None:
                     index = try_end
                     continue

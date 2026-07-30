@@ -83,7 +83,7 @@ Scanner311 读取原始指令
 | 4 | CFG 和普通控制流恢复 | 已完成 |
 | 5 | 推导式、生成器和协程 | 已完成 |
 | 6 | 异常表、异常语句和 `with` | 已完成 |
-| 7 | `match/case`、`except*` 等新语法 | 未开始 |
+| 7 | `match/case`、`except*` 等新语法 | 已完成 |
 | 8 | 回归、可靠性、文档和发布准备 | 未开始 |
 
 允许的状态只有：`未开始`、`进行中`、`已完成`、`阻塞`。
@@ -566,36 +566,36 @@ ExceptionRegion(
 
 ### 7.1 `match/case`
 
-- [ ] `MATCH_MAPPING`。
-- [ ] `MATCH_SEQUENCE`。
-- [ ] `MATCH_KEYS`。
-- [ ] `MATCH_CLASS`。
-- [ ] literal pattern。
-- [ ] capture pattern。
-- [ ] wildcard pattern。
-- [ ] sequence pattern。
-- [ ] mapping pattern。
-- [ ] class pattern。
-- [ ] OR pattern。
-- [ ] `case` guard。
-- [ ] 嵌套 pattern。
+- [x] `MATCH_MAPPING`。
+- [x] `MATCH_SEQUENCE`。
+- [x] `MATCH_KEYS`。
+- [x] `MATCH_CLASS`。
+- [x] literal pattern。
+- [x] capture pattern。
+- [x] wildcard pattern。
+- [x] sequence pattern。
+- [x] mapping pattern。
+- [x] class pattern。
+- [x] OR pattern。
+- [x] `case` guard。
+- [x] 嵌套 pattern。
 
 ### 7.2 `except*`
 
-- [ ] `CHECK_EG_MATCH`。
-- [ ] `PREP_RERAISE_STAR`。
-- [ ] 单个 `except*`。
-- [ ] 多个 `except*`。
-- [ ] ExceptionGroup 子组拆分和重新抛出。
-- [ ] 确保 `except` 与 `except*` 不混淆。
+- [x] `CHECK_EG_MATCH`。
+- [x] `PREP_RERAISE_STAR`。
+- [x] 单个 `except*`。
+- [x] 多个 `except*`。
+- [x] ExceptionGroup 子组拆分和重新抛出。
+- [x] 确保 `except` 与 `except*` 不混淆。
 
 ### 阶段 7 验收条件
 
-- [ ] 官方风格的 pattern matching 样本可反编译。
-- [ ] pattern 变量绑定和 guard 正确。
-- [ ] `except*` 输出语法正确。
-- [ ] match 和 ExceptionGroup 行为测试通过。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 官方风格的 pattern matching 样本可反编译。
+- [x] pattern 变量绑定和 guard 正确。
+- [x] `except*` 输出语法正确。
+- [x] match 和 ExceptionGroup 行为测试通过。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -1153,3 +1153,75 @@ VerificationError
   - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
 - 下一步：
   - 阶段 7：恢复 `match/case`、`except*` 及其 3.11 专用协议。
+
+### 2026-07-30：阶段 7
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/controlflow/exception_structures.py`
+  - `decompyle3/controlflow/match_structures.py`
+  - `decompyle3/controlflow/structures.py`
+  - `pytest/test_deparse311.py`
+  - `pytest/test_exceptiontable311.py`
+  - `pytest/test_syntax311.py`
+  - `test/bytecode_3.11/generate.py`
+  - `test/simple_source/311/06_match.py`
+  - `test/simple_source/311/07_exception_group.py`
+  - `test/bytecode_3.11/golden/06_match.dis`
+  - `test/bytecode_3.11/golden/07_exception_group.dis`
+  - `test/bytecode_3.11/golden_tokens/06_match.tokens`
+  - `test/bytecode_3.11/golden_tokens/07_exception_group.tokens`
+  - `test/bytecode_3.11/golden_cfg/06_match.cfg`
+  - `test/bytecode_3.11/golden_cfg/07_exception_group.cfg`
+- 已实现：
+  - 新增独立 `MatchStructureDecompiler311`，对 CPython 3.11 pattern
+    matcher 的栈协议执行符号化恢复，直接生成标准库 `ast.Match` 和
+    `ast.match_case`。
+  - 恢复 literal、singleton、capture、wildcard、sequence/star、
+    mapping/`**rest`、class 位置与关键字、OR、guard 和嵌套 pattern。
+  - 识别 case 成功、失败清理和公共 join 边界；支持 case body
+    return/raise 和执行后汇合到 match 后续语句的官方风格结构。
+  - 解码 `CHECK_EG_MATCH`、clause subgroup 分支、
+    `PREP_RERAISE_STAR` 和清理路径，直接生成 `ast.TryStar` 与
+    `except*` 源码。
+  - 支持带/不带 `as` 的单个及多个 `except*`；由重新生成的
+    `except*` 保留 ExceptionGroup 子组拆分、嵌套组形状和未处理
+    子组重新抛出语义。
+  - 普通 `except` 继续生成 `ast.Try`，`except*` 生成
+    `ast.TryStar`，并通过 AST 测试保证两条路径不会混淆。
+  - 扩充阶段 7 corpus、标准 dis、规范化 Token 和 CFG golden；
+    对磁盘 `.pyc` 执行解析、重新编译、pattern 绑定/guard 行为及
+    ExceptionGroup 行为对比。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_syntax311.py`
+  - `.venv311/bin/pytest -q`
+  - `make -C test check-bytecode-3.7 PYTHON=../.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=../.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/controlflow pytest/test_syntax311.py pytest/test_deparse311.py pytest/test_exceptiontable311.py test/bytecode_3.11/generate.py test/simple_source/311/06_match.py test/simple_source/311/07_exception_group.py`
+  - `git diff --check`
+- 验证结果：
+  - 阶段 7 语法树和行为验收：`7 passed`。
+  - 全部 pytest：`56 passed, 16 skipped`。
+  - 10 份 corpus 的 dis/Token golden 及阶段 7 CFG golden：
+    生成和一致性检查通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - pattern matcher 和 ExceptionGroup 协议恢复只接入 CPython 3.11
+    Parser。
+  - 3.7 和 3.8 继续使用原有 Scanner、Spark Parser 与
+    SourceWalker，现有语料未新增失败。
+- 已知限制：
+  - pattern 恢复面向 CPython 3.11 编译器生成的规范多行
+    `match/case` 布局；无法确认 case/body 边界的非规范结构会拒绝，
+    不输出猜测源码。
+  - 当前 `except*` 覆盖普通单/多 clause 和子组重新抛出；
+    与多层 `else/finally` 组合的额外编译形态留待阶段 8 压力语料
+    验证。
+  - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
+- 下一步：
+  - 阶段 8：执行标准库子集、压力和 CLI 可靠性回归，更新支持文档
+    并准备发布验收。

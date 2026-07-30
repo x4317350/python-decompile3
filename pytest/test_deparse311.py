@@ -11,7 +11,6 @@ import pytest
 from xdis.version_info import PythonImplementation
 
 from decompyle3.parsers.main import get_python_parser, python_parser
-from decompyle3.parsers.p311.base import UnsupportedPython311ControlFlow
 from decompyle3.semantics.pysource import code_deparse
 from support311 import ROOT, compile_source
 
@@ -147,21 +146,3 @@ def test_python_parser_returns_standard_ast_result():
     assert result.kind == "stmts"
     assert isinstance(result.tree, ast.Module)
     assert compile(result.tree, "<parser-result>", "exec")
-
-
-@pytest.mark.parametrize(
-    "source, message",
-    [
-        (
-            "def guarded():\n"
-            "    try:\n"
-            "        raise ExceptionGroup('group', [ValueError()])\n"
-            "    except* ValueError:\n"
-            "        handled = True\n",
-            "later Python 3.11 implementation phase",
-        ),
-    ],
-)
-def test_later_phase_constructs_are_rejected(source, message):
-    with pytest.raises(UnsupportedPython311ControlFlow, match=message):
-        deparse311(compile(source, "<unsupported-311>", "exec"))

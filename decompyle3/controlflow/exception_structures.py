@@ -43,6 +43,14 @@ class ExceptionStructureDecompiler311:
                 return False
         return False
 
+    def _handler_has_group_match(self, handler_index: int) -> bool:
+        for token in self.tokens[handler_index + 1 :]:
+            if token.kind == "CHECK_EG_MATCH":
+                return True
+            if token.kind in ("RERAISE", "RETURN_VALUE"):
+                return False
+        return False
+
     def _remember_exception_state(self, entry) -> ExceptionState311:
         state = ExceptionState311(
             handler_offset=entry.target,
@@ -370,6 +378,128 @@ class ExceptionStructureDecompiler311:
             ]
         return statement, next_index
 
+    def _try_except_star(self, entry, loop) -> Tuple[ast.TryStar, int]:
+        start = self.offset_to_index[entry.start]
+        try_end = self.offset_to_index[entry.end]
+        handler_index = self.offset_to_index[entry.target]
+        self._remember_exception_state(entry)
+        body = self._capture_protected(start, try_end, loop)
+
+        cursor = handler_index + 1
+        while (
+            cursor < len(self.tokens)
+            and self.tokens[cursor].kind
+            in ("BUILD_LIST", "COPY_STACK", "SWAP_STACK")
+        ):
+            cursor += 1
+
+        handlers = []
+        prep_index = next(
+            (
+                index
+                for index in range(cursor, len(self.tokens))
+                if self.tokens[index].kind == "PREP_RERAISE_STAR"
+            ),
+            None,
+        )
+        if prep_index is None:
+            self._error("except* handler has no PREP_RERAISE_STAR")
+
+        while cursor < prep_index:
+            while (
+                cursor < prep_index
+                and self.tokens[cursor].kind == "LIST_APPEND"
+            ):
+                cursor += 1
+            if cursor >= prep_index:
+                break
+            check_index = next(
+                (
+                    index
+                    for index in range(cursor, prep_index)
+                    if self.tokens[index].kind == "CHECK_EG_MATCH"
+                ),
+                None,
+            )
+            if check_index is None:
+                self._error("except* clause has no CHECK_EG_MATCH")
+            exception_type = self.owner._expression_slice(
+                cursor,
+                check_index,
+            )
+            if (
+                check_index + 3 >= len(self.tokens)
+                or self.tokens[check_index + 1].kind != "COPY_STACK"
+                or not self.tokens[check_index + 2].kind.startswith(
+                    "POP_JUMP_"
+                )
+            ):
+                self._error("CHECK_EG_MATCH has no subgroup branch")
+            false_index = self.offset_to_index[
+                instruction_target(self.tokens[check_index + 2])
+            ]
+            binding = self.tokens[check_index + 3]
+            if binding.kind.startswith("STORE_"):
+                name = (
+                    binding.attr
+                    if isinstance(binding.attr, str)
+                    else binding.pattr
+                )
+            elif binding.kind == "POP_TOP":
+                name = None
+            else:
+                self._error("except* clause has no binding or POP_TOP")
+            body_start = check_index + 4
+            clause_region = next(
+                (
+                    region
+                    for region in self.entries
+                    if region.start == self.tokens[body_start].offset
+                    and region.depth >= 4
+                ),
+                None,
+            )
+            if clause_region is None:
+                self._error("except* clause body has no protected region")
+            body_end = self.offset_to_index[clause_region.end]
+            clause_body = self._capture_optional(
+                body_start,
+                body_end,
+                loop,
+            )
+            handlers.append(
+                ast.ExceptHandler(
+                    type=exception_type,
+                    name=name,
+                    body=clause_body or [ast.Pass()],
+                )
+            )
+            cursor = false_index + 1
+
+        if not handlers:
+            self._error("except* protocol contains no clauses")
+        join_jump = next(
+            (
+                index
+                for index in range(prep_index, len(self.tokens))
+                if self.tokens[index].kind == "JUMP_FORWARD"
+            ),
+            None,
+        )
+        if join_jump is None:
+            self._error("except* cleanup has no normal continuation")
+        return (
+            ast.TryStar(
+                body=body or [ast.Pass()],
+                handlers=handlers,
+                orelse=[],
+                finalbody=[],
+            ),
+            self.offset_to_index[
+                instruction_target(self.tokens[join_jump])
+            ],
+        )
+
     def _try_finally(self, entry, loop) -> Tuple[ast.Try, int]:
         start = self.offset_to_index[entry.start]
         try_end = self.offset_to_index[entry.end]
@@ -424,7 +554,9 @@ class ExceptionStructureDecompiler311:
             return None
         entry = min(entries, key=lambda item: (item.end, item.target))
         handler_index = self.offset_to_index[entry.target]
-        if self._handler_has_match(handler_index):
+        if self._handler_has_group_match(handler_index):
+            statement, next_index = self._try_except_star(entry, loop)
+        elif self._handler_has_match(handler_index):
             statement, next_index = self._try_except(entry, loop)
         else:
             statement, next_index = self._try_finally(entry, loop)

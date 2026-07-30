@@ -192,7 +192,13 @@ def generate(check: bool) -> int:
         cfg_path = CFG_GOLDEN_DIR / f"{source.stem}.cfg"
         cfg_stream = (
             stable_cfg(source)
-            if source.stem in ("02_control_flow", "05_exceptions_with")
+            if source.stem
+            in (
+                "02_control_flow",
+                "05_exceptions_with",
+                "06_match",
+                "07_exception_group",
+            )
             else None
         )
 

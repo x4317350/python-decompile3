@@ -24,7 +24,6 @@ from decompyle3.controlflow.exceptiontable311 import (
     decode_exception_table_bytes,
     validate_exception_regions,
 )
-from decompyle3.parsers.p311.base import UnsupportedPython311ControlFlow
 from decompyle3.scanners.scanner311 import Scanner311
 from decompyle3.semantics.pysource import code_deparse
 from support311 import ROOT, compile_source
@@ -464,24 +463,3 @@ def test_recovered_async_with_and_async_for_preserve_behavior(tmp_path):
     assert asyncio.run(async_behavior(recovered)) == asyncio.run(
         async_behavior(original)
     )
-
-
-def test_uncertain_exception_group_structure_fails_closed():
-    source = (
-        "def guarded():\n"
-        "    try:\n"
-        "        raise ExceptionGroup('group', [ValueError()])\n"
-        "    except* ValueError:\n"
-        "        handled = True\n"
-    )
-    output = io.StringIO()
-    with pytest.raises(
-        UnsupportedPython311ControlFlow,
-        match=r"CHECK_EG_MATCH.*offset",
-    ):
-        code_deparse(
-            compile(source, "<unsupported-except-star>", "exec"),
-            out=output,
-            version=(3, 11),
-            python_implementation=PythonImplementation.CPython,
-        )

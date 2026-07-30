@@ -6,25 +6,84 @@
   1           2 LOAD_CONST               0 ('CPython 3.11 structural pattern-matching corpus.')
               4 STORE_NAME               0 (__doc__)
 
-  4           6 LOAD_CONST               1 (<code object describe at 0x..., file "test/simple_source/311/06_match.py", line 4>)
-              8 MAKE_FUNCTION            0
-             10 STORE_NAME               1 (describe)
-             12 LOAD_CONST               2 (None)
-             14 RETURN_VALUE
+  4           6 PUSH_NULL
+              8 LOAD_BUILD_CLASS
+             10 LOAD_CONST               1 (<code object Point at 0x..., file "test/simple_source/311/06_match.py", line 4>)
+             12 MAKE_FUNCTION            0
+             14 LOAD_CONST               2 ('Point')
+             16 PRECALL                  2
+             18 CACHE                    0
+             20 CALL                     2
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 STORE_NAME               1 (Point)
 
-Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_match.py", line 4>:
+ 12          32 LOAD_CONST               3 (<code object describe at 0x..., file "test/simple_source/311/06_match.py", line 12>)
+             34 MAKE_FUNCTION            0
+             36 STORE_NAME               2 (describe)
+
+ 28          38 LOAD_CONST               4 (<code object nested_describe at 0x..., file "test/simple_source/311/06_match.py", line 28>)
+             40 MAKE_FUNCTION            0
+             42 STORE_NAME               3 (nested_describe)
+
+ 38          44 LOAD_CONST               5 (<code object collect_description at 0x..., file "test/simple_source/311/06_match.py", line 38>)
+             46 MAKE_FUNCTION            0
+             48 STORE_NAME               4 (collect_description)
+             50 LOAD_CONST               6 (None)
+             52 RETURN_VALUE
+
+Disassembly of <code object Point at 0x..., file "test/simple_source/311/06_match.py", line 4>:
   4           0 RESUME                   0
+              2 LOAD_NAME                0 (__name__)
+              4 STORE_NAME               1 (__module__)
+              6 LOAD_CONST               0 ('Point')
+              8 STORE_NAME               2 (__qualname__)
 
-  5           2 LOAD_FAST                0 (value)
+  5          10 LOAD_CONST               1 (('x', 'y'))
+             12 STORE_NAME               3 (__match_args__)
 
-  6           4 COPY                     1
+  7          14 LOAD_CONST               2 (<code object __init__ at 0x..., file "test/simple_source/311/06_match.py", line 7>)
+             16 MAKE_FUNCTION            0
+             18 STORE_NAME               4 (__init__)
+             20 LOAD_CONST               3 (None)
+             22 RETURN_VALUE
+
+Disassembly of <code object __init__ at 0x..., file "test/simple_source/311/06_match.py", line 7>:
+  7           0 RESUME                   0
+
+  8           2 LOAD_FAST                1 (x)
+              4 LOAD_FAST                0 (self)
+              6 STORE_ATTR               0 (x)
+              8 CACHE                    0
+             10 CACHE                    0
+             12 CACHE                    0
+             14 CACHE                    0
+
+  9          16 LOAD_FAST                2 (y)
+             18 LOAD_FAST                0 (self)
+             20 STORE_ATTR               1 (y)
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 LOAD_CONST               0 (None)
+             32 RETURN_VALUE
+
+Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_match.py", line 12>:
+ 12           0 RESUME                   0
+
+ 13           2 LOAD_FAST                0 (value)
+
+ 14           4 COPY                     1
               6 POP_JUMP_FORWARD_IF_NOT_NONE     3 (to 14)
               8 POP_TOP
 
-  7          10 LOAD_CONST               1 ('none')
+ 15          10 LOAD_CONST               1 ('none')
              12 RETURN_VALUE
 
-  8     >>   14 COPY                     1
+ 16     >>   14 COPY                     1
              16 COPY                     1
              18 LOAD_CONST               2 (0)
              20 COMPARE_OP               2 (==)
@@ -44,10 +103,10 @@ Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_m
         >>   48 POP_TOP
              50 POP_TOP
 
-  9          52 LOAD_CONST               4 ('small')
+ 17          52 LOAD_CONST               4 ('small')
              54 RETURN_VALUE
 
- 10     >>   56 COPY                     1
+ 18     >>   56 COPY                     1
              58 MATCH_SEQUENCE
              60 POP_JUMP_FORWARD_IF_FALSE    19 (to 100)
              62 GET_LEN
@@ -64,16 +123,16 @@ Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_m
              84 POP_JUMP_FORWARD_IF_FALSE     8 (to 102)
              86 POP_TOP
 
- 11          88 LOAD_CONST               6 ('sequence')
+ 19          88 LOAD_CONST               6 ('sequence')
              90 LOAD_FAST                1 (first)
              92 LOAD_FAST                2 (second)
              94 LOAD_FAST                3 (rest)
              96 BUILD_TUPLE              4
              98 RETURN_VALUE
 
- 10     >>  100 POP_TOP
+ 18     >>  100 POP_TOP
 
- 12     >>  102 COPY                     1
+ 20     >>  102 COPY                     1
             104 MATCH_MAPPING
             106 POP_JUMP_FORWARD_IF_FALSE    30 (to 168)
             108 GET_LEN
@@ -99,18 +158,18 @@ Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_m
             148 POP_TOP
             150 POP_TOP
 
- 13         152 LOAD_CONST              11 ('point')
+ 21         152 LOAD_CONST              11 ('point')
             154 LOAD_FAST                4 (x)
             156 LOAD_FAST                5 (y)
             158 BUILD_TUPLE              3
             160 RETURN_VALUE
 
- 12     >>  162 POP_TOP
+ 20     >>  162 POP_TOP
         >>  164 POP_TOP
             166 POP_TOP
         >>  168 POP_TOP
 
- 14         170 LOAD_GLOBAL              0 (complex)
+ 22         170 LOAD_GLOBAL              0 (complex)
             172 CACHE                    0
             174 CACHE                    0
             176 CACHE                    0
@@ -125,15 +184,192 @@ Disassembly of <code object describe at 0x..., file "test/simple_source/311/06_m
             194 STORE_FAST               6 (real)
             196 STORE_FAST               7 (imag)
 
- 15         198 LOAD_CONST              13 ('complex')
+ 23         198 LOAD_CONST              13 ('complex')
             200 LOAD_FAST                6 (real)
             202 LOAD_FAST                7 (imag)
             204 BUILD_TUPLE              3
             206 RETURN_VALUE
 
- 14     >>  208 POP_TOP
+ 22     >>  208 POP_TOP
 
- 16         210 NOP
+ 24         210 NOP
 
- 17         212 LOAD_CONST              14 ('other')
+ 25         212 LOAD_CONST              14 ('other')
             214 RETURN_VALUE
+
+Disassembly of <code object nested_describe at 0x..., file "test/simple_source/311/06_match.py", line 28>:
+ 28           0 RESUME                   0
+
+ 29           2 LOAD_FAST                0 (value)
+
+ 30           4 COPY                     1
+              6 MATCH_MAPPING
+              8 POP_JUMP_FORWARD_IF_FALSE    55 (to 120)
+             10 GET_LEN
+             12 LOAD_CONST               1 (1)
+             14 COMPARE_OP               5 (>=)
+             16 CACHE                    0
+             18 CACHE                    0
+             20 POP_JUMP_FORWARD_IF_FALSE    49 (to 120)
+             22 LOAD_CONST              10 (('payload',))
+             24 MATCH_KEYS
+             26 COPY                     1
+             28 POP_JUMP_FORWARD_IF_NONE    43 (to 116)
+             30 UNPACK_SEQUENCE          1
+             32 CACHE                    0
+             34 MATCH_SEQUENCE
+             36 POP_JUMP_FORWARD_IF_FALSE    39 (to 116)
+             38 GET_LEN
+             40 LOAD_CONST               3 (2)
+             42 COMPARE_OP               2 (==)
+             44 CACHE                    0
+             46 CACHE                    0
+             48 POP_JUMP_FORWARD_IF_FALSE    33 (to 116)
+             50 UNPACK_SEQUENCE          2
+             52 CACHE                    0
+             54 SWAP                     4
+             56 SWAP                     3
+             58 SWAP                     2
+             60 LOAD_GLOBAL              0 (Point)
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 CACHE                    0
+             70 CACHE                    0
+             72 LOAD_CONST               4 (())
+             74 MATCH_CLASS              2
+             76 COPY                     1
+             78 POP_JUMP_FORWARD_IF_NONE    17 (to 114)
+             80 UNPACK_SEQUENCE          2
+             82 CACHE                    0
+             84 LOAD_CONST               5 (0)
+             86 COMPARE_OP               2 (==)
+             88 CACHE                    0
+             90 CACHE                    0
+             92 POP_JUMP_FORWARD_IF_FALSE    10 (to 114)
+             94 STORE_FAST               2 (y)
+             96 POP_TOP
+             98 POP_TOP
+            100 STORE_FAST               1 (first)
+            102 POP_TOP
+
+ 31         104 LOAD_CONST               6 ('nested')
+            106 LOAD_FAST                1 (first)
+            108 LOAD_FAST                2 (y)
+            110 BUILD_TUPLE              3
+            112 RETURN_VALUE
+
+ 30     >>  114 POP_TOP
+        >>  116 POP_TOP
+            118 POP_TOP
+        >>  120 POP_TOP
+
+ 32         122 COPY                     1
+            124 MATCH_MAPPING
+            126 POP_JUMP_FORWARD_IF_FALSE    32 (to 192)
+            128 GET_LEN
+            130 LOAD_CONST               1 (1)
+            132 COMPARE_OP               5 (>=)
+            134 CACHE                    0
+            136 CACHE                    0
+            138 POP_JUMP_FORWARD_IF_FALSE    26 (to 192)
+            140 LOAD_CONST              11 (('kind',))
+            142 MATCH_KEYS
+            144 COPY                     1
+            146 POP_JUMP_FORWARD_IF_NONE    20 (to 188)
+            148 UNPACK_SEQUENCE          1
+            150 CACHE                    0
+            152 SWAP                     3
+            154 SWAP                     2
+            156 BUILD_MAP                0
+            158 SWAP                     3
+            160 DICT_UPDATE              2
+            162 UNPACK_SEQUENCE          1
+            164 CACHE                    0
+            166 COPY                     2
+            168 SWAP                     2
+            170 DELETE_SUBSCR
+            172 STORE_FAST               4 (rest)
+            174 STORE_FAST               3 (kind)
+            176 POP_TOP
+
+ 33         178 LOAD_CONST               8 ('mapping')
+            180 LOAD_FAST                3 (kind)
+            182 LOAD_FAST                4 (rest)
+            184 BUILD_TUPLE              3
+            186 RETURN_VALUE
+
+ 32     >>  188 POP_TOP
+            190 POP_TOP
+        >>  192 POP_TOP
+
+ 34         194 STORE_FAST               5 (captured)
+
+ 35         196 LOAD_CONST               9 ('captured')
+            198 LOAD_FAST                5 (captured)
+            200 BUILD_TUPLE              2
+            202 RETURN_VALUE
+
+Disassembly of <code object collect_description at 0x..., file "test/simple_source/311/06_match.py", line 38>:
+ 38           0 RESUME                   0
+
+ 39           2 BUILD_LIST               0
+              4 STORE_FAST               1 (messages)
+
+ 40           6 LOAD_FAST                0 (value)
+
+ 41           8 LOAD_CONST               1 (1)
+             10 COMPARE_OP               2 (==)
+             12 CACHE                    0
+             14 CACHE                    0
+             16 POP_JUMP_FORWARD_IF_FALSE    22 (to 62)
+
+ 42          18 LOAD_FAST                1 (messages)
+             20 LOAD_METHOD              0 (append)
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 LOAD_CONST               2 ('one')
+             44 PRECALL                  1
+             46 CACHE                    0
+             48 CALL                     1
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 CACHE                    0
+             58 POP_TOP
+             60 JUMP_FORWARD            22 (to 106)
+
+ 43     >>   62 NOP
+
+ 44          64 LOAD_FAST                1 (messages)
+             66 LOAD_METHOD              0 (append)
+             68 CACHE                    0
+             70 CACHE                    0
+             72 CACHE                    0
+             74 CACHE                    0
+             76 CACHE                    0
+             78 CACHE                    0
+             80 CACHE                    0
+             82 CACHE                    0
+             84 CACHE                    0
+             86 CACHE                    0
+             88 LOAD_CONST               3 ('other')
+             90 PRECALL                  1
+             92 CACHE                    0
+             94 CALL                     1
+             96 CACHE                    0
+             98 CACHE                    0
+            100 CACHE                    0
+            102 CACHE                    0
+            104 POP_TOP
+
+ 45     >>  106 LOAD_FAST                1 (messages)
+            108 RETURN_VALUE
