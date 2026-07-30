@@ -26,7 +26,6 @@ import sys
 from spark_parser import DEFAULT_DEBUG as PARSER_DEFAULT_DEBUG
 from xdis import iscode
 from xdis.version_info import (
-    PYTHON_IMPLEMENTATION,
     PYTHON_VERSION_TRIPLE,
     PythonImplementation,
     version_tuple_to_str,
@@ -52,6 +51,13 @@ from decompyle3.parsers.p38pypy.heads import (
     Python38PyPyParserExpr,
     Python38PyPyParserLambda,
     Python38PyPyParserSingle,
+)
+from decompyle3.parsers.p311.heads import (
+    Python311ParserEval,
+    Python311ParserExec,
+    Python311ParserExpr,
+    Python311ParserLambda,
+    Python311ParserSingle,
 )
 from decompyle3.parsers.treenode import SyntaxTree
 from decompyle3.show import maybe_show_asm
@@ -143,13 +149,24 @@ def get_python_parser(
         else:
             p = Python38ParserSingle(debug_parser)
 
-    elif version > (3, 8):
-        if version == (3, 11):
+    elif version == (3, 11):
+        if python_implementation is not PythonImplementation.CPython:
+            raise RuntimeError("Parser311 currently supports CPython only")
+        parser_classes = {
+            "exec": Python311ParserExec,
+            "single": Python311ParserSingle,
+            "lambda": Python311ParserLambda,
+            "eval": Python311ParserEval,
+            "expr": Python311ParserExpr,
+        }
+        try:
+            parser_class = parser_classes[compile_mode]
+        except KeyError as error:
             raise RuntimeError(
-                "CPython 3.11 Scanner is available, but Parser311 is not "
-                "implemented; decompilation is currently limited to Python "
-                "3.7 and 3.8 bytecode."
-            )
+                f"Unsupported CPython 3.11 compile mode {compile_mode!r}"
+            ) from error
+        p = parser_class(debug_parser=debug_parser)
+    elif version > (3, 8):
         raise RuntimeError(f"Version {version_tuple_to_str(version)} is not supported.")
 
     p.version = version
@@ -199,7 +216,7 @@ def python_parser(
         version,
         parser_debug,
         compile_mode=compile_mode,
-        python_implementation=PYTHON_IMPLEMENTATION,
+        python_implementation=python_implementation,
     )
 
     # FIXME: have p.insts update in a better way
@@ -207,6 +224,8 @@ def python_parser(
     p.insts = scanner.insts
     p.offset2inst_index = scanner.offset2inst_index
     p.opc = scanner.opc
+    if version[:2] == (3, 11):
+        p.code_object = co
 
     return parse(p, tokens, customize, is_lambda)
 

@@ -1115,6 +1115,11 @@ def code_deparse(
     if version is None:
         version = PYTHON_VERSION_TRIPLE
 
+    if version[:2] == (3, 11) and walker is SourceWalker:
+        from decompyle3.semantics.customize311 import Python311SourceWalker
+
+        walker = Python311SourceWalker
+
     # store final output stream for case of error
     scanner = get_scanner(
         version, python_implementation=python_implementation, show_asm=debug_opts["asm"]
@@ -1192,9 +1197,12 @@ def code_deparse(
     # save memory
     del tokens
 
-    deparsed.mod_globs, nonlocals = find_globals_and_nonlocals(
-        deparsed.ast, set(), set(), co, version
-    )
+    if getattr(deparsed.ast, "is_python311_result", False):
+        deparsed.mod_globs, nonlocals = set(), set()
+    else:
+        deparsed.mod_globs, nonlocals = find_globals_and_nonlocals(
+            deparsed.ast, set(), set(), co, version
+        )
 
     deparsed.is_module = compile_mode not in (
         "dictcomp",

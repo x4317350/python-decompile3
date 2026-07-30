@@ -30,12 +30,12 @@ def load_corpus_code(source, tmp_path):
     return code
 
 
-def test_scanner311_is_registered_and_parser_error_is_explicit():
+def test_scanner311_and_parser311_are_registered():
     scanner = get_scanner((3, 11, 9), PythonImplementation.CPython)
     assert isinstance(scanner, Scanner311)
 
-    with pytest.raises(RuntimeError, match="Scanner is available.*Parser311"):
-        get_python_parser((3, 11))
+    parser = get_python_parser((3, 11))
+    assert parser.__class__.__name__ == "Python311ParserExec"
 
     with pytest.raises(RuntimeError, match="supports CPython bytecode only"):
         get_scanner((3, 11), PythonImplementation.PyPy)

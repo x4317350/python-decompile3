@@ -99,10 +99,10 @@ def main_bin(
     files: List[str],
 ):
     """
-    Cross Python bytecode decompiler for Python 3.7-3.8 bytecode.
+    Cross Python bytecode decompiler for Python 3.7, 3.8, and CPython 3.11.
 
-    CPython 3.11 bytecode loading and raw scanning are available for diagnostics;
-    Parser311 and source decompilation are not implemented yet.
+    CPython 3.11 source recovery currently covers straight-line phase-3
+    constructs. Later-phase control flow is rejected with an explicit error.
     """
     version_tuple = sys.version_info[0:2]
     if version_tuple < (3, 7):

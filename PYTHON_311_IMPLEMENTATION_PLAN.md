@@ -79,7 +79,7 @@ Scanner311 读取原始指令
 | 0 | 环境、基线和测试语料 | 已完成 |
 | 1 | 3.11 `.pyc` 装载和原始扫描 | 已完成 |
 | 2 | 3.11 指令规范化 | 已完成 |
-| 3 | 无复杂控制流的源码恢复 | 未开始 |
+| 3 | 无复杂控制流的源码恢复 | 已完成 |
 | 4 | CFG 和普通控制流恢复 | 未开始 |
 | 5 | 推导式、生成器和协程 | 未开始 |
 | 6 | 异常表、异常语句和 `with` | 未开始 |
@@ -348,26 +348,26 @@ decompyle3/parsers/p311/lambda_expr.py
 decompyle3/parsers/p311/full_custom.py
 ```
 
-- [ ] 注册 `Python311ParserExec`。
-- [ ] 注册 `single`、`eval`、`expr` 和 `lambda` compile mode。
-- [ ] 只继承仍然语义有效的 3.8 规则。
-- [ ] 删除或覆盖依赖旧调用、旧异常和旧跳转模式的规则。
-- [ ] 对尚未支持的控制流给出明确错误。
+- [x] 注册 `Python311ParserExec`。
+- [x] 注册 `single`、`eval`、`expr` 和 `lambda` compile mode。
+- [x] 只继承仍然语义有效的 3.8 规则。
+- [x] 删除或覆盖依赖旧调用、旧异常和旧跳转模式的规则。
+- [x] 对尚未支持的控制流给出明确错误。
 
 ### 3.2 首批语法
 
-- [ ] 常量和集合字面量。
-- [ ] 一元、二元、比较和布尔表达式。
-- [ ] 属性、下标和切片。
-- [ ] 简单赋值和链式赋值。
-- [ ] 增量赋值。
-- [ ] import。
-- [ ] return、raise 和 delete。
-- [ ] 普通函数调用和方法调用。
-- [ ] 函数和 lambda。
-- [ ] 默认参数、位置专用参数、关键字专用参数和注解。
-- [ ] 类、继承、方法和装饰器。
-- [ ] f-string。
+- [x] 常量和集合字面量。
+- [x] 一元、二元、比较和布尔表达式。
+- [x] 属性、下标和切片。
+- [x] 简单赋值和链式赋值。
+- [x] 增量赋值。
+- [x] import。
+- [x] return、raise 和 delete。
+- [x] 普通函数调用和方法调用。
+- [x] 函数和 lambda。
+- [x] 默认参数、位置专用参数、关键字专用参数和注解。
+- [x] 类、继承、方法和装饰器。
+- [x] f-string。
 
 ### 3.3 语义输出
 
@@ -379,19 +379,19 @@ decompyle3/semantics/make_function311.py
 decompyle3/semantics/customize.py
 ```
 
-- [ ] 尽量复用现有 `SourceWalker`。
-- [ ] 处理 3.11 `MAKE_FUNCTION`。
-- [ ] 处理 3.11 闭包和注解布局。
-- [ ] 确保生成源码能被 Python 3.11 解析。
+- [x] 尽量复用现有 `SourceWalker`。
+- [x] 处理 3.11 `MAKE_FUNCTION`。
+- [x] 处理 3.11 闭包和注解布局。
+- [x] 确保生成源码能被 Python 3.11 解析。
 
 ### 阶段 3 验收条件
 
-- [ ] 简单模块可以生成源码。
-- [ ] 每个结果通过 `ast.parse()`。
-- [ ] 每个结果通过 `compile(..., "exec")`。
-- [ ] 纯计算样本通过行为对比。
-- [ ] 尚未支持的控制流不会输出伪正确源码。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 简单模块可以生成源码。
+- [x] 每个结果通过 `ast.parse()`。
+- [x] 每个结果通过 `compile(..., "exec")`。
+- [x] 纯计算样本通过行为对比。
+- [x] 尚未支持的控制流不会输出伪正确源码。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -892,3 +892,66 @@ VerificationError
 - 下一步：
   - 阶段 3：注册 Parser311，从无复杂控制流的表达式、赋值、调用、
     函数和类开始恢复源码，并用 `ast.parse()` 和重新编译验证。
+
+### 2026-07-30：阶段 3
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/parsers/p311/*.py`
+  - `decompyle3/parsers/main.py`
+  - `decompyle3/semantics/customize311.py`
+  - `decompyle3/semantics/make_function311.py`
+  - `decompyle3/semantics/pysource.py`
+  - `decompyle3/bin/decompile.py`
+  - `pytest/test_deparse311.py`
+  - `pytest/test_scanner311.py`
+  - `pytest/test_corpus311.py`
+  - `test/simple_source/311/09_straight_line.py`
+  - `test/bytecode_3.11/golden/09_straight_line.dis`
+  - `test/bytecode_3.11/golden_tokens/09_straight_line.tokens`
+- 已实现：
+  - 注册 CPython 3.11 的 `exec`、`single`、`eval`、`expr` 和
+    `lambda` Parser 入口；3.11 路径不混入依赖旧 CALL、SETUP、异常和
+    跳转协议的 3.8 Spark 规则。
+  - 建立基于阶段 2 规范化 Token 的直线型栈解析器，生成标准库
+    `ast`，再由 `ast.unparse()` 输出语义等价源码。
+  - 恢复常量与集合、运算和比较、封闭的 `and/or` 短路表达式、
+    属性/下标/切片、链式/解包/增量赋值、import、return、raise、
+    delete、普通/方法/扩展调用及 f-string。
+  - 恢复 3.11 `MAKE_FUNCTION` 栈布局、闭包、默认值、位置专用参数、
+    关键字专用参数、可变参数、注解、lambda、函数/类装饰器、继承和
+    方法。
+  - 通过 `Python311SourceWalker` 复用现有输出、调试和 CLI 管线。
+  - 对普通分支/循环、推导式、生成器/协程、异常表、`with`、
+    `match/case` 和 `except*` fail closed，并报告 code object、opcode
+    与物理 offset。
+  - 新增第 10 份阶段 3 直线型 corpus、标准 dis 和规范化 Token
+    golden；对磁盘 `.pyc` 执行解析、重编译和行为对比。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_deparse311.py`
+  - `.venv311/bin/pytest -q`
+  - `make check PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/parsers/p311 decompyle3/parsers/main.py decompyle3/semantics/customize311.py decompyle3/semantics/make_function311.py decompyle3/semantics/pysource.py decompyle3/bin/decompile.py pytest/test_deparse311.py pytest/test_scanner311.py pytest/test_corpus311.py test/bytecode_3.11/generate.py test/simple_source/311/09_straight_line.py`
+- 验证结果：
+  - 阶段 3 源码恢复测试：`8 passed`。
+  - 全部 pytest：`29 passed, 18 skipped`。
+  - golden 生成与一致性检查：10 份源码、dis 和 Token 均通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 旧版本继续使用原有 Scanner、Spark Parser 和 SourceWalker 语义路径。
+  - 3.7 和 3.8 现有回归语料全部成功反编译，未新增失败。
+- 已知限制：
+  - 阶段 3 只接受无需通用 CFG 的直线型语句；复合 `and/or`、
+    条件表达式、链式比较及普通分支/循环在阶段 4 处理。
+  - 推导式、生成器、协程和 async 结构留在阶段 5。
+  - 异常表、`try`、`with` 留在阶段 6；`match/case` 与 `except*`
+    留在阶段 7。
+  - Parser311 的源码格式由 `ast.unparse()` 规范化，不保证恢复原始排版。
+- 下一步：
+  - 阶段 4：建立基本块、CFG、dominator/post-dominator 和结构识别，
+    恢复普通 `if`、循环、break/continue、loop-else 与条件表达式。
