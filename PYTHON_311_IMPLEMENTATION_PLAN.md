@@ -82,7 +82,7 @@ Scanner311 读取原始指令
 | 3 | 无复杂控制流的源码恢复 | 已完成 |
 | 4 | CFG 和普通控制流恢复 | 已完成 |
 | 5 | 推导式、生成器和协程 | 已完成 |
-| 6 | 异常表、异常语句和 `with` | 未开始 |
+| 6 | 异常表、异常语句和 `with` | 已完成 |
 | 7 | `match/case`、`except*` 等新语法 | 未开始 |
 | 8 | 回归、可靠性、文档和发布准备 | 未开始 |
 
@@ -505,11 +505,11 @@ decompyle3/controlflow/exceptiontable311.py
 decompyle3/controlflow/exception_regions.py
 ```
 
-- [ ] 解码 `co_exceptiontable`。
-- [ ] 表示 start、end、target、depth 和 lasti。
-- [ ] 对照 Python 3.11 `dis` 的 ExceptionTable 输出。
-- [ ] 验证所有保护范围和 handler target。
-- [ ] 将异常边加入 CFG。
+- [x] 解码 `co_exceptiontable`。
+- [x] 表示 start、end、target、depth 和 lasti。
+- [x] 对照 Python 3.11 `dis` 的 ExceptionTable 输出。
+- [x] 验证所有保护范围和 handler target。
+- [x] 将异常边加入 CFG。
 
 建议数据结构：
 
@@ -525,40 +525,40 @@ ExceptionRegion(
 
 ### 6.2 异常指令
 
-- [ ] `PUSH_EXC_INFO`。
-- [ ] `CHECK_EXC_MATCH`。
-- [ ] `POP_EXCEPT`。
-- [ ] `RERAISE`。
-- [ ] 异常状态在栈上的单对象表示。
+- [x] `PUSH_EXC_INFO`。
+- [x] `CHECK_EXC_MATCH`。
+- [x] `POP_EXCEPT`。
+- [x] `RERAISE`。
+- [x] 异常状态在栈上的单对象表示。
 
 ### 6.3 异常结构
 
-- [ ] `try/except`。
-- [ ] 多个 `except`。
-- [ ] `except ... as ...`。
-- [ ] `try/else`。
-- [ ] `try/finally`。
-- [ ] `try/except/finally`。
-- [ ] 嵌套异常结构。
-- [ ] finally 中的 return、break 和 continue。
+- [x] `try/except`。
+- [x] 多个 `except`。
+- [x] `except ... as ...`。
+- [x] `try/else`。
+- [x] `try/finally`。
+- [x] `try/except/finally`。
+- [x] 嵌套异常结构。
+- [x] finally 中的 return、break 和 continue。
 
 ### 6.4 上下文管理器
 
-- [ ] `BEFORE_WITH`。
-- [ ] `WITH_EXCEPT_START`。
-- [ ] 普通 `with`。
-- [ ] 多个 context manager。
-- [ ] 嵌套 `with`。
-- [ ] `async with`。
+- [x] `BEFORE_WITH`。
+- [x] `WITH_EXCEPT_START`。
+- [x] 普通 `with`。
+- [x] 多个 context manager。
+- [x] 嵌套 `with`。
+- [x] `async with`。
 
 ### 阶段 6 验收条件
 
-- [ ] 异常表解码与标准 `dis` 一致。
-- [ ] 异常 CFG 不丢失正常路径或 handler 路径。
-- [ ] try、except、else、finally 边界正确。
-- [ ] with 的正常退出和异常退出正确。
-- [ ] 不确定的异常结构会明确报错。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 异常表解码与标准 `dis` 一致。
+- [x] 异常 CFG 不丢失正常路径或 handler 路径。
+- [x] try、except、else、finally 边界正确。
+- [x] with 的正常退出和异常退出正确。
+- [x] 不确定的异常结构会明确报错。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -1087,3 +1087,69 @@ VerificationError
 - 下一步：
   - 阶段 6：解码 `co_exceptiontable`，将异常边加入 CFG，并恢复
     `try`、`except`、`finally`、`with` 和普通 `async for`。
+
+### 2026-07-30：阶段 6
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/controlflow/__init__.py`
+  - `decompyle3/controlflow/cfg.py`
+  - `decompyle3/controlflow/exception_regions.py`
+  - `decompyle3/controlflow/exception_structures.py`
+  - `decompyle3/controlflow/exceptiontable311.py`
+  - `decompyle3/controlflow/structures.py`
+  - `decompyle3/parsers/p311/base.py`
+  - `pytest/test_deparse311.py`
+  - `pytest/test_exceptiontable311.py`
+  - `test/bytecode_3.11/generate.py`
+  - `test/simple_source/311/05_exceptions_with.py`
+  - `test/bytecode_3.11/golden/05_exceptions_with.dis`
+  - `test/bytecode_3.11/golden_tokens/05_exceptions_with.tokens`
+  - `test/bytecode_3.11/golden_cfg/05_exceptions_with.cfg`
+- 已实现：
+  - 独立解码并验证 CPython 3.11 `co_exceptiontable`，保存
+    start、end、target、depth 和 lasti，并逐个 code object 与标准库
+    `dis.Bytecode.exception_entries` 精确对照。
+  - 按异常保护范围和 handler target 划分基本块，将异常边加入 CFG，
+    同时保留正常 fall-through、分支、循环和 return 路径。
+  - 用单一 `ExceptionState311` 表示 handler 的栈深度和 lasti 状态，
+    对同一 handler target 的状态一致性执行校验。
+  - 恢复 `try/except`、多分支和裸 `except`、`except ... as ...`、
+    `try/else`、`try/finally`、`try/except/finally`、嵌套异常结构，
+    以及 finally 中的 return、break 和 continue。
+  - 恢复无 `as`/有 `as` 的普通 `with`、多个和嵌套 context manager、
+    `async with`，并验证正常退出、异常退出和异常抑制行为。
+  - 恢复普通 `async for`、break 和 loop-else；复用 3.11
+    `GET_ANEXT/SEND/END_ASYNC_FOR` 协议并依据异常表定位清理边界。
+  - 扩充阶段 6 corpus、标准 dis、规范化 Token 和带异常边的 CFG
+    golden；对磁盘 `.pyc` 执行重新解析、编译和同步/异步行为对比。
+  - 对阶段 7 的 `except*`/`CHECK_EG_MATCH` 保持明确 fail closed，
+    错误包含 code object、opcode 和物理 offset。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_exceptiontable311.py`
+  - `.venv311/bin/pytest -q`
+  - `make -C test check-bytecode-3.7 PYTHON=../.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=../.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/controlflow decompyle3/parsers/p311/base.py pytest/test_exceptiontable311.py pytest/test_deparse311.py test/bytecode_3.11/generate.py test/simple_source/311/05_exceptions_with.py`
+  - `git diff --check`
+- 验证结果：
+  - 阶段 6 异常表、结构和行为验收：`10 passed`。
+  - 全部 pytest：`51 passed, 16 skipped`。
+  - 10 份 corpus 的 dis/Token golden 及阶段 6 异常 CFG golden：
+    生成和一致性检查通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 异常表解码、异常 CFG 和结构恢复只接入 CPython 3.11 Parser。
+  - 3.7 和 3.8 继续使用原有 Scanner、Spark Parser 与
+    SourceWalker，现有语料未新增失败。
+- 已知限制：
+  - 当前异常结构恢复面向 CPython 3.11 编译器生成且已覆盖的规范
+    模式；畸形异常表、状态冲突和无法确认边界的结构会明确报错。
+  - `match/case` 和 `except*` 留在阶段 7。
+  - 源码继续由 `ast.unparse()` 规范化，不恢复原始排版。
+- 下一步：
+  - 阶段 7：恢复 `match/case`、`except*` 及其 3.11 专用协议。

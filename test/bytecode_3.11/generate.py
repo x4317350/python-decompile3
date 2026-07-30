@@ -13,7 +13,11 @@ from pathlib import Path
 
 from xdis import iscode
 
-from decompyle3.controlflow import analyze_control_flow, build_cfg
+from decompyle3.controlflow import (
+    analyze_control_flow,
+    build_cfg,
+    decode_exception_table,
+)
 from decompyle3.scanners.scanner311 import Scanner311
 
 
@@ -136,7 +140,10 @@ def stable_cfg(source: Path) -> str:
     for code in Scanner311.iter_code_objects(root_code):
         scanner = Scanner311()
         scanner.ingest(code)
-        graph = build_cfg(scanner.normalized_instructions)
+        graph = build_cfg(
+            scanner.normalized_instructions,
+            decode_exception_table(code),
+        )
         analysis = analyze_control_flow(graph)
         qualname = getattr(code, "co_qualname", code.co_name)
         lines.append(f"## code: {qualname}")
@@ -183,7 +190,11 @@ def generate(check: bool) -> int:
         token_path = TOKEN_GOLDEN_DIR / f"{source.stem}.tokens"
         token_stream = stable_tokens(source)
         cfg_path = CFG_GOLDEN_DIR / f"{source.stem}.cfg"
-        cfg_stream = stable_cfg(source) if source.stem == "02_control_flow" else None
+        cfg_stream = (
+            stable_cfg(source)
+            if source.stem in ("02_control_flow", "05_exceptions_with")
+            else None
+        )
 
         if check:
             artifacts = [

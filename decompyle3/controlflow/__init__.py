@@ -12,14 +12,28 @@ from decompyle3.controlflow.dominators import (
     NaturalLoop,
     analyze_control_flow,
 )
+from decompyle3.controlflow.exception_regions import (
+    ExceptionRegionMap,
+    build_exception_region_map,
+)
+from decompyle3.controlflow.exceptiontable311 import (
+    ExceptionRegion,
+    ExceptionTableDecodeError,
+    decode_exception_table,
+)
 
 __all__ = [
     "BasicBlock",
     "ControlFlowAnalysis",
     "ControlFlowGraph",
     "Edge",
+    "ExceptionRegion",
+    "ExceptionRegionMap",
+    "ExceptionTableDecodeError",
     "IrreducibleControlFlowError",
     "NaturalLoop",
     "analyze_control_flow",
     "build_cfg",
+    "build_exception_region_map",
+    "decode_exception_table",
 ]

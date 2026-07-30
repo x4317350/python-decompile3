@@ -155,10 +155,10 @@ def test_python_parser_returns_standard_ast_result():
         (
             "def guarded():\n"
             "    try:\n"
-            "        return 1\n"
-            "    finally:\n"
-            "        pass\n",
-            "phase 6",
+            "        raise ExceptionGroup('group', [ValueError()])\n"
+            "    except* ValueError:\n"
+            "        handled = True\n",
+            "later Python 3.11 implementation phase",
         ),
     ],
 )

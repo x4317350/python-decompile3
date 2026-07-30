@@ -14,19 +14,67 @@
              14 MAKE_FUNCTION            0
              16 STORE_NAME               2 (nested_exception)
 
- 28          18 LOAD_CONST               3 (<code object use_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 28>)
+ 28          18 LOAD_CONST               3 (<code object multiple_handlers at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 28>)
              20 MAKE_FUNCTION            0
-             22 STORE_NAME               3 (use_context)
+             22 STORE_NAME               3 (multiple_handlers)
 
- 33          24 LOAD_CONST               4 (<code object use_two_contexts at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 33>)
+ 39          24 LOAD_CONST               4 (<code object cleanup_only at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 39>)
              26 MAKE_FUNCTION            0
-             28 STORE_NAME               4 (use_two_contexts)
+             28 STORE_NAME               4 (cleanup_only)
 
- 38          30 LOAD_CONST               5 (<code object use_async_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 38>)
+ 47          30 LOAD_CONST               5 (<code object finally_return at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 47>)
              32 MAKE_FUNCTION            0
-             34 STORE_NAME               5 (use_async_context)
-             36 LOAD_CONST               6 (None)
-             38 RETURN_VALUE
+             34 STORE_NAME               5 (finally_return)
+
+ 54          36 LOAD_CONST               6 (<code object finally_break at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 54>)
+             38 MAKE_FUNCTION            0
+             40 STORE_NAME               6 (finally_break)
+
+ 64          42 LOAD_CONST               7 (<code object finally_continue at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 64>)
+             44 MAKE_FUNCTION            0
+             46 STORE_NAME               7 (finally_continue)
+
+ 74          48 LOAD_CONST               8 (<code object use_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 74>)
+             50 MAKE_FUNCTION            0
+             52 STORE_NAME               8 (use_context)
+
+ 79          54 LOAD_CONST               9 (<code object record_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 79>)
+             56 MAKE_FUNCTION            0
+             58 STORE_NAME               9 (record_context)
+
+ 85          60 LOAD_CONST              10 (<code object use_context_without_target at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 85>)
+             62 MAKE_FUNCTION            0
+             64 STORE_NAME              10 (use_context_without_target)
+
+ 91          66 LOAD_CONST              11 (<code object context_failure at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 91>)
+             68 MAKE_FUNCTION            0
+             70 STORE_NAME              11 (context_failure)
+
+ 96          72 LOAD_CONST              12 (<code object use_two_contexts at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 96>)
+             74 MAKE_FUNCTION            0
+             76 STORE_NAME              12 (use_two_contexts)
+
+101          78 LOAD_CONST              13 (<code object use_nested_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 101>)
+             80 MAKE_FUNCTION            0
+             82 STORE_NAME              13 (use_nested_context)
+
+107          84 LOAD_CONST              14 (<code object use_async_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 107>)
+             86 MAKE_FUNCTION            0
+             88 STORE_NAME              14 (use_async_context)
+
+112          90 LOAD_CONST              15 (<code object async_record_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 112>)
+             92 MAKE_FUNCTION            0
+             94 STORE_NAME              15 (async_record_context)
+
+118          96 LOAD_CONST              16 (<code object consume_async at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 118>)
+             98 MAKE_FUNCTION            0
+            100 STORE_NAME              16 (consume_async)
+
+125         102 LOAD_CONST              17 (<code object consume_until_negative at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 125>)
+            104 MAKE_FUNCTION            0
+            106 STORE_NAME              17 (consume_until_negative)
+            108 LOAD_CONST              18 (None)
+            110 RETURN_VALUE
 
 Disassembly of <code object guarded_division at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 4>:
   4           0 RESUME                   0
@@ -267,21 +315,283 @@ ExceptionTable:
   70 to 88 -> 98 [1] lasti
   96 to 96 -> 98 [1] lasti
 
-Disassembly of <code object use_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 28>:
+Disassembly of <code object multiple_handlers at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 28>:
  28           0 RESUME                   0
 
- 29           2 LOAD_FAST                0 (resource)
+ 29           2 NOP
+
+ 30           4 LOAD_CONST               1 (10)
+              6 LOAD_FAST                0 (value)
+              8 BINARY_OP               11 (/)
+             10 CACHE                    0
+             12 RETURN_VALUE
+        >>   14 PUSH_EXC_INFO
+
+ 31          16 LOAD_GLOBAL              0 (TypeError)
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CHECK_EXC_MATCH
+             30 POP_JUMP_FORWARD_IF_FALSE     4 (to 40)
+             32 POP_TOP
+
+ 32          34 POP_EXCEPT
+             36 LOAD_CONST               2 ('type')
+             38 RETURN_VALUE
+
+ 33     >>   40 LOAD_GLOBAL              2 (ZeroDivisionError)
+             42 CACHE                    0
+             44 CACHE                    0
+             46 CACHE                    0
+             48 CACHE                    0
+             50 CACHE                    0
+             52 CHECK_EXC_MATCH
+             54 POP_JUMP_FORWARD_IF_FALSE     4 (to 64)
+             56 POP_TOP
+
+ 34          58 POP_EXCEPT
+             60 LOAD_CONST               3 ('zero')
+             62 RETURN_VALUE
+
+ 35     >>   64 POP_TOP
+
+ 36          66 POP_EXCEPT
+             68 LOAD_CONST               4 ('other')
+             70 RETURN_VALUE
+        >>   72 COPY                     3
+             74 POP_EXCEPT
+             76 RERAISE                  1
+ExceptionTable:
+  4 to 10 -> 14 [0]
+  14 to 32 -> 72 [1] lasti
+  40 to 56 -> 72 [1] lasti
+  64 to 64 -> 72 [1] lasti
+
+Disassembly of <code object cleanup_only at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 39>:
+ 39           0 RESUME                   0
+
+ 40           2 NOP
+
+ 41           4 LOAD_FAST                0 (events)
+              6 LOAD_METHOD              0 (append)
+              8 CACHE                    0
+             10 CACHE                    0
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 LOAD_CONST               1 ('try')
+             30 PRECALL                  1
+             32 CACHE                    0
+             34 CALL                     1
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 POP_TOP
+
+ 43          46 LOAD_FAST                0 (events)
+             48 LOAD_METHOD              0 (append)
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 CACHE                    0
+             58 CACHE                    0
+             60 CACHE                    0
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 CACHE                    0
+             70 LOAD_CONST               2 ('finally')
+             72 PRECALL                  1
+             74 CACHE                    0
+             76 CALL                     1
+             78 CACHE                    0
+             80 CACHE                    0
+             82 CACHE                    0
+             84 CACHE                    0
+             86 POP_TOP
+             88 JUMP_FORWARD            26 (to 142)
+        >>   90 PUSH_EXC_INFO
+             92 LOAD_FAST                0 (events)
+             94 LOAD_METHOD              0 (append)
+             96 CACHE                    0
+             98 CACHE                    0
+            100 CACHE                    0
+            102 CACHE                    0
+            104 CACHE                    0
+            106 CACHE                    0
+            108 CACHE                    0
+            110 CACHE                    0
+            112 CACHE                    0
+            114 CACHE                    0
+            116 LOAD_CONST               2 ('finally')
+            118 PRECALL                  1
+            120 CACHE                    0
+            122 CALL                     1
+            124 CACHE                    0
+            126 CACHE                    0
+            128 CACHE                    0
+            130 CACHE                    0
+            132 POP_TOP
+            134 RERAISE                  0
+        >>  136 COPY                     3
+            138 POP_EXCEPT
+            140 RERAISE                  1
+
+ 44     >>  142 LOAD_FAST                0 (events)
+            144 RETURN_VALUE
+ExceptionTable:
+  4 to 44 -> 90 [0]
+  90 to 134 -> 136 [1] lasti
+
+Disassembly of <code object finally_return at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 47>:
+ 47           0 RESUME                   0
+
+ 48           2 NOP
+
+ 49           4 LOAD_FAST                0 (value)
+              6 STORE_FAST               1 (marker)
+
+ 51           8 LOAD_FAST                1 (marker)
+             10 RETURN_VALUE
+        >>   12 PUSH_EXC_INFO
+             14 LOAD_FAST                1 (marker)
+             16 SWAP                     2
+             18 POP_TOP
+             20 SWAP                     2
+             22 POP_EXCEPT
+             24 RETURN_VALUE
+        >>   26 COPY                     3
+             28 POP_EXCEPT
+             30 RERAISE                  1
+ExceptionTable:
+  4 to 6 -> 12 [0]
+  12 to 20 -> 26 [1] lasti
+
+Disassembly of <code object finally_break at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 54>:
+ 54           0 RESUME                   0
+
+ 55           2 BUILD_LIST               0
+              4 STORE_FAST               1 (seen)
+
+ 56           6 LOAD_FAST                0 (values)
+              8 GET_ITER
+             10 FOR_ITER                33 (to 78)
+             12 STORE_FAST               2 (value)
+
+ 57          14 NOP
+
+ 58          16 LOAD_FAST                1 (seen)
+             18 LOAD_METHOD              0 (append)
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 LOAD_FAST                2 (value)
+             42 PRECALL                  1
+             44 CACHE                    0
+             46 CALL                     1
+             48 CACHE                    0
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 POP_TOP
+
+ 60          58 POP_TOP
+             60 JUMP_FORWARD             8 (to 78)
+        >>   62 PUSH_EXC_INFO
+             64 POP_TOP
+             66 POP_EXCEPT
+             68 POP_TOP
+             70 JUMP_FORWARD             3 (to 78)
+        >>   72 COPY                     3
+             74 POP_EXCEPT
+             76 RERAISE                  1
+
+ 61     >>   78 LOAD_FAST                1 (seen)
+             80 RETURN_VALUE
+ExceptionTable:
+  16 to 56 -> 62 [1]
+  62 to 64 -> 72 [2] lasti
+
+Disassembly of <code object finally_continue at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 64>:
+ 64           0 RESUME                   0
+
+ 65           2 BUILD_LIST               0
+              4 STORE_FAST               1 (seen)
+
+ 66           6 LOAD_FAST                0 (values)
+              8 GET_ITER
+        >>   10 FOR_ITER                31 (to 74)
+             12 STORE_FAST               2 (value)
+
+ 67          14 NOP
+
+ 68          16 LOAD_FAST                1 (seen)
+             18 LOAD_METHOD              0 (append)
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 LOAD_FAST                2 (value)
+             42 PRECALL                  1
+             44 CACHE                    0
+             46 CALL                     1
+             48 CACHE                    0
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 POP_TOP
+
+ 70          58 JUMP_BACKWARD           25 (to 10)
+        >>   60 PUSH_EXC_INFO
+             62 POP_TOP
+             64 POP_EXCEPT
+             66 JUMP_BACKWARD           29 (to 10)
+        >>   68 COPY                     3
+             70 POP_EXCEPT
+             72 RERAISE                  1
+
+ 71     >>   74 LOAD_FAST                1 (seen)
+             76 RETURN_VALUE
+ExceptionTable:
+  16 to 56 -> 60 [1]
+  60 to 62 -> 68 [2] lasti
+
+Disassembly of <code object use_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 74>:
+ 74           0 RESUME                   0
+
+ 75           2 LOAD_FAST                0 (resource)
               4 BEFORE_WITH
               6 STORE_FAST               1 (active)
 
- 30           8 LOAD_FAST                1 (active)
+ 76           8 LOAD_FAST                1 (active)
              10 LOAD_ATTR                0 (value)
              12 CACHE                    0
              14 CACHE                    0
              16 CACHE                    0
              18 CACHE                    0
 
- 29          20 SWAP                     2
+ 75          20 SWAP                     2
              22 LOAD_CONST               0 (None)
              24 LOAD_CONST               0 (None)
              26 LOAD_CONST               0 (None)
@@ -312,17 +622,200 @@ ExceptionTable:
   46 to 52 -> 54 [3] lasti
   60 to 60 -> 54 [3] lasti
 
-Disassembly of <code object use_two_contexts at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 33>:
- 33           0 RESUME                   0
+Disassembly of <code object record_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 79>:
+ 79           0 RESUME                   0
 
- 34           2 LOAD_FAST                0 (first)
+ 80           2 LOAD_FAST                0 (resource)
+              4 BEFORE_WITH
+              6 STORE_FAST               2 (active)
+
+ 81           8 LOAD_FAST                1 (events)
+             10 LOAD_METHOD              0 (append)
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 LOAD_FAST                2 (active)
+             34 LOAD_ATTR                1 (value)
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 PRECALL                  1
+             46 CACHE                    0
+             48 CALL                     1
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 CACHE                    0
+             58 POP_TOP
+
+ 80          60 LOAD_CONST               0 (None)
+             62 LOAD_CONST               0 (None)
+             64 LOAD_CONST               0 (None)
+             66 PRECALL                  2
+             68 CACHE                    0
+             70 CALL                     2
+             72 CACHE                    0
+             74 CACHE                    0
+             76 CACHE                    0
+             78 CACHE                    0
+             80 POP_TOP
+             82 JUMP_FORWARD            11 (to 106)
+        >>   84 PUSH_EXC_INFO
+             86 WITH_EXCEPT_START
+             88 POP_JUMP_FORWARD_IF_TRUE     4 (to 98)
+             90 RERAISE                  2
+        >>   92 COPY                     3
+             94 POP_EXCEPT
+             96 RERAISE                  1
+        >>   98 POP_TOP
+            100 POP_EXCEPT
+            102 POP_TOP
+            104 POP_TOP
+
+ 82     >>  106 LOAD_FAST                1 (events)
+            108 RETURN_VALUE
+ExceptionTable:
+  6 to 58 -> 84 [1] lasti
+  84 to 90 -> 92 [3] lasti
+  98 to 98 -> 92 [3] lasti
+
+Disassembly of <code object use_context_without_target at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 85>:
+ 85           0 RESUME                   0
+
+ 86           2 LOAD_FAST                0 (resource)
+              4 BEFORE_WITH
+              6 POP_TOP
+
+ 87           8 LOAD_FAST                1 (events)
+             10 LOAD_METHOD              0 (append)
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 LOAD_CONST               1 ('body')
+             34 PRECALL                  1
+             36 CACHE                    0
+             38 CALL                     1
+             40 CACHE                    0
+             42 CACHE                    0
+             44 CACHE                    0
+             46 CACHE                    0
+             48 POP_TOP
+
+ 86          50 LOAD_CONST               0 (None)
+             52 LOAD_CONST               0 (None)
+             54 LOAD_CONST               0 (None)
+             56 PRECALL                  2
+             58 CACHE                    0
+             60 CALL                     2
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 CACHE                    0
+             70 POP_TOP
+             72 JUMP_FORWARD            11 (to 96)
+        >>   74 PUSH_EXC_INFO
+             76 WITH_EXCEPT_START
+             78 POP_JUMP_FORWARD_IF_TRUE     4 (to 88)
+             80 RERAISE                  2
+        >>   82 COPY                     3
+             84 POP_EXCEPT
+             86 RERAISE                  1
+        >>   88 POP_TOP
+             90 POP_EXCEPT
+             92 POP_TOP
+             94 POP_TOP
+
+ 88     >>   96 LOAD_FAST                1 (events)
+             98 RETURN_VALUE
+ExceptionTable:
+  6 to 48 -> 74 [1] lasti
+  74 to 80 -> 82 [3] lasti
+  88 to 88 -> 82 [3] lasti
+
+Disassembly of <code object context_failure at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 91>:
+ 91           0 RESUME                   0
+
+ 92           2 LOAD_FAST                0 (resource)
+              4 BEFORE_WITH
+              6 STORE_FAST               1 (active)
+
+ 93           8 LOAD_FAST                1 (active)
+             10 LOAD_METHOD              0 (fail)
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 PRECALL                  0
+             34 CACHE                    0
+             36 CALL                     0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 CACHE                    0
+
+ 92          46 SWAP                     2
+             48 LOAD_CONST               0 (None)
+             50 LOAD_CONST               0 (None)
+             52 LOAD_CONST               0 (None)
+             54 PRECALL                  2
+             56 CACHE                    0
+             58 CALL                     2
+             60 CACHE                    0
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 POP_TOP
+             70 RETURN_VALUE
+        >>   72 PUSH_EXC_INFO
+             74 WITH_EXCEPT_START
+             76 POP_JUMP_FORWARD_IF_TRUE     4 (to 86)
+             78 RERAISE                  2
+        >>   80 COPY                     3
+             82 POP_EXCEPT
+             84 RERAISE                  1
+        >>   86 POP_TOP
+             88 POP_EXCEPT
+             90 POP_TOP
+             92 POP_TOP
+             94 LOAD_CONST               0 (None)
+             96 RETURN_VALUE
+ExceptionTable:
+  6 to 44 -> 72 [1] lasti
+  72 to 78 -> 80 [3] lasti
+  86 to 86 -> 80 [3] lasti
+
+Disassembly of <code object use_two_contexts at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 96>:
+ 96           0 RESUME                   0
+
+ 97           2 LOAD_FAST                0 (first)
               4 BEFORE_WITH
               6 STORE_FAST               2 (left)
               8 LOAD_FAST                1 (second)
              10 BEFORE_WITH
              12 STORE_FAST               3 (right)
 
- 35          14 LOAD_FAST                2 (left)
+ 98          14 LOAD_FAST                2 (left)
              16 LOAD_ATTR                0 (value)
              18 CACHE                    0
              20 CACHE                    0
@@ -337,7 +830,7 @@ Disassembly of <code object use_two_contexts at 0x..., file "test/simple_source/
              38 BINARY_OP                0 (+)
              40 CACHE                    0
 
- 34          42 SWAP                     2
+ 97          42 SWAP                     2
              44 LOAD_CONST               0 (None)
              46 LOAD_CONST               0 (None)
              48 LOAD_CONST               0 (None)
@@ -410,12 +903,115 @@ ExceptionTable:
   140 to 146 -> 148 [3] lasti
   154 to 154 -> 148 [3] lasti
 
-Disassembly of <code object use_async_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 38>:
- 38           0 RETURN_GENERATOR
+Disassembly of <code object use_nested_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 101>:
+101           0 RESUME                   0
+
+102           2 LOAD_FAST                0 (first)
+              4 BEFORE_WITH
+              6 STORE_FAST               2 (left)
+
+103           8 LOAD_FAST                1 (second)
+             10 BEFORE_WITH
+             12 STORE_FAST               3 (right)
+
+104          14 LOAD_FAST                2 (left)
+             16 LOAD_ATTR                0 (value)
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 LOAD_FAST                3 (right)
+             28 LOAD_ATTR                0 (value)
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 BINARY_OP                0 (+)
+             40 CACHE                    0
+
+103          42 SWAP                     2
+             44 LOAD_CONST               0 (None)
+             46 LOAD_CONST               0 (None)
+             48 LOAD_CONST               0 (None)
+             50 PRECALL                  2
+             52 CACHE                    0
+             54 CALL                     2
+             56 CACHE                    0
+             58 CACHE                    0
+             60 CACHE                    0
+             62 CACHE                    0
+             64 POP_TOP
+
+102          66 SWAP                     2
+             68 LOAD_CONST               0 (None)
+             70 LOAD_CONST               0 (None)
+             72 LOAD_CONST               0 (None)
+             74 PRECALL                  2
+             76 CACHE                    0
+             78 CALL                     2
+             80 CACHE                    0
+             82 CACHE                    0
+             84 CACHE                    0
+             86 CACHE                    0
+             88 POP_TOP
+             90 RETURN_VALUE
+
+103     >>   92 PUSH_EXC_INFO
+             94 WITH_EXCEPT_START
+             96 POP_JUMP_FORWARD_IF_TRUE     4 (to 106)
+             98 RERAISE                  2
+        >>  100 COPY                     3
+            102 POP_EXCEPT
+            104 RERAISE                  1
+        >>  106 POP_TOP
+            108 POP_EXCEPT
+            110 POP_TOP
+            112 POP_TOP
+            114 NOP
+
+102         116 LOAD_CONST               0 (None)
+            118 LOAD_CONST               0 (None)
+            120 LOAD_CONST               0 (None)
+            122 PRECALL                  2
+            124 CACHE                    0
+            126 CALL                     2
+            128 CACHE                    0
+            130 CACHE                    0
+            132 CACHE                    0
+            134 CACHE                    0
+            136 POP_TOP
+            138 LOAD_CONST               0 (None)
+            140 RETURN_VALUE
+        >>  142 PUSH_EXC_INFO
+            144 WITH_EXCEPT_START
+            146 POP_JUMP_FORWARD_IF_TRUE     4 (to 156)
+            148 RERAISE                  2
+        >>  150 COPY                     3
+            152 POP_EXCEPT
+            154 RERAISE                  1
+        >>  156 POP_TOP
+            158 POP_EXCEPT
+            160 POP_TOP
+            162 POP_TOP
+            164 LOAD_CONST               0 (None)
+            166 RETURN_VALUE
+ExceptionTable:
+  6 to 10 -> 142 [1] lasti
+  12 to 40 -> 92 [2] lasti
+  42 to 64 -> 142 [1] lasti
+  92 to 98 -> 100 [4] lasti
+  100 to 104 -> 142 [1] lasti
+  106 to 106 -> 100 [4] lasti
+  108 to 112 -> 142 [1] lasti
+  142 to 148 -> 150 [3] lasti
+  156 to 156 -> 150 [3] lasti
+
+Disassembly of <code object use_async_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 107>:
+107           0 RETURN_GENERATOR
               2 POP_TOP
               4 RESUME                   0
 
- 39           6 LOAD_FAST                0 (resource)
+108           6 LOAD_FAST                0 (resource)
               8 BEFORE_ASYNC_WITH
              10 GET_AWAITABLE            1
              12 LOAD_CONST               0 (None)
@@ -425,14 +1021,14 @@ Disassembly of <code object use_async_context at 0x..., file "test/simple_source
              20 JUMP_BACKWARD_NO_INTERRUPT     4 (to 14)
         >>   22 STORE_FAST               1 (active)
 
- 40          24 LOAD_FAST                1 (active)
+109          24 LOAD_FAST                1 (active)
              26 LOAD_ATTR                0 (value)
              28 CACHE                    0
              30 CACHE                    0
              32 CACHE                    0
              34 CACHE                    0
 
- 39          36 SWAP                     2
+108          36 SWAP                     2
              38 LOAD_CONST               0 (None)
              40 LOAD_CONST               0 (None)
              42 LOAD_CONST               0 (None)
@@ -474,3 +1070,216 @@ ExceptionTable:
   22 to 34 -> 74 [1] lasti
   74 to 92 -> 94 [3] lasti
   100 to 100 -> 94 [3] lasti
+
+Disassembly of <code object async_record_context at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 112>:
+112           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+113           6 LOAD_FAST                0 (resource)
+              8 BEFORE_ASYNC_WITH
+             10 GET_AWAITABLE            1
+             12 LOAD_CONST               0 (None)
+        >>   14 SEND                     3 (to 22)
+             16 YIELD_VALUE
+             18 RESUME                   3
+             20 JUMP_BACKWARD_NO_INTERRUPT     4 (to 14)
+        >>   22 STORE_FAST               2 (active)
+
+114          24 LOAD_FAST                1 (events)
+             26 LOAD_METHOD              0 (append)
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 CACHE                    0
+             46 CACHE                    0
+             48 LOAD_FAST                2 (active)
+             50 LOAD_ATTR                1 (value)
+             52 CACHE                    0
+             54 CACHE                    0
+             56 CACHE                    0
+             58 CACHE                    0
+             60 PRECALL                  1
+             62 CACHE                    0
+             64 CALL                     1
+             66 CACHE                    0
+             68 CACHE                    0
+             70 CACHE                    0
+             72 CACHE                    0
+             74 POP_TOP
+
+113          76 LOAD_CONST               0 (None)
+             78 LOAD_CONST               0 (None)
+             80 LOAD_CONST               0 (None)
+             82 PRECALL                  2
+             84 CACHE                    0
+             86 CALL                     2
+             88 CACHE                    0
+             90 CACHE                    0
+             92 CACHE                    0
+             94 CACHE                    0
+             96 GET_AWAITABLE            2
+             98 LOAD_CONST               0 (None)
+        >>  100 SEND                     3 (to 108)
+            102 YIELD_VALUE
+            104 RESUME                   3
+            106 JUMP_BACKWARD_NO_INTERRUPT     4 (to 100)
+        >>  108 POP_TOP
+            110 JUMP_FORWARD            17 (to 146)
+        >>  112 PUSH_EXC_INFO
+            114 WITH_EXCEPT_START
+            116 GET_AWAITABLE            2
+            118 LOAD_CONST               0 (None)
+        >>  120 SEND                     3 (to 128)
+            122 YIELD_VALUE
+            124 RESUME                   3
+            126 JUMP_BACKWARD_NO_INTERRUPT     4 (to 120)
+        >>  128 POP_JUMP_FORWARD_IF_TRUE     4 (to 138)
+            130 RERAISE                  2
+        >>  132 COPY                     3
+            134 POP_EXCEPT
+            136 RERAISE                  1
+        >>  138 POP_TOP
+            140 POP_EXCEPT
+            142 POP_TOP
+            144 POP_TOP
+
+115     >>  146 LOAD_FAST                1 (events)
+            148 RETURN_VALUE
+ExceptionTable:
+  22 to 74 -> 112 [1] lasti
+  112 to 130 -> 132 [3] lasti
+  138 to 138 -> 132 [3] lasti
+
+Disassembly of <code object consume_async at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 118>:
+118           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+119           6 BUILD_LIST               0
+              8 STORE_FAST               1 (values)
+
+120          10 LOAD_FAST                0 (iterator)
+             12 GET_AITER
+        >>   14 GET_ANEXT
+             16 LOAD_CONST               0 (None)
+        >>   18 SEND                     3 (to 26)
+             20 YIELD_VALUE
+             22 RESUME                   3
+             24 JUMP_BACKWARD_NO_INTERRUPT     4 (to 18)
+        >>   26 STORE_FAST               2 (value)
+
+121          28 LOAD_FAST                1 (values)
+             30 LOAD_METHOD              0 (append)
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 CACHE                    0
+             46 CACHE                    0
+             48 CACHE                    0
+             50 CACHE                    0
+             52 LOAD_FAST                2 (value)
+             54 PRECALL                  1
+             56 CACHE                    0
+             58 CALL                     1
+             60 CACHE                    0
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 POP_TOP
+             70 JUMP_BACKWARD           29 (to 14)
+
+120     >>   72 END_ASYNC_FOR
+
+122          74 LOAD_FAST                1 (values)
+             76 RETURN_VALUE
+ExceptionTable:
+  14 to 24 -> 72 [1]
+
+Disassembly of <code object consume_until_negative at 0x..., file "test/simple_source/311/05_exceptions_with.py", line 125>:
+125           0 RETURN_GENERATOR
+              2 POP_TOP
+              4 RESUME                   0
+
+126           6 BUILD_LIST               0
+              8 STORE_FAST               1 (values)
+
+127          10 LOAD_FAST                0 (iterator)
+             12 GET_AITER
+        >>   14 GET_ANEXT
+             16 LOAD_CONST               0 (None)
+        >>   18 SEND                     3 (to 26)
+             20 YIELD_VALUE
+             22 RESUME                   3
+             24 JUMP_BACKWARD_NO_INTERRUPT     4 (to 18)
+        >>   26 STORE_FAST               2 (value)
+
+128          28 LOAD_FAST                2 (value)
+             30 LOAD_CONST               1 (0)
+             32 COMPARE_OP               0 (<)
+             34 CACHE                    0
+             36 CACHE                    0
+             38 POP_JUMP_FORWARD_IF_FALSE     2 (to 44)
+
+129          40 POP_TOP
+             42 JUMP_FORWARD            44 (to 132)
+
+130     >>   44 LOAD_FAST                1 (values)
+             46 LOAD_METHOD              0 (append)
+             48 CACHE                    0
+             50 CACHE                    0
+             52 CACHE                    0
+             54 CACHE                    0
+             56 CACHE                    0
+             58 CACHE                    0
+             60 CACHE                    0
+             62 CACHE                    0
+             64 CACHE                    0
+             66 CACHE                    0
+             68 LOAD_FAST                2 (value)
+             70 PRECALL                  1
+             72 CACHE                    0
+             74 CALL                     1
+             76 CACHE                    0
+             78 CACHE                    0
+             80 CACHE                    0
+             82 CACHE                    0
+             84 POP_TOP
+             86 JUMP_BACKWARD           37 (to 14)
+
+127     >>   88 END_ASYNC_FOR
+
+132          90 LOAD_FAST                1 (values)
+             92 LOAD_METHOD              0 (append)
+             94 CACHE                    0
+             96 CACHE                    0
+             98 CACHE                    0
+            100 CACHE                    0
+            102 CACHE                    0
+            104 CACHE                    0
+            106 CACHE                    0
+            108 CACHE                    0
+            110 CACHE                    0
+            112 CACHE                    0
+            114 LOAD_CONST               2 ('exhausted')
+            116 PRECALL                  1
+            118 CACHE                    0
+            120 CALL                     1
+            122 CACHE                    0
+            124 CACHE                    0
+            126 CACHE                    0
+            128 CACHE                    0
+            130 POP_TOP
+
+133     >>  132 LOAD_FAST                1 (values)
+            134 RETURN_VALUE
+ExceptionTable:
+  14 to 24 -> 88 [1]

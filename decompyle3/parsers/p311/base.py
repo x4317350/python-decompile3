@@ -3,8 +3,8 @@
 The older decompyle3 parsers encode control flow in a large Spark grammar.
 CPython 3.11 removed many of the protocol opcodes used by that grammar. This
 module instead consumes normalized tokens and constructs Python's standard
-``ast`` nodes. CFG structuring and comprehension recovery extend this core in
-separate modules; exception-table structures remain fail-closed.
+``ast`` nodes. CFG, comprehension, suspension, and exception-table structure
+recovery extend this core in separate modules.
 """
 
 from __future__ import annotations

@@ -135,15 +135,28 @@ def _mark_reachable(blocks: Sequence[BasicBlock], edges: Sequence[Edge], entry: 
         pending.extend(successors[index])
 
 
-def build_cfg(instructions: Iterable[Any]) -> ControlFlowGraph:
+def build_cfg(
+    instructions: Iterable[Any],
+    exception_regions: Iterable[Any] = (),
+) -> ControlFlowGraph:
     """Split normalized instructions and add fall-through/jump edges."""
     instructions = tuple(instructions)
+    exception_regions = tuple(exception_regions)
     if not instructions:
         return ControlFlowGraph((), (), -1, {})
 
     offsets = [instruction.offset for instruction in instructions]
     offset_set = set(offsets)
     leaders = {offsets[0]}
+    for region in exception_regions:
+        for offset in (region.start, region.target):
+            if offset not in offset_set:
+                raise ValueError(
+                    f"Exception region references missing offset {offset}"
+                )
+            leaders.add(offset)
+        if region.end in offset_set:
+            leaders.add(region.end)
     for index, instruction in enumerate(instructions):
         target = instruction_target(instruction)
         if target is not None:
@@ -209,6 +222,12 @@ def build_cfg(instructions: Iterable[Any]) -> ControlFlowGraph:
             continue
         if next_block is not None:
             edges.append(Edge(block.index, next_block, "fallthrough"))
+
+    for region in exception_regions:
+        handler = offset_to_block[region.target]
+        for block in blocks:
+            if block.start >= region.start and block.start < region.end:
+                edges.append(Edge(block.index, handler, "exception"))
 
     edges = sorted(set(edges))
     _mark_reachable(blocks, edges, 0)

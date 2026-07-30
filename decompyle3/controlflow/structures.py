@@ -17,6 +17,8 @@ from decompyle3.controlflow.cfg import (
     instruction_target,
 )
 from decompyle3.controlflow.dominators import analyze_control_flow
+from decompyle3.controlflow.exception_regions import build_exception_region_map
+from decompyle3.controlflow.exceptiontable311 import decode_exception_table
 from decompyle3.parsers.p311.base import (
     Python311ParseError,
     UnsupportedPython311ControlFlow,
@@ -58,18 +60,11 @@ _STATEMENT_BOUNDARIES = {
 }
 
 _LATER_PHASE_OPS = {
-    "BEFORE_ASYNC_WITH",
-    "BEFORE_WITH",
     "CHECK_EG_MATCH",
-    "CHECK_EXC_MATCH",
-    "GET_ANEXT",
     "LIST_APPEND",
     "MAP_ADD",
-    "PUSH_EXC_INFO",
-    "RERAISE",
     "SET_ADD",
     "SETUP_ANNOTATIONS",
-    "WITH_EXCEPT_START",
 }
 
 
@@ -174,16 +169,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         flow_tokens = self.tokens
         if flow_tokens and flow_tokens[0].kind == "RETURN_GENERATOR":
             flow_tokens = flow_tokens[2:]
-        self.cfg = build_cfg(flow_tokens)
+        self.exception_regions = decode_exception_table(code)
+        self.exception_region_map = build_exception_region_map(
+            self.exception_regions
+        )
+        self.exception_states = {}
+        self._suppressed_exception_starts = set()
+        self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
 
     def _validate_scope(self):
-        if bytes(getattr(self.code, "co_exceptiontable", b"") or b""):
-            self._error(
-                "The code object has a CPython 3.11 exception table; "
-                "exception and with-statement recovery belongs to phase 6",
-                UnsupportedPython311ControlFlow,
-            )
         for token in self.tokens:
             if token.kind in _LATER_PHASE_OPS or token.kind.startswith("MATCH_"):
                 self.current_token = token
@@ -578,8 +573,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         return loop_end_index
 
-    def _for_target(self, start: int) -> Tuple[ast.expr, int]:
+    def _for_target(
+        self,
+        start: int,
+    ) -> Tuple[Optional[ast.expr], int]:
         token = self.tokens[start]
+        if token.kind == "POP_TOP":
+            return None, start + 1
         if token.kind.startswith("STORE_"):
             name = token.attr if isinstance(token.attr, str) else token.pattr
             return ast.Name(id=name, ctx=ast.Store()), start + 1
@@ -627,6 +627,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         else_offset = instruction_target(self.tokens[for_iter_index])
         else_index = self.offset_to_index[else_offset]
         target, body_start = self._for_target(for_iter_index + 1)
+        if target is None:
+            self._error("FOR_ITER has no assignment target")
         latch_candidates = [
             index
             for index in range(body_start, else_index)
@@ -634,29 +636,28 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and instruction_target(self.tokens[index])
             == self.tokens[for_iter_index].offset
         ]
-        if not latch_candidates:
-            self.current_token = self.tokens[for_iter_index]
-            self._error("FOR_ITER has no loop-back edge")
-        latch = latch_candidates[-1]
+        latch = latch_candidates[-1] if latch_candidates else None
+        body_limit = latch if latch is not None else else_index
         break_targets = [
             instruction_target(self.tokens[index])
-            for index in range(body_start, latch)
+            for index in range(body_start, body_limit)
             if self.tokens[index].kind == "JUMP_FORWARD"
             and instruction_target(self.tokens[index]) >= else_offset
         ]
+        if latch is None and not break_targets:
+            self.current_token = self.tokens[for_iter_index]
+            self._error("FOR_ITER has neither a loop-back nor break edge")
         loop_end = max(break_targets) if break_targets else else_offset
         loop_end_index = self.offset_to_index[loop_end]
+        continue_targets = {self.tokens[for_iter_index].offset}
+        if latch is not None:
+            continue_targets.add(self.tokens[latch].offset)
         body = self._capture_region(
             body_start,
-            latch,
+            body_limit,
             _LoopContext(
                 break_target=loop_end,
-                continue_targets=frozenset(
-                    {
-                        self.tokens[for_iter_index].offset,
-                        self.tokens[latch].offset,
-                    }
-                ),
+                continue_targets=frozenset(continue_targets),
             ),
         )
         orelse = (
@@ -666,6 +667,114 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         self.body.append(
             ast.For(
+                target=target,
+                iter=iterable,
+                body=body or [ast.Pass()],
+                orelse=orelse,
+                type_comment=None,
+            )
+        )
+        return loop_end_index
+
+    def _async_for_loop(
+        self,
+        get_aiter_index: int,
+        loop: Optional[_LoopContext],
+    ) -> int:
+        iterable = self._pop_expr()
+        header = get_aiter_index + 1
+        if (
+            header >= len(self.tokens)
+            or self.tokens[header].kind != "GET_ANEXT"
+        ):
+            self.current_token = self.tokens[get_aiter_index]
+            self._error("GET_AITER is not followed by GET_ANEXT")
+        send_index = next(
+            (
+                index
+                for index in range(header + 1, len(self.tokens))
+                if self.tokens[index].kind == "SEND"
+            ),
+            None,
+        )
+        if send_index is None:
+            self._error("GET_ANEXT has no SEND protocol")
+        body_start = self.offset_to_index[
+            instruction_target(self.tokens[send_index])
+        ]
+        while (
+            body_start < len(self.tokens)
+            and self.tokens[body_start].kind in ("INTERNAL_RESUME", "NOP")
+        ):
+            body_start += 1
+        target, body_start = self._for_target(body_start)
+        if target is None:
+            self._error("Async for has no assignment target")
+        protected = next(
+            (
+                entry
+                for entry in self.exception_regions
+                if entry.start == self.tokens[header].offset
+                and self.tokens[self.offset_to_index[entry.target]].kind
+                == "END_ASYNC_FOR"
+            ),
+            None,
+        )
+        if protected is None:
+            self._error("Async for has no END_ASYNC_FOR exception region")
+        end_async = self.offset_to_index[protected.target]
+        latch_candidates = [
+            index
+            for index in range(body_start, end_async)
+            if self.tokens[index].kind.startswith("JUMP_BACKWARD")
+            and instruction_target(self.tokens[index])
+            == self.tokens[header].offset
+        ]
+        if not latch_candidates:
+            self._error("Async for has no loop-back edge")
+        latch = latch_candidates[-1]
+        break_targets = [
+            instruction_target(self.tokens[index])
+            for index in range(body_start, latch)
+            if self.tokens[index].kind == "JUMP_FORWARD"
+            and instruction_target(self.tokens[index])
+            > self.tokens[end_async].offset
+        ]
+        loop_end_offset = (
+            max(break_targets)
+            if break_targets
+            else (
+                self.tokens[end_async + 1].offset
+                if end_async + 1 < len(self.tokens)
+                else self.tokens[end_async].offset + 2
+            )
+        )
+        loop_end_index = (
+            self.offset_to_index[loop_end_offset]
+            if loop_end_offset in self.offset_to_index
+            else len(self.tokens)
+        )
+        body = self._capture_region(
+            body_start,
+            latch,
+            _LoopContext(
+                break_target=loop_end_offset,
+                continue_targets=frozenset(
+                    {
+                        self.tokens[header].offset,
+                        self.tokens[latch].offset,
+                    }
+                ),
+            ),
+        )
+        else_start = end_async + 1
+        orelse = (
+            self._capture_region(else_start, loop_end_index, loop)
+            if break_targets and else_start < loop_end_index
+            else []
+        )
+        self.body.append(
+            ast.AsyncFor(
                 target=target,
                 iter=iterable,
                 body=body or [ast.Pass()],
@@ -795,6 +904,28 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if token.kind not in store_kinds:
                 self._flush_assignment()
 
+            if (
+                self.exception_regions
+                and token.offset not in self._suppressed_exception_starts
+            ):
+                from decompyle3.controlflow.exception_structures import (
+                    recover_try_statement311,
+                    recover_with_statement311,
+                )
+
+                try_end = recover_try_statement311(self, index, loop)
+                if try_end is not None:
+                    index = try_end
+                    continue
+                if token.kind in ("BEFORE_WITH", "BEFORE_ASYNC_WITH"):
+                    index = recover_with_statement311(
+                        self,
+                        index,
+                        end,
+                        loop,
+                    )
+                    continue
+
             chained_end = self._try_chained_compare(index)
             if chained_end is not None:
                 index = chained_end
@@ -806,6 +937,14 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 and self.tokens[index + 1].kind == "FOR_ITER"
             ):
                 index = self._for_loop(index, loop)
+                continue
+
+            if (
+                token.kind == "GET_AITER"
+                and index + 1 < end
+                and self.tokens[index + 1].kind == "GET_ANEXT"
+            ):
+                index = self._async_for_loop(index, loop)
                 continue
 
             if token.kind == "GET_AWAITABLE":
