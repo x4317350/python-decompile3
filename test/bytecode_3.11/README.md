@@ -2,7 +2,8 @@
 
 源码位于 `test/simple_source/311/`。
 
-使用 CPython 3.11 生成 `.pyc` 和标准 `dis` golden 文件：
+使用 CPython 3.11 生成 `.pyc`、标准 `dis` golden 和 Scanner311
+规范化 Token golden：
 
 ```bash
 .venv311/bin/python test/bytecode_3.11/generate.py
@@ -18,5 +19,6 @@
 
 - `generated/*.pyc` 是本地生成物，由 `.gitignore` 忽略。
 - `golden/*.dis` 是可审查的 CPython 3.11 标准反汇编基线。
+- `golden_tokens/*.tokens` 是不含 `CACHE` 的规范化 Scanner311 基线。
 - 测试 corpus 必须能在 CPython 3.11 下编译。
 - 新增语法样本后必须重新生成并检查 golden 文件。

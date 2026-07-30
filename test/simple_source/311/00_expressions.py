@@ -27,3 +27,54 @@ def comparisons(left, right):
 
 def call_examples(function, value):
     return function(value, 3, scale=2, extra=4)
+
+
+def all_binary_operations(left, right):
+    return (
+        left + right,
+        left & right,
+        left // right,
+        left << right,
+        left @ right,
+        left * right,
+        left % right,
+        left | right,
+        left**right,
+        left >> right,
+        left - right,
+        left / right,
+        left ^ right,
+    )
+
+
+def all_inplace_operations(value, other):
+    value += other
+    value &= other
+    value //= other
+    value <<= other
+    value @= other
+    value *= other
+    value %= other
+    value |= other
+    value **= other
+    value >>= other
+    value -= other
+    value /= other
+    value ^= other
+    return value
+
+
+def all_comparisons(left, right, container):
+    return (
+        left < right,
+        left <= right,
+        left == right,
+        left != right,
+        left > right,
+        left >= right,
+        left in container,
+        left not in container,
+        left is right,
+        left is not right,
+        left < right <= container,
+    )

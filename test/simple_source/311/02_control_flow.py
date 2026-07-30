@@ -41,3 +41,27 @@ def loops(values):
         total += count
 
     return total
+
+
+def none_control(value, items):
+    while value is None:
+        if not items:
+            break
+        value = items.pop()
+
+    for item in items:
+        if item is None:
+            continue
+        if item is not None:
+            value = item
+    return value
+
+
+def not_none_loop(value):
+    while value is not None:
+        value = None
+    return value
+
+
+def boolean_values(left, right):
+    return left or right, left and right

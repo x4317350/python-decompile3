@@ -51,7 +51,7 @@ def test_raw_instructions_match_dis_for_the_entire_corpus(tmp_path):
         root = load_corpus_code(source, tmp_path)
         for code in Scanner311.iter_code_objects(root):
             scanner = Scanner311()
-            tokens, customize = scanner.ingest(code)
+            tokens, customize = scanner.ingest_raw(code)
             expected = list(
                 dis.get_instructions(code, show_caches=True, adaptive=False)
             )
@@ -123,7 +123,7 @@ def test_nested_code_objects_include_functions_lambda_comprehensions_and_classes
     for source in (function_source, comprehension_source):
         root = load_corpus_code(source, tmp_path)
         scanner = Scanner311()
-        scanner.ingest(root)
+        scanner.ingest_raw(root)
         names.update(code.co_name for code in scanner.code_objects)
 
     assert {
@@ -150,7 +150,7 @@ def test_scanner311_preserves_metadata_positions_and_exception_table(tmp_path):
     )
 
     scanner = Scanner311()
-    scanner.ingest(exception_code)
+    scanner.ingest_raw(exception_code)
 
     assert scanner.code_metadata["co_name"] == "guarded_division"
     assert scanner.code_metadata["code_length"] == len(exception_code.co_code)

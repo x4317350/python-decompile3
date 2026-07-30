@@ -78,7 +78,7 @@ Scanner311 读取原始指令
 |---|---|---|
 | 0 | 环境、基线和测试语料 | 已完成 |
 | 1 | 3.11 `.pyc` 装载和原始扫描 | 已完成 |
-| 2 | 3.11 指令规范化 | 未开始 |
+| 2 | 3.11 指令规范化 | 已完成 |
 | 3 | 无复杂控制流的源码恢复 | 未开始 |
 | 4 | CFG 和普通控制流恢复 | 未开始 |
 | 5 | 推导式、生成器和协程 | 未开始 |
@@ -257,36 +257,36 @@ decompyle3/ir/
 
 实施时只选择一种结构，避免同时保留两个方案。
 
-- [ ] 定义规范化指令的最小数据结构。
-- [ ] 保留原始 opcode、规范化 kind、offset、target、参数和栈效果。
-- [ ] 区分原始物理 offset 与过滤缓存后的逻辑序号。
-- [ ] 定义统一的未知指令处理策略。
+- [x] 定义规范化指令的最小数据结构。
+- [x] 保留原始 opcode、规范化 kind、offset、target、参数和栈效果。
+- [x] 区分原始物理 offset 与过滤缓存后的逻辑序号。
+- [x] 定义统一的未知指令处理策略。
 
 ### 2.2 缓存和内部指令
 
-- [ ] 识别并跳过 `CACHE`，但保留 offset 映射。
-- [ ] 将 `RESUME` 标记为内部指令。
-- [ ] 对磁盘 `.pyc` 和运行时 specialized 指令采取不同策略。
-- [ ] specialized opcode 能反规范化时转为基础 opcode；不能时明确报错。
-- [ ] 验证 jump target 不会落入缓存中间。
+- [x] 识别并跳过 `CACHE`，但保留 offset 映射。
+- [x] 将 `RESUME` 标记为内部指令。
+- [x] 对磁盘 `.pyc` 和运行时 specialized 指令采取不同策略。
+- [x] specialized opcode 能反规范化时转为基础 opcode；不能时明确报错。
+- [x] 验证 jump target 不会落入缓存中间。
 
 ### 2.3 运算指令
 
-- [ ] 根据参数展开 `BINARY_OP`。
-- [ ] 区分普通运算和原地运算。
-- [ ] 处理 `COMPARE_OP`、`CONTAINS_OP` 和 `IS_OP`。
-- [ ] 处理 `COPY` 和 `SWAP`。
-- [ ] 为每种运算建立 Token golden 测试。
+- [x] 根据参数展开 `BINARY_OP`。
+- [x] 区分普通运算和原地运算。
+- [x] 处理 `COMPARE_OP`、`CONTAINS_OP` 和 `IS_OP`。
+- [x] 处理 `COPY` 和 `SWAP`。
+- [x] 为每种运算建立 Token golden 测试。
 
 ### 2.4 调用协议
 
-- [ ] 识别 `PUSH_NULL`。
-- [ ] 识别 `KW_NAMES`。
-- [ ] 识别并验证 `PRECALL`。
-- [ ] 将 `CALL` 表示成统一调用 Token。
-- [ ] 区分函数调用和方法调用。
-- [ ] 处理位置参数、关键字参数、`*args` 和 `**kwargs`。
-- [ ] 保留调用序列中 `NULL` 与 `self` 的语义差别。
+- [x] 识别 `PUSH_NULL`。
+- [x] 识别 `KW_NAMES`。
+- [x] 识别并验证 `PRECALL`。
+- [x] 将 `CALL` 表示成统一调用 Token。
+- [x] 区分函数调用和方法调用。
+- [x] 处理位置参数、关键字参数、`*args` 和 `**kwargs`。
+- [x] 保留调用序列中 `NULL` 与 `self` 的语义差别。
 
 建议统一结构：
 
@@ -304,32 +304,32 @@ CallToken(
 
 ### 2.5 跳转协议
 
-- [ ] 处理所有前向条件跳转。
-- [ ] 处理所有后向条件跳转。
-- [ ] 处理 `JUMP_BACKWARD` 和 `JUMP_BACKWARD_NO_INTERRUPT`。
-- [ ] 处理 `*_IF_NONE` 和 `*_IF_NOT_NONE`。
-- [ ] 处理 `JUMP_IF_TRUE_OR_POP` 和 `JUMP_IF_FALSE_OR_POP`。
-- [ ] 将相对参数解析成绝对 target offset。
-- [ ] 给规范化跳转标注方向、条件和是否弹栈。
+- [x] 处理所有前向条件跳转。
+- [x] 处理所有后向条件跳转。
+- [x] 处理 `JUMP_BACKWARD` 和 `JUMP_BACKWARD_NO_INTERRUPT`。
+- [x] 处理 `*_IF_NONE` 和 `*_IF_NOT_NONE`。
+- [x] 处理 `JUMP_IF_TRUE_OR_POP` 和 `JUMP_IF_FALSE_OR_POP`。
+- [x] 将相对参数解析成绝对 target offset。
+- [x] 给规范化跳转标注方向、条件和是否弹栈。
 
 ### 2.6 函数、闭包和局部变量
 
-- [ ] 处理 `MAKE_CELL`。
-- [ ] 处理 `COPY_FREE_VARS`。
-- [ ] 处理 `LOAD_CLOSURE`、`LOAD_DEREF`、`STORE_DEREF`。
-- [ ] 适配 3.11 的 locals-plus 索引。
-- [ ] 处理新的 `MAKE_FUNCTION` 栈布局。
-- [ ] 验证默认参数、注解和 closure flags。
+- [x] 处理 `MAKE_CELL`。
+- [x] 处理 `COPY_FREE_VARS`。
+- [x] 处理 `LOAD_CLOSURE`、`LOAD_DEREF`、`STORE_DEREF`。
+- [x] 适配 3.11 的 locals-plus 索引。
+- [x] 处理新的 `MAKE_FUNCTION` 栈布局。
+- [x] 验证默认参数、注解和 closure flags。
 
 ### 阶段 2 验收条件
 
-- [ ] 规范化 Token 流不包含未处理的 `CACHE`。
-- [ ] 所有规范化 jump target 有效。
-- [ ] 栈深度分析不会无故变成负数。
-- [ ] 调用参数和关键字名称正确。
-- [ ] 函数和闭包元数据正确。
-- [ ] Scanner golden 测试全部通过。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 规范化 Token 流不包含未处理的 `CACHE`。
+- [x] 所有规范化 jump target 有效。
+- [x] 栈深度分析不会无故变成负数。
+- [x] 调用参数和关键字名称正确。
+- [x] 函数和闭包元数据正确。
+- [x] Scanner golden 测试全部通过。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -824,3 +824,71 @@ VerificationError
 - 下一步：
   - 阶段 2：定义 3.11 规范化指令模型，建立 CACHE/offset 映射，
     再处理运算、调用和跳转协议。
+
+### 2026-07-30：阶段 2
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/ir.py`
+  - `decompyle3/scanner.py`
+  - `decompyle3/scanners/normalize311.py`
+  - `decompyle3/scanners/scanner311.py`
+  - `pytest/test_scanner311.py`
+  - `pytest/test_normalize311.py`
+  - `test/simple_source/311/00_expressions.py`
+  - `test/simple_source/311/02_control_flow.py`
+  - `test/bytecode_3.11/generate.py`
+  - `test/bytecode_3.11/golden/*.dis`
+  - `test/bytecode_3.11/golden_tokens/*.tokens`
+  - `test/bytecode_3.11/README.md`
+  - `test/bytecode_3.11/golden_tokens/README.md`
+- 已实现：
+  - 新增 `NormalizedInstruction`、`CallInfo`、`FunctionInfo` 和
+    `StackAnalysis` 最小 IR，保留原始 opcode、物理 offset、逻辑序号、
+    参数、绝对 target 和分支栈效果。
+  - 将 `Scanner311.ingest_raw()` 固定为阶段 1 物理流接口；
+    `Scanner311.ingest()` 返回不含 `CACHE` 的规范化 Token，并维护双向
+    physical/logical offset 与 cache-owner 映射。
+  - 展开全部 26 种 `BINARY_OP`，规范化比较、包含、身份、`COPY` 和
+    `SWAP` 指令。
+  - 建立统一 `CallInfo`，验证 `KW_NAMES -> PRECALL -> CALL` 协议，
+    区分普通 NULL 调用和 `LOAD_METHOD` self-or-null 调用，并覆盖位置、
+    关键字、`*args` 和 `**kwargs`。
+  - 规范化所有 3.11 前向、后向和 None 条件跳转，记录方向、条件、
+    是否弹栈及绝对 target；拒绝跳入 `CACHE`。
+  - 解析 3.11 locals-plus 和 `MAKE_FUNCTION` flags，保留 defaults、
+    kwdefaults、annotations 和 closure names。
+  - 对磁盘 `.pyc` 默认拒绝 specialized opcode；对实时 CPython 3.11
+    adaptive 指令流反规范化已知 specialized opcode，未知项明确失败。
+  - 建立含异常入口和生成器恢复入口的栈深度数据流检查；9 份 corpus
+    的全部可达深度均非负且不超过 `co_stacksize`。
+  - 生成并跟踪 9 份稳定规范化 Token golden，共 1613 行。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_normalize311.py`
+  - `.venv311/bin/pytest -q`
+  - `make check PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/ir.py decompyle3/scanner.py decompyle3/scanners/normalize311.py decompyle3/scanners/scanner311.py pytest/test_scanner311.py pytest/test_normalize311.py test/bytecode_3.11/generate.py`
+- 验证结果：
+  - 阶段 2 规范化测试：`8 passed`。
+  - 全部 pytest：`21 passed, 19 skipped`。
+  - golden 生成与一致性检查：9 份源码、9 份 dis、9 份 Token 均通过。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8、`git diff --check`：通过。
+- 3.7/3.8 回归：
+  - 原 Scanner 与 Parser 路径未改用 3.11 IR。
+  - 3.7 和 3.8 现有回归语料全部成功反编译，未新增失败。
+- 已知限制：
+  - `RESUME`、`PUSH_NULL`、`KW_NAMES`、`PRECALL` 和 `EXTENDED_ARG`
+    仍作为标记过的 internal Token 保留，阶段 3 Parser 应显式忽略或消费。
+  - `LOAD_METHOD` 的第二协议槽在运行时可能是 self 或 NULL，因此
+    `receiver_mode` 保留为 `self_or_null`，不做不可靠的静态猜测。
+  - 当前栈分析只验证深度一致性；CFG 结构化、异常区间语义恢复和
+    post-dominator 分别留在阶段 4 和阶段 6。
+  - Parser311 尚未实现，仍不会输出 3.11 反编译源码。
+- 下一步：
+  - 阶段 3：注册 Parser311，从无复杂控制流的表达式、赋值、调用、
+    函数和类开始恢复源码，并用 `ast.parse()` 和重新编译验证。

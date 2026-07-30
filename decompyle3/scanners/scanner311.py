@@ -24,6 +24,7 @@ from decompyle3.scanner import (
     Scanner,
     UnknownOpcodeError,
 )
+from decompyle3.scanners.normalize311 import Normalizer311
 
 
 class Scanner311(Scanner):
@@ -60,6 +61,13 @@ class Scanner311(Scanner):
         self.positions_by_offset = {}
         self.line_ranges = ()
         self.code_metadata = {}
+        self.raw_tokens = []
+        self.normalized_instructions = ()
+        self.physical_to_logical = {}
+        self.logical_to_physical = {}
+        self.cache_owner = {}
+        self.stack_depths = {}
+        self.max_stack_depth = 0
 
     def _validate_bytecode(self, bytecode: bytes, code_name: str = "<unknown>") -> None:
         """Validate the fixed-width 3.11 physical instruction layout."""
@@ -138,8 +146,8 @@ class Scanner311(Scanner):
             )
         return tuple(attached)
 
-    def ingest(self, co, classname=None, code_objects=None, show_asm=None):
-        """Return raw 3.11 Tokens and an empty parser-customization mapping."""
+    def ingest_raw(self, co, classname=None, code_objects=None, show_asm=None):
+        """Return physical 3.11 Tokens, including CACHE and EXTENDED_ARG."""
         if not iscode(co):
             raise MalformedBytecodeError(
                 f"Scanner311 expected a code object, got {type(co).__name__}"
@@ -237,4 +245,97 @@ class Scanner311(Scanner):
                 print(token.format(line_prefix=""))
             print()
 
+        self.raw_tokens = tokens
+        return tokens, {}
+
+    def _normalized_tokens(self):
+        tokens = []
+        for instruction in self.normalized_instructions:
+            if instruction.call is not None:
+                attr = instruction.call
+                pattr = repr(instruction.call)
+            elif instruction.function is not None:
+                attr = instruction.function
+                pattr = repr(instruction.function)
+            else:
+                attr = instruction.argval
+                pattr = instruction.argrepr
+            tokens.append(
+                self.Token(
+                    opname=instruction.kind,
+                    attr=attr,
+                    pattr=pattr,
+                    offset=instruction.offset,
+                    linestart=self.insts[
+                        self.offset2inst_index[instruction.offset]
+                    ].starts_line,
+                    op=instruction.original_opcode,
+                    has_arg=instruction.arg is not None,
+                    opc=self.opc,
+                    has_extended_arg=False,
+                    optype=self.insts[
+                        self.offset2inst_index[instruction.offset]
+                    ].optype,
+                )
+            )
+        return tokens
+
+    def _normalize(self, co, source_kind, instructions):
+        normalizer = Normalizer311(self.opc)
+        self.normalized_instructions = normalizer.normalize(
+            instructions,
+            co,
+            exception_entries=self.exception_entries,
+            source_kind=source_kind,
+        )
+        self.physical_to_logical = normalizer.physical_to_logical
+        self.logical_to_physical = normalizer.logical_to_physical
+        self.cache_owner = normalizer.cache_owner
+        self.stack_depths = dict(normalizer.stack_analysis.depths)
+        self.max_stack_depth = normalizer.stack_analysis.max_depth
+        return self._normalized_tokens()
+
+    def ingest(self, co, classname=None, code_objects=None, show_asm=None):
+        """Return normalized parser-facing 3.11 Tokens without CACHE entries."""
+        if show_asm is None:
+            show_asm = self.show_asm
+        raw_show = show_asm if show_asm is True or show_asm in ("both", "before") else None
+        self.ingest_raw(
+            co,
+            classname=classname,
+            code_objects=code_objects,
+            show_asm=raw_show,
+        )
+        tokens = self._normalize(co, "pyc", self.insts)
+
+        if show_asm is True or show_asm in ("both", "after"):
+            print("\n# ---- normalized CPython 3.11 tokenization:")
+            for token in tokens:
+                print(token.format(line_prefix=""))
+            print()
+        return tokens, {}
+
+    def ingest_runtime(self, co, classname=None, show_asm=None):
+        """Normalize a live CPython 3.11 adaptive instruction stream."""
+        self.ingest_raw(co, classname=classname, show_asm=None)
+        normalizer = Normalizer311(self.opc)
+        runtime_instructions = normalizer.runtime_instructions(co)
+        self.normalized_instructions = normalizer.normalize(
+            runtime_instructions,
+            co,
+            exception_entries=self.exception_entries,
+            source_kind="runtime",
+        )
+        self.physical_to_logical = normalizer.physical_to_logical
+        self.logical_to_physical = normalizer.logical_to_physical
+        self.cache_owner = normalizer.cache_owner
+        self.stack_depths = dict(normalizer.stack_analysis.depths)
+        self.max_stack_depth = normalizer.stack_analysis.max_depth
+        tokens = self._normalized_tokens()
+
+        if show_asm is True or show_asm in ("both", "after"):
+            print("\n# ---- normalized adaptive CPython 3.11 tokenization:")
+            for token in tokens:
+                print(token.format(line_prefix=""))
+            print()
         return tokens, {}

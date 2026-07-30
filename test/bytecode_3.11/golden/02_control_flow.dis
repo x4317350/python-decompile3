@@ -17,8 +17,20 @@
  24          18 LOAD_CONST               3 (<code object loops at 0x..., file "test/simple_source/311/02_control_flow.py", line 24>)
              20 MAKE_FUNCTION            0
              22 STORE_NAME               3 (loops)
-             24 LOAD_CONST               4 (None)
-             26 RETURN_VALUE
+
+ 46          24 LOAD_CONST               4 (<code object none_control at 0x..., file "test/simple_source/311/02_control_flow.py", line 46>)
+             26 MAKE_FUNCTION            0
+             28 STORE_NAME               4 (none_control)
+
+ 60          30 LOAD_CONST               5 (<code object not_none_loop at 0x..., file "test/simple_source/311/02_control_flow.py", line 60>)
+             32 MAKE_FUNCTION            0
+             34 STORE_NAME               5 (not_none_loop)
+
+ 66          36 LOAD_CONST               6 (<code object boolean_values at 0x..., file "test/simple_source/311/02_control_flow.py", line 66>)
+             38 MAKE_FUNCTION            0
+             40 STORE_NAME               6 (boolean_values)
+             42 LOAD_CONST               7 (None)
+             44 RETURN_VALUE
 
 Disassembly of <code object classify at 0x..., file "test/simple_source/311/02_control_flow.py", line 4>:
   4           0 RESUME                   0
@@ -190,3 +202,85 @@ Disassembly of <code object loops at 0x..., file "test/simple_source/311/02_cont
 
  43     >>  166 LOAD_FAST                1 (total)
             168 RETURN_VALUE
+
+Disassembly of <code object none_control at 0x..., file "test/simple_source/311/02_control_flow.py", line 46>:
+ 46           0 RESUME                   0
+
+ 47           2 LOAD_FAST                0 (value)
+              4 POP_JUMP_FORWARD_IF_NOT_NONE    25 (to 56)
+
+ 48     >>    6 LOAD_FAST                1 (items)
+              8 POP_JUMP_FORWARD_IF_TRUE     1 (to 12)
+
+ 49          10 JUMP_FORWARD            22 (to 56)
+
+ 50     >>   12 LOAD_FAST                1 (items)
+             14 LOAD_METHOD              0 (pop)
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 CACHE                    0
+             30 CACHE                    0
+             32 CACHE                    0
+             34 CACHE                    0
+             36 PRECALL                  0
+             38 CACHE                    0
+             40 CALL                     0
+             42 CACHE                    0
+             44 CACHE                    0
+             46 CACHE                    0
+             48 CACHE                    0
+             50 STORE_FAST               0 (value)
+
+ 47          52 LOAD_FAST                0 (value)
+             54 POP_JUMP_BACKWARD_IF_NONE    25 (to 6)
+
+ 52     >>   56 LOAD_FAST                1 (items)
+             58 GET_ITER
+        >>   60 FOR_ITER                 9 (to 80)
+             62 STORE_FAST               2 (item)
+
+ 53          64 LOAD_FAST                2 (item)
+             66 POP_JUMP_FORWARD_IF_NOT_NONE     1 (to 70)
+
+ 54          68 JUMP_BACKWARD            5 (to 60)
+
+ 55     >>   70 LOAD_FAST                2 (item)
+             72 POP_JUMP_FORWARD_IF_NONE     2 (to 78)
+
+ 56          74 LOAD_FAST                2 (item)
+             76 STORE_FAST               0 (value)
+        >>   78 JUMP_BACKWARD           10 (to 60)
+
+ 57     >>   80 LOAD_FAST                0 (value)
+             82 RETURN_VALUE
+
+Disassembly of <code object not_none_loop at 0x..., file "test/simple_source/311/02_control_flow.py", line 60>:
+ 60           0 RESUME                   0
+
+ 61           2 LOAD_FAST                0 (value)
+              4 POP_JUMP_FORWARD_IF_NONE     4 (to 14)
+
+ 62     >>    6 LOAD_CONST               0 (None)
+              8 STORE_FAST               0 (value)
+
+ 61          10 LOAD_FAST                0 (value)
+             12 POP_JUMP_BACKWARD_IF_NOT_NONE     4 (to 6)
+
+ 63     >>   14 LOAD_FAST                0 (value)
+             16 RETURN_VALUE
+
+Disassembly of <code object boolean_values at 0x..., file "test/simple_source/311/02_control_flow.py", line 66>:
+ 66           0 RESUME                   0
+
+ 67           2 LOAD_FAST                0 (left)
+              4 JUMP_IF_TRUE_OR_POP      1 (to 8)
+              6 LOAD_FAST                1 (right)
+        >>    8 LOAD_FAST                0 (left)
+             10 JUMP_IF_FALSE_OR_POP     1 (to 14)
+             12 LOAD_FAST                1 (right)
+        >>   14 BUILD_TUPLE              2
+             16 RETURN_VALUE

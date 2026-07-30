@@ -69,6 +69,22 @@ class UnknownOpcodeError(BytecodeScanError):
     """Raised when the opcode table cannot identify an instruction."""
 
 
+class BytecodeNormalizationError(BytecodeScanError):
+    """Raised when raw bytecode cannot be normalized without guessing."""
+
+
+class UnsupportedSpecializedOpcodeError(BytecodeNormalizationError):
+    """Raised when adaptive runtime bytecode cannot be de-specialized."""
+
+
+class InvalidJumpTargetError(BytecodeNormalizationError):
+    """Raised when a jump targets a cache slot or invalid code offset."""
+
+
+class StackDepthError(BytecodeNormalizationError):
+    """Raised when reachable instructions have inconsistent stack depths."""
+
+
 def long(num):
     return num
 

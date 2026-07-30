@@ -17,8 +17,20 @@
  28          18 LOAD_CONST               3 (<code object call_examples at 0x..., file "test/simple_source/311/00_expressions.py", line 28>)
              20 MAKE_FUNCTION            0
              22 STORE_NAME               3 (call_examples)
-             24 LOAD_CONST               4 (None)
-             26 RETURN_VALUE
+
+ 32          24 LOAD_CONST               4 (<code object all_binary_operations at 0x..., file "test/simple_source/311/00_expressions.py", line 32>)
+             26 MAKE_FUNCTION            0
+             28 STORE_NAME               4 (all_binary_operations)
+
+ 50          30 LOAD_CONST               5 (<code object all_inplace_operations at 0x..., file "test/simple_source/311/00_expressions.py", line 50>)
+             32 MAKE_FUNCTION            0
+             34 STORE_NAME               5 (all_inplace_operations)
+
+ 67          36 LOAD_CONST               6 (<code object all_comparisons at 0x..., file "test/simple_source/311/00_expressions.py", line 67>)
+             38 MAKE_FUNCTION            0
+             40 STORE_NAME               6 (all_comparisons)
+             42 LOAD_CONST               7 (None)
+             44 RETURN_VALUE
 
 Disassembly of <code object expressions at 0x..., file "test/simple_source/311/00_expressions.py", line 4>:
   4           0 RESUME                   0
@@ -178,3 +190,232 @@ Disassembly of <code object call_examples at 0x..., file "test/simple_source/311
              26 CACHE                    0
              28 CACHE                    0
              30 RETURN_VALUE
+
+Disassembly of <code object all_binary_operations at 0x..., file "test/simple_source/311/00_expressions.py", line 32>:
+ 32           0 RESUME                   0
+
+ 34           2 LOAD_FAST                0 (left)
+              4 LOAD_FAST                1 (right)
+              6 BINARY_OP                0 (+)
+              8 CACHE                    0
+
+ 35          10 LOAD_FAST                0 (left)
+             12 LOAD_FAST                1 (right)
+             14 BINARY_OP                1 (&)
+             16 CACHE                    0
+
+ 36          18 LOAD_FAST                0 (left)
+             20 LOAD_FAST                1 (right)
+             22 BINARY_OP                2 (//)
+             24 CACHE                    0
+
+ 37          26 LOAD_FAST                0 (left)
+             28 LOAD_FAST                1 (right)
+             30 BINARY_OP                3 (<<)
+             32 CACHE                    0
+
+ 38          34 LOAD_FAST                0 (left)
+             36 LOAD_FAST                1 (right)
+             38 BINARY_OP                4 (@)
+             40 CACHE                    0
+
+ 39          42 LOAD_FAST                0 (left)
+             44 LOAD_FAST                1 (right)
+             46 BINARY_OP                5 (*)
+             48 CACHE                    0
+
+ 40          50 LOAD_FAST                0 (left)
+             52 LOAD_FAST                1 (right)
+             54 BINARY_OP                6 (%)
+             56 CACHE                    0
+
+ 41          58 LOAD_FAST                0 (left)
+             60 LOAD_FAST                1 (right)
+             62 BINARY_OP                7 (|)
+             64 CACHE                    0
+
+ 42          66 LOAD_FAST                0 (left)
+             68 LOAD_FAST                1 (right)
+             70 BINARY_OP                8 (**)
+             72 CACHE                    0
+
+ 43          74 LOAD_FAST                0 (left)
+             76 LOAD_FAST                1 (right)
+             78 BINARY_OP                9 (>>)
+             80 CACHE                    0
+
+ 44          82 LOAD_FAST                0 (left)
+             84 LOAD_FAST                1 (right)
+             86 BINARY_OP               10 (-)
+             88 CACHE                    0
+
+ 45          90 LOAD_FAST                0 (left)
+             92 LOAD_FAST                1 (right)
+             94 BINARY_OP               11 (/)
+             96 CACHE                    0
+
+ 46          98 LOAD_FAST                0 (left)
+            100 LOAD_FAST                1 (right)
+            102 BINARY_OP               12 (^)
+            104 CACHE                    0
+
+ 33         106 BUILD_TUPLE             13
+            108 RETURN_VALUE
+
+Disassembly of <code object all_inplace_operations at 0x..., file "test/simple_source/311/00_expressions.py", line 50>:
+ 50           0 RESUME                   0
+
+ 51           2 LOAD_FAST                0 (value)
+              4 LOAD_FAST                1 (other)
+              6 BINARY_OP               13 (+=)
+              8 CACHE                    0
+             10 STORE_FAST               0 (value)
+
+ 52          12 LOAD_FAST                0 (value)
+             14 LOAD_FAST                1 (other)
+             16 BINARY_OP               14 (&=)
+             18 CACHE                    0
+             20 STORE_FAST               0 (value)
+
+ 53          22 LOAD_FAST                0 (value)
+             24 LOAD_FAST                1 (other)
+             26 BINARY_OP               15 (//=)
+             28 CACHE                    0
+             30 STORE_FAST               0 (value)
+
+ 54          32 LOAD_FAST                0 (value)
+             34 LOAD_FAST                1 (other)
+             36 BINARY_OP               16 (<<=)
+             38 CACHE                    0
+             40 STORE_FAST               0 (value)
+
+ 55          42 LOAD_FAST                0 (value)
+             44 LOAD_FAST                1 (other)
+             46 BINARY_OP               17 (@=)
+             48 CACHE                    0
+             50 STORE_FAST               0 (value)
+
+ 56          52 LOAD_FAST                0 (value)
+             54 LOAD_FAST                1 (other)
+             56 BINARY_OP               18 (*=)
+             58 CACHE                    0
+             60 STORE_FAST               0 (value)
+
+ 57          62 LOAD_FAST                0 (value)
+             64 LOAD_FAST                1 (other)
+             66 BINARY_OP               19 (%=)
+             68 CACHE                    0
+             70 STORE_FAST               0 (value)
+
+ 58          72 LOAD_FAST                0 (value)
+             74 LOAD_FAST                1 (other)
+             76 BINARY_OP               20 (|=)
+             78 CACHE                    0
+             80 STORE_FAST               0 (value)
+
+ 59          82 LOAD_FAST                0 (value)
+             84 LOAD_FAST                1 (other)
+             86 BINARY_OP               21 (**=)
+             88 CACHE                    0
+             90 STORE_FAST               0 (value)
+
+ 60          92 LOAD_FAST                0 (value)
+             94 LOAD_FAST                1 (other)
+             96 BINARY_OP               22 (>>=)
+             98 CACHE                    0
+            100 STORE_FAST               0 (value)
+
+ 61         102 LOAD_FAST                0 (value)
+            104 LOAD_FAST                1 (other)
+            106 BINARY_OP               23 (-=)
+            108 CACHE                    0
+            110 STORE_FAST               0 (value)
+
+ 62         112 LOAD_FAST                0 (value)
+            114 LOAD_FAST                1 (other)
+            116 BINARY_OP               24 (/=)
+            118 CACHE                    0
+            120 STORE_FAST               0 (value)
+
+ 63         122 LOAD_FAST                0 (value)
+            124 LOAD_FAST                1 (other)
+            126 BINARY_OP               25 (^=)
+            128 CACHE                    0
+            130 STORE_FAST               0 (value)
+
+ 64         132 LOAD_FAST                0 (value)
+            134 RETURN_VALUE
+
+Disassembly of <code object all_comparisons at 0x..., file "test/simple_source/311/00_expressions.py", line 67>:
+ 67           0 RESUME                   0
+
+ 69           2 LOAD_FAST                0 (left)
+              4 LOAD_FAST                1 (right)
+              6 COMPARE_OP               0 (<)
+              8 CACHE                    0
+             10 CACHE                    0
+
+ 70          12 LOAD_FAST                0 (left)
+             14 LOAD_FAST                1 (right)
+             16 COMPARE_OP               1 (<=)
+             18 CACHE                    0
+             20 CACHE                    0
+
+ 71          22 LOAD_FAST                0 (left)
+             24 LOAD_FAST                1 (right)
+             26 COMPARE_OP               2 (==)
+             28 CACHE                    0
+             30 CACHE                    0
+
+ 72          32 LOAD_FAST                0 (left)
+             34 LOAD_FAST                1 (right)
+             36 COMPARE_OP               3 (!=)
+             38 CACHE                    0
+             40 CACHE                    0
+
+ 73          42 LOAD_FAST                0 (left)
+             44 LOAD_FAST                1 (right)
+             46 COMPARE_OP               4 (>)
+             48 CACHE                    0
+             50 CACHE                    0
+
+ 74          52 LOAD_FAST                0 (left)
+             54 LOAD_FAST                1 (right)
+             56 COMPARE_OP               5 (>=)
+             58 CACHE                    0
+             60 CACHE                    0
+
+ 75          62 LOAD_FAST                0 (left)
+             64 LOAD_FAST                2 (container)
+             66 CONTAINS_OP              0
+
+ 76          68 LOAD_FAST                0 (left)
+             70 LOAD_FAST                2 (container)
+             72 CONTAINS_OP              1
+
+ 77          74 LOAD_FAST                0 (left)
+             76 LOAD_FAST                1 (right)
+             78 IS_OP                    0
+
+ 78          80 LOAD_FAST                0 (left)
+             82 LOAD_FAST                1 (right)
+             84 IS_OP                    1
+
+ 79          86 LOAD_FAST                0 (left)
+             88 LOAD_FAST                1 (right)
+             90 SWAP                     2
+             92 COPY                     2
+             94 COMPARE_OP               0 (<)
+             96 CACHE                    0
+             98 CACHE                    0
+            100 JUMP_IF_FALSE_OR_POP     5 (to 112)
+            102 LOAD_FAST                2 (container)
+            104 COMPARE_OP               1 (<=)
+            106 CACHE                    0
+            108 CACHE                    0
+            110 JUMP_FORWARD             2 (to 116)
+        >>  112 SWAP                     2
+            114 POP_TOP
+
+ 68     >>  116 BUILD_TUPLE             11
+            118 RETURN_VALUE
