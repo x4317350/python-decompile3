@@ -61,3 +61,7 @@ def make_counter(start):
         return current
 
     return increment
+
+
+def make_scaler(factor):
+    return lambda value: value * factor

@@ -77,7 +77,7 @@ Scanner311 读取原始指令
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 0 | 环境、基线和测试语料 | 已完成 |
-| 1 | 3.11 `.pyc` 装载和原始扫描 | 未开始 |
+| 1 | 3.11 `.pyc` 装载和原始扫描 | 已完成 |
 | 2 | 3.11 指令规范化 | 未开始 |
 | 3 | 无复杂控制流的源码恢复 | 未开始 |
 | 4 | CFG 和普通控制流恢复 | 未开始 |
@@ -195,10 +195,10 @@ decompyle3/parsers/main.py
 decompyle3/bin/decompile.py
 ```
 
-- [ ] 在 Scanner 版本注册表中增加 `(3, 11)`。
-- [ ] 增加 `Scanner311` 动态分派。
-- [ ] 调整 CLI 的支持版本说明。
-- [ ] Parser 尚未实现时，应返回清晰的“Scanner 已支持、Parser 未支持”错误。
+- [x] 在 Scanner 版本注册表中增加 `(3, 11)`。
+- [x] 增加 `Scanner311` 动态分派。
+- [x] 调整 CLI 的支持版本说明。
+- [x] Parser 尚未实现时，应返回清晰的“Scanner 已支持、Parser 未支持”错误。
 
 ### 1.2 新建原始 Scanner311
 
@@ -208,29 +208,29 @@ decompyle3/bin/decompile.py
 decompyle3/scanners/scanner311.py
 ```
 
-- [ ] 使用 `xdis` 的 CPython 3.11 opcode 定义。
-- [ ] 不直接调用依赖已删除 opcode 的 `Scanner37Base.__init__`。
-- [ ] 读取所有原始指令及真实 byte offset。
-- [ ] 建立 `offset -> instruction index` 映射。
-- [ ] 读取嵌套 code object。
-- [ ] 读取行号、位置信息和 code object 元数据。
-- [ ] 暂存原始 `co_exceptiontable`，本阶段不要求恢复异常语句。
-- [ ] 为未知或畸形指令提供明确错误。
+- [x] 使用 `xdis` 的 CPython 3.11 opcode 定义。
+- [x] 不直接调用依赖已删除 opcode 的 `Scanner37Base.__init__`。
+- [x] 读取所有原始指令及真实 byte offset。
+- [x] 建立 `offset -> instruction index` 映射。
+- [x] 读取嵌套 code object。
+- [x] 读取行号、位置信息和 code object 元数据。
+- [x] 暂存原始 `co_exceptiontable`，本阶段不要求恢复异常语句。
+- [x] 为未知或畸形指令提供明确错误。
 
 ### 1.3 原始指令测试
 
-- [ ] 原始 Scanner 输出与 Python 3.11 `dis.get_instructions()` 对照。
-- [ ] 验证跳转目标、常量、名称和参数。
-- [ ] 验证嵌套函数、lambda、推导式和类 code object 都能遍历。
-- [ ] 验证偏移量包含 inline cache 所占空间。
+- [x] 原始 Scanner 输出与 Python 3.11 `dis.get_instructions()` 对照。
+- [x] 验证跳转目标、常量、名称和参数。
+- [x] 验证嵌套函数、lambda、推导式和类 code object 都能遍历。
+- [x] 验证偏移量包含 inline cache 所占空间。
 
 ### 阶段 1 验收条件
 
-- [ ] 3.11 `.pyc` 可以装载。
-- [ ] 所有嵌套 code object 可以遍历。
-- [ ] 原始指令 offset 和 jump target 正确。
-- [ ] 不因 `SETUP_*`、`JUMP_ABSOLUTE`、`POP_BLOCK` 等属性不存在而崩溃。
-- [ ] 3.7/3.8 基线测试没有新增失败。
+- [x] 3.11 `.pyc` 可以装载。
+- [x] 所有嵌套 code object 可以遍历。
+- [x] 原始指令 offset 和 jump target 正确。
+- [x] 不因 `SETUP_*`、`JUMP_ABSOLUTE`、`POP_BLOCK` 等属性不存在而崩溃。
+- [x] 3.7/3.8 基线测试没有新增失败。
 
 ---
 
@@ -768,7 +768,59 @@ VerificationError
   - `xdis 6.3.0` 将 3.x opcode 模块移动到
     `xdis.opcodes.opcode_3x`，现有 Scanner 仍使用旧导入路径。
   - Scanner311 尚未实现，相关阶段测试按计划跳过。
-  - Token golden 当前只固定格式，实际 Token 文件将在阶段 1 生成。
+  - Token golden 当前只固定格式，实际规范化 Token 文件将在阶段 2 生成。
 - 下一步：
   - 阶段 1：先恢复现有 Scanner 对 `xdis 6.3.0` 的兼容导入，
     再注册 `(3, 11)` 并实现原始 `Scanner311`。
+
+### 2026-07-30：阶段 1
+
+- 状态：已完成
+- 修改文件：
+  - `decompyle3/scanner.py`
+  - `decompyle3/scanners/scanner37base.py`
+  - `decompyle3/scanners/scanner311.py`
+  - `decompyle3/parsers/main.py`
+  - `decompyle3/bin/decompile.py`
+  - `pytest/test_scanner311.py`
+  - `test/simple_source/311/01_functions_classes.py`
+  - `test/bytecode_3.11/golden/01_functions_classes.dis`
+  - `test/bytecode_3.11/golden_tokens/README.md`
+- 已实现：
+  - 改用 `xdis.op_imports.get_opcode_module()` 解析 3.7、3.8 和 3.11
+    opcode 表，修复 `xdis 6.3.0` 模块迁移造成的现有 Scanner 导入失败。
+  - 注册 CPython 3.11 Scanner，并对 PyPy 3.11 返回明确的不支持错误。
+  - 新增独立于 `Scanner37Base` 的原始 `Scanner311`，保留 `CACHE` 和
+    `EXTENDED_ARG` 物理指令、两字节 offset、原始参数字节及 offset 索引。
+  - 遍历所有嵌套 code object，并保存行号、位置信息、code object
+    元数据、原始 `co_exceptiontable` 和 `xdis` 解码后的异常表项。
+  - 新增未知 opcode 和畸形字节码错误；Parser311 未实现时返回明确错误。
+  - 增加 lambda 语料，并用标准库 `dis` 更新对应 golden。
+  - 明确原始 Scanner 对照测试属于阶段 1，过滤 `CACHE` 后的规范化
+    Token golden 留在阶段 2 生成。
+- 验证命令：
+  - `.venv311/bin/python test/bytecode_3.11/generate.py`
+  - `.venv311/bin/python test/bytecode_3.11/generate.py --check`
+  - `.venv311/bin/pytest -q pytest/test_scanner311.py`
+  - `.venv311/bin/pytest -q`
+  - `make check PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `make -C test check-bytecode-3.8 PYTHON=/absolute/path/to/.venv311/bin/python`
+  - `.venv311/bin/flake8 decompyle3/scanner.py decompyle3/scanners/scanner37base.py decompyle3/scanners/scanner311.py decompyle3/parsers/main.py decompyle3/bin/decompile.py pytest/test_scanner311.py`
+- 验证结果：
+  - Scanner311 阶段测试：`5 passed`。
+  - 全部 pytest：`13 passed, 19 skipped`。
+  - 3.7 bytecode 回归：`54 okay, 0 failed, 0 failed verification`。
+  - 3.8 bytecode 回归：`48 okay, 0 failed, 0 failed verification`。
+  - flake8 和生成物一致性检查：通过。
+- 3.7/3.8 回归：
+  - 阶段 0 的 `xdis 6.3.0` 导入失败已修复。
+  - 3.7 和 3.8 现有回归语料全部成功反编译并通过可执行范围内的验证。
+- 已知限制：
+  - Scanner311 当前输出未经规范化的物理 Token 流，仍包含 `CACHE`、
+    `RESUME`、`PRECALL` 等 3.11 内部指令。
+  - Parser311 尚未实现，因此 CLI 可以装载和扫描 3.11 `.pyc`，但不会
+    输出反编译源码。
+  - 本阶段只保存和解码异常表，不恢复 `try`、`with` 等异常控制流。
+- 下一步：
+  - 阶段 2：定义 3.11 规范化指令模型，建立 CACHE/offset 映射，
+    再处理运算、调用和跳转协议。

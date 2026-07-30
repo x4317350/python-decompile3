@@ -21,7 +21,6 @@ scanner/ingestion module. From here we call various version-specific
 scanners, e.g. for Python 3.7 or 3.8.
 """
 
-import importlib
 from abc import ABC
 from array import array
 from collections import namedtuple
@@ -37,6 +36,7 @@ from xdis import (
     instruction_size,
     next_offset,
 )
+from xdis.op_imports import get_opcode_module
 from xdis.version_info import (
     PYTHON_IMPLEMENTATION,
     PythonImplementation,
@@ -47,7 +47,7 @@ from decompyle3.scanners.tok import Token
 
 # The byte code versions we support.
 # Note: these all have to be tuples
-PYTHON_VERSIONS = frozenset(((3, 7), (3, 8)))
+PYTHON_VERSIONS = frozenset(((3, 7), (3, 8), (3, 11)))
 
 CANONIC2VERSION = dict(
     (canonic_python_version[version_tuple_to_str(python_version)], python_version)
@@ -55,6 +55,18 @@ CANONIC2VERSION = dict(
 )
 
 L65536 = 65536
+
+
+class BytecodeScanError(ValueError):
+    """Base error for bytecode that cannot be scanned safely."""
+
+
+class MalformedBytecodeError(BytecodeScanError):
+    """Raised when the physical bytecode layout is malformed."""
+
+
+class UnknownOpcodeError(BytecodeScanError):
+    """Raised when the opcode table cannot identify an instruction."""
 
 
 def long(num):
@@ -89,16 +101,21 @@ class Scanner(ABC):
         # Temporary initialization.
         self.opc = ModuleType("uninitialized")
 
-        if version[:2] in PYTHON_VERSIONS:
-            v_str = f"""opcode_{version_tuple_to_str(version, start=0, end=2, delimiter="")}"""
-            module_name = f"xdis.opcodes.{v_str}"
-            if is_pypy:
-                module_name += "pypy"
-            self.opc = importlib.import_module(module_name)
-        else:
+        if version[:2] not in PYTHON_VERSIONS:
             raise TypeError(
                 f"{version_tuple_to_str(version)} is not a Python version I know about"
             )
+
+        implementation = (
+            PythonImplementation.PyPy if is_pypy else PythonImplementation.CPython
+        )
+        try:
+            self.opc = get_opcode_module(version[:2], implementation)
+        except KeyError as error:
+            raise TypeError(
+                f"xdis has no opcode table for "
+                f"{implementation} {version_tuple_to_str(version)}"
+            ) from error
 
         self.opname = self.opc.opname
 
@@ -544,39 +561,34 @@ def get_scanner(
             )
         version = CANONIC2VERSION[canonic_version]
 
+    if (
+        version[:2] == (3, 11)
+        and python_implementation is PythonImplementation.PyPy
+    ):
+        raise RuntimeError(
+            "Python 3.11 raw scanning currently supports CPython bytecode only"
+        )
+
     # Pick up appropriate scanner
     if version[:2] in PYTHON_VERSIONS:
-        v_str = version_tuple_to_str(version, start=0, end=2, delimiter="")
-        try:
-            import importlib
+        import importlib
 
-            if python_implementation is PythonImplementation.PyPy:
-                scan = importlib.import_module(f"decompyle3.scanners.pypy{v_str}")
-            else:
-                scan = importlib.import_module(f"decompyle3.scanners.scanner{v_str}")
-            if False:
-                print(scan)  # Avoid unused scan
-        except ImportError:
-            if python_implementation is PythonImplementation.PyPy:
-                exec(
-                    f"import decompyle3.scanners.pypy{v_str} as scan",
-                    locals(),
-                    globals(),
-                )
-            else:
-                exec(
-                    f"import decompyle3.scanners.scanner{v_str} as scan",
-                    locals(),
-                    globals(),
-                )
+        v_str = version_tuple_to_str(version, start=0, end=2, delimiter="")
         if python_implementation is PythonImplementation.PyPy:
-            scanner = eval(
-                f"scan.ScannerPyPy{v_str}(show_asm=show_asm)", locals(), globals()
-            )
+            module_name = f"decompyle3.scanners.pypy{v_str}"
+            class_name = f"ScannerPyPy{v_str}"
         else:
-            scanner = eval(
-                f"scan.Scanner{v_str}(show_asm=show_asm)", locals(), globals()
-            )
+            module_name = f"decompyle3.scanners.scanner{v_str}"
+            class_name = f"Scanner{v_str}"
+        try:
+            scanner_module = importlib.import_module(module_name)
+            scanner_class = getattr(scanner_module, class_name)
+        except (ImportError, AttributeError) as error:
+            raise RuntimeError(
+                f"Scanner for {python_implementation} "
+                f"{version_tuple_to_str(version)} is not available"
+            ) from error
+        scanner = scanner_class(show_asm=show_asm)
     else:
         raise RuntimeError(
             "Unsupported Python version, "

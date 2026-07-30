@@ -144,9 +144,13 @@ def get_python_parser(
             p = Python38ParserSingle(debug_parser)
 
     elif version > (3, 8):
-        raise RuntimeError(
-            f"""Version {version_tuple_to_str(version)} is not supported."""
-        )
+        if version == (3, 11):
+            raise RuntimeError(
+                "CPython 3.11 Scanner is available, but Parser311 is not "
+                "implemented; decompilation is currently limited to Python "
+                "3.7 and 3.8 bytecode."
+            )
+        raise RuntimeError(f"Version {version_tuple_to_str(version)} is not supported.")
 
     p.version = version
     # p.dump_grammar() # debug

@@ -21,13 +21,13 @@
 
  17          26 NOP
 
- 15          28 LOAD_CONST              21 ((2,))
+ 15          28 LOAD_CONST              22 ((2,))
 
  20          30 LOAD_CONST               5 (1)
 
  15          32 LOAD_CONST               6 (('scale',))
              34 BUILD_CONST_KEY_MAP      1
-             36 LOAD_CONST              22 (('left', 'int', 'right', 'int', 'values', 'int', 'scale', 'int', 'options', 'int', 'return', 'int'))
+             36 LOAD_CONST              23 (('left', 'int', 'right', 'int', 'values', 'int', 'scale', 'int', 'options', 'int', 'return', 'int'))
              38 LOAD_CONST              14 (<code object combine at 0x..., file "test/simple_source/311/01_functions_classes.py", line 14>)
              40 MAKE_FUNCTION            7 (defaults, kwdefaults, annotations)
 
@@ -73,8 +73,12 @@
  55         112 LOAD_CONST              19 (<code object make_counter at 0x..., file "test/simple_source/311/01_functions_classes.py", line 55>)
             114 MAKE_FUNCTION            0
             116 STORE_NAME               7 (make_counter)
-            118 LOAD_CONST              20 (None)
-            120 RETURN_VALUE
+
+ 66         118 LOAD_CONST              20 (<code object make_scaler at 0x..., file "test/simple_source/311/01_functions_classes.py", line 66>)
+            120 MAKE_FUNCTION            0
+            122 STORE_NAME               8 (make_scaler)
+            124 LOAD_CONST              21 (None)
+            126 RETURN_VALUE
 
 Disassembly of <code object marker at 0x..., file "test/simple_source/311/01_functions_classes.py", line 6>:
               0 MAKE_CELL                0 (function)
@@ -452,3 +456,24 @@ Disassembly of <code object increment at 0x..., file "test/simple_source/311/01_
 
  61          14 LOAD_DEREF               1 (current)
              16 RETURN_VALUE
+
+Disassembly of <code object make_scaler at 0x..., file "test/simple_source/311/01_functions_classes.py", line 66>:
+              0 MAKE_CELL                0 (factor)
+
+ 66           2 RESUME                   0
+
+ 67           4 LOAD_CLOSURE             0 (factor)
+              6 BUILD_TUPLE              1
+              8 LOAD_CONST               1 (<code object <lambda> at 0x..., file "test/simple_source/311/01_functions_classes.py", line 67>)
+             10 MAKE_FUNCTION            8 (closure)
+             12 RETURN_VALUE
+
+Disassembly of <code object <lambda> at 0x..., file "test/simple_source/311/01_functions_classes.py", line 67>:
+              0 COPY_FREE_VARS           1
+
+ 67           2 RESUME                   0
+              4 LOAD_FAST                0 (value)
+              6 LOAD_DEREF               1 (factor)
+              8 BINARY_OP                5 (*)
+             10 CACHE                    0
+             12 RETURN_VALUE

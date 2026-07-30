@@ -99,7 +99,10 @@ def main_bin(
     files: List[str],
 ):
     """
-    Cross Python bytecode decompiler for Python 3.7-3.8 bytecode
+    Cross Python bytecode decompiler for Python 3.7-3.8 bytecode.
+
+    CPython 3.11 bytecode loading and raw scanning are available for diagnostics;
+    Parser311 and source decompilation are not implemented yet.
     """
     version_tuple = sys.version_info[0:2]
     if version_tuple < (3, 7):

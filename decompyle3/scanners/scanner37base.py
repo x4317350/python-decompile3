@@ -34,8 +34,9 @@ from typing import Any, Dict, List, Set, Tuple
 
 import xdis
 
-# Get all the opcodes into globals
-import xdis.opcodes.opcode_37 as op3
+# Get all the opcodes into globals. xdis 6.3 moved the concrete modules under
+# opcode_3x, while continuing to expose compatibility aliases from this package.
+from xdis.opcodes import opcode_37 as op3
 from xdis import Instruction, instruction_size, iscode
 from xdis.bytecode import _get_const_info
 
