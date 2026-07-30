@@ -1,0 +1,32 @@
+# CPython 3.11 opcode coverage phase-0 dependency snapshot
+# Captured: 2026-07-30 (Asia/Shanghai)
+# Git baseline: 17f332b4e5f800e0c98c47a71933b933c7cd1eff
+# Runtime: CPython 3.11.9
+# Platform: macOS 26.5.2 (Build 25F84), arm64
+attrs==26.1.0
+cfgv==3.5.0
+click==8.4.2
+-e git+https://github.com/x4317350/python-decompile3.git@17f332b4e5f800e0c98c47a71933b933c7cd1eff#egg=decompyle3
+distlib==0.4.3
+filelock==3.32.2
+flake8==7.3.0
+hypothesis==6.24.2
+identify==2.6.19
+iniconfig==2.3.0
+mccabe==0.7.0
+nodeenv==1.10.0
+packaging==26.2
+platformdirs==4.11.0
+pluggy==1.6.0
+pre_commit==4.6.1
+pycodestyle==2.14.0
+pyflakes==3.4.0
+Pygments==2.20.0
+pytest==9.1.1
+python-discovery==1.5.0
+PyYAML==6.0.3
+six==1.17.0
+sortedcontainers==2.4.0
+spark-parser==1.9.0
+virtualenv==21.7.0
+xdis==6.3.0

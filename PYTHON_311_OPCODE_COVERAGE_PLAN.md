@@ -788,7 +788,7 @@ failure.json
 
 ## 15. 最终验收清单
 
-- [ ] 110/110 opcode 已进入矩阵；
+- [x] 110/110 opcode 已进入矩阵；
 - [ ] Scanner 110/110 有明确状态；
 - [ ] Normalizer 110/110 有明确状态；
 - [ ] Parser 110/110 有明确状态；
@@ -827,7 +827,25 @@ Behavior：
 
 当前状态：
 
-- 本文档仅固化执行流程；
-- 尚未开始阶段 0；
-- 尚未创建 opcode/shape JSON；
+- 阶段 0 已完成，产物位于本文件所在的阶段 0 Git 提交；
+- 已创建 `opcode_matrix.json`，尚未创建 `shape_matrix.json`；
+- 阶段 1 尚未开始；
 - 尚未修改 Scanner、Normalizer 或 Parser。
+
+阶段 0：
+
+```text
+阶段：0，冻结范围和基线
+提交：本文件所在 Git 提交，提交说明为“测试：固化 Python 3.11 opcode 覆盖基线”
+新增语料：0
+新增 opcode 覆盖：110/110 inventory；raw corpus 97/110；normalized corpus 96/110
+新增 shape 覆盖：0
+Scanner：逐 opcode 正式状态暂为 missing，后续阶段归因
+Normalizer：逐 opcode 正式状态暂为 missing，后续阶段归因
+Parser：逐 opcode 正式状态暂为 missing，后续阶段归因
+Behavior：逐 opcode 正式状态暂为 missing，后续阶段归因
+定向测试：现有 10 个 CPython 3.11 corpus golden --check 通过
+全量测试：110 passed, 6 skipped；连续两次结果一致
+已知限制：见 test/bytecode_3.11/OPCODE_COVERAGE_BASELINE.md
+失败现场：无
+```
