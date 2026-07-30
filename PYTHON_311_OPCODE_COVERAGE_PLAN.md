@@ -405,14 +405,14 @@ Scanner: 110/110 pass
 
 任务：
 
-- [ ] 验证 normalized kind；
-- [ ] 验证 internal 标记；
-- [ ] 验证 stack pop/push/effect；
-- [ ] 验证 jump stack effect；
-- [ ] 验证 physical/logical offset；
-- [ ] 验证 call/function/scope metadata；
-- [ ] 验证 specialized-to-base；
-- [ ] 验证 malformed protocol fail-closed。
+- [x] 验证 normalized kind；
+- [x] 验证 internal 标记；
+- [x] 验证 stack pop/push/effect；
+- [x] 验证 jump stack effect；
+- [x] 验证 physical/logical offset；
+- [x] 验证 call/function/scope metadata；
+- [x] 验证 specialized-to-base；
+- [x] 验证 malformed protocol fail-closed。
 
 内部协议至少包括：
 
@@ -827,15 +827,16 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1、阶段 2 和阶段 3 已完成；
+- 阶段 0、阶段 1、阶段 2、阶段 3 和阶段 4 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
-  108/110；
+  109/110，`CACHE` 由 owner 消费；
 - Scanner 层已达到 110/110 pass；
-- 阶段 4 尚未开始；
-- 本阶段修改了 Scanner 的 CACHE 布局校验和 jump-target 标记；
-- 尚未修改 Normalizer 或 Parser。
+- Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
+- 阶段 5 尚未开始；
+- 本阶段修复了 `SETUP_ANNOTATIONS` 栈效应并统一内部协议标记；
+- 尚未修改 Parser。
 
 阶段 0：
 
@@ -910,4 +911,24 @@ Behavior：未修改；逐 opcode Behavior 状态仍为 missing
 golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
 已知限制：SETUP_ANNOTATIONS 的 Normalizer StackDepthError 留待阶段 4
 失败现场：Scanner 原先接受非法 CACHE 布局；xdis 原始结果遗漏部分后向 jump-target 标记，均已修复并回归
+```
+
+阶段 4：
+
+```text
+阶段：4，Normalizer 110/110
+提交：本文件所在 Git 提交，提交说明为“测试：完成 Python 3.11 Normalizer 的 110 项 opcode 覆盖”
+新增语料：0；复用 23 个 corpus、131 个 code object
+新增 opcode 覆盖：Normalizer 从 0/110 提升到 102 pass + 8 internal_consumed
+新增 shape 覆盖：0；variable_annotations 仍为 missing，但 Normalizer 缺口已解除
+Scanner：未修改；维持 110/110 pass
+Normalizer：SETUP_ANNOTATIONS 改为 0 pop/0 push/0 effect；统一 8 个内部协议；unknown effect/kind 均为 0
+Parser：未修改；逐 opcode Parser 状态仍为 missing
+Behavior：未修改；逐 opcode Behavior 状态仍为 missing
+定向测试：pytest/test_opcode_normalizer311.py，185 passed
+相邻测试：Normalizer、Scanner、Parser、控制流、生成器、异常表和语法，345 passed
+全量测试：457 passed, 6 skipped；本阶段无新增 skip
+golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
+已知限制：CACHE 不生成独立 normalized instruction，由 owner 的 cache_offsets 消费
+失败现场：xdis 将 SETUP_ANNOTATIONS 表示为 1 pop/1 push，导致入口深度误判；已按 CPython dis 的零栈效应修复
 ```

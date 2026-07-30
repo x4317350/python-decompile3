@@ -53,7 +53,7 @@
 0126 | 0048 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: marker
-0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='function' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'function'))
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='function' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'function')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_GLOBAL | arg=1 | target=- | value='wraps' | stack=2/- | cache=(6, 8, 10, 12, 14)
 0016 | 0003 | LOAD_DEREF | arg=0 | target=- | value='function' | stack=1/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'function'))
@@ -70,7 +70,7 @@
 0058 | 0014 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: marker.<locals>.wrapper
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('function',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('function',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | PUSH_NULL | arg=- | target=- | value=None | stack=1/- | cache=() | meta=(('call_protocol', 'null'),) | internal=True
 0006 | 0003 | LOAD_DEREF | arg=2 | target=- | value='function' | stack=1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'function'))
@@ -189,7 +189,7 @@
 0020 | 0005 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: NamedAccumulator
-0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='__class__' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', '__class__'))
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='__class__' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', '__class__')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_NAME | arg=0 | target=- | value='__name__' | stack=1/- | cache=()
 0006 | 0003 | STORE_NAME | arg=1 | target=- | value='__module__' | stack=-1/- | cache=()
@@ -207,7 +207,7 @@
 0030 | 0015 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: NamedAccumulator.__init__
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('__class__',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('__class__',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_GLOBAL | arg=1 | target=- | value='super' | stack=2/- | cache=(6, 8, 10, 12, 14)
 0016 | 0003 | PRECALL | arg=0 | target=- | value=0 | stack=0/- | cache=(18,) | meta=(('call_offset', 20), ('argc', 0), ('keyword_names', ())) | internal=True
@@ -224,7 +224,7 @@
 0086 | 0014 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_counter
-0000 | 0000 | MAKE_CELL | arg=2 | target=- | value='current' | stack=0/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current'))
+0000 | 0000 | MAKE_CELL | arg=2 | target=- | value='current' | stack=0/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='start' | stack=1/- | cache=()
 0006 | 0003 | STORE_DEREF | arg=2 | target=- | value='current' | stack=-1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current'))
@@ -238,7 +238,7 @@
 0022 | 0011 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_counter.<locals>.increment
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('current',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('current',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_DEREF | arg=1 | target=- | value='current' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'current'))
 0006 | 0003 | LOAD_FAST | arg=0 | target=- | value='step' | stack=1/- | cache=()
@@ -248,7 +248,7 @@
 0016 | 0007 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_scaler
-0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='factor' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor'))
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='factor' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_CLOSURE | arg=0 | target=- | value='factor' | stack=1/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor'))
 0006 | 0003 | BUILD_TUPLE | arg=1 | target=- | value=1 | stack=0/- | cache=()
@@ -257,7 +257,7 @@
 0012 | 0006 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_scaler.<locals>.<lambda>
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('factor',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('factor',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='value' | stack=1/- | cache=()
 0006 | 0003 | LOAD_DEREF | arg=1 | target=- | value='factor' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'factor'))

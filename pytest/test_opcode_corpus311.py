@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from xdis import load_module
 
-from decompyle3.errors import Decompyle3Error, StackDepthError
+from decompyle3.errors import Decompyle3Error
 from decompyle3.scanners.scanner311 import Scanner311
 
 
@@ -94,13 +94,8 @@ def test_each_gap_fixture_contains_declared_opcode(opcode_name):
     ) in item["tests"]
 
     normalized, errors = normalized_opnames(root_code)
-    if opcode_name == "SETUP_ANNOTATIONS":
-        assert opcode_name not in normalized
-        assert errors
-        assert all(isinstance(error, StackDepthError) for error in errors)
-    else:
-        assert opcode_name in normalized
-        assert not errors
+    assert opcode_name in normalized
+    assert not errors
 
 
 def test_phase2_corpus_reaches_full_raw_inventory():
@@ -124,11 +119,8 @@ def test_phase2_corpus_reaches_full_raw_inventory():
     assert len(sources) == 23
     assert code_object_count == 131
     assert raw == set(dis.opmap)
-    assert set(dis.opmap) - normalized == {"CACHE", "SETUP_ANNOTATIONS"}
-    assert {source for source, _ in failures} == {
-        "test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py"
-    }
-    assert all(isinstance(error, StackDepthError) for _, error in failures)
+    assert set(dis.opmap) - normalized == {"CACHE"}
+    assert not failures
 
 
 @pytest.mark.parametrize("opcode_name", PHASE2_OPCODES)
@@ -163,7 +155,4 @@ def test_each_gap_fixture_has_dis_token_and_cfg_golden(opcode_name):
 
     assert opcode_name in dis_path.read_text(encoding="utf-8")
     token_golden = token_path.read_text(encoding="utf-8")
-    if opcode_name == "SETUP_ANNOTATIONS":
-        assert "StackDepthError" in token_golden
-    else:
-        assert opcode_name in token_golden
+    assert opcode_name in token_golden

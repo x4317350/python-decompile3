@@ -12,7 +12,7 @@
 0014 | 0007 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_deleter
-0000 | 0000 | MAKE_CELL | arg=1 | target=- | value='value' | stack=0/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'value'))
+0000 | 0000 | MAKE_CELL | arg=1 | target=- | value='value' | stack=0/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'value')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_CONST | arg=1 | target=- | value='present' | stack=1/- | cache=()
 0006 | 0003 | STORE_DEREF | arg=1 | target=- | value='value' | stack=-1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'value'))
@@ -25,7 +25,7 @@
 0020 | 0010 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_deleter.<locals>.delete_value
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('value',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('value',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | DELETE_DEREF | arg=0 | target=- | value='value' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'value'))
 0006 | 0003 | LOAD_CONST | arg=0 | target=- | value=None | stack=1/- | cache=()

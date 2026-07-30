@@ -269,7 +269,7 @@
 0062 | 0013 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_adder
-0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='amount' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'amount'))
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='amount' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'amount')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_CONST | arg=6 | target=- | value=(1,) | stack=1/- | cache=()
 0006 | 0003 | LOAD_CONST | arg=7 | target=- | value=('value', 'int', 'return', 'int') | stack=1/- | cache=()
@@ -282,7 +282,7 @@
 0020 | 0010 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_adder.<locals>.add
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('amount',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('amount',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='value' | stack=1/- | cache=()
 0006 | 0003 | LOAD_DEREF | arg=1 | target=- | value='amount' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'amount'))
@@ -290,7 +290,7 @@
 0012 | 0005 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_counter
-0000 | 0000 | MAKE_CELL | arg=2 | target=- | value='current' | stack=0/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current'))
+0000 | 0000 | MAKE_CELL | arg=2 | target=- | value='current' | stack=0/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='start' | stack=1/- | cache=()
 0006 | 0003 | STORE_DEREF | arg=2 | target=- | value='current' | stack=-1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'current'))
@@ -304,7 +304,7 @@
 0022 | 0011 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_counter.<locals>.increment
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('current',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('current',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_DEREF | arg=1 | target=- | value='current' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'current'))
 0006 | 0003 | LOAD_FAST | arg=0 | target=- | value='step' | stack=1/- | cache=()
@@ -314,7 +314,7 @@
 0016 | 0007 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_lambda
-0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='factor' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor'))
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='factor' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor')) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_CLOSURE | arg=0 | target=- | value='factor' | stack=1/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'factor'))
 0006 | 0003 | BUILD_TUPLE | arg=1 | target=- | value=1 | stack=0/- | cache=()
@@ -323,7 +323,7 @@
 0012 | 0006 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: make_lambda.<locals>.<lambda>
-0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('factor',)),)
+0000 | 0000 | COPY_FREE_VARS | arg=1 | target=- | value=1 | stack=0/- | cache=() | meta=(('freevars', ('factor',)),) | internal=True
 0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
 0004 | 0002 | LOAD_FAST | arg=0 | target=- | value='value' | stack=1/- | cache=()
 0006 | 0003 | LOAD_DEREF | arg=1 | target=- | value='factor' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'factor'))

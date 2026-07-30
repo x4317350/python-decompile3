@@ -2,7 +2,35 @@
 # Source: test/bytecode_3.11/opcode_fixtures/scope/setup_annotations.py
 
 ## code: <module>
-!! StackDepthError: SETUP_ANNOTATIONS at offset 2 requires stack depth 1, found 0 [version=3.11, code='<module>', offset=2]
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | SETUP_ANNOTATIONS | arg=- | target=- | value=None | stack=0/- | cache=()
+0004 | 0002 | LOAD_CONST | arg=0 | target=- | value='Generate SETUP_ANNOTATIONS for module and class annotations.' | stack=1/- | cache=()
+0006 | 0003 | STORE_NAME | arg=0 | target=- | value='__doc__' | stack=-1/- | cache=()
+0008 | 0004 | LOAD_CONST | arg=1 | target=- | value='int' | stack=1/- | cache=()
+0010 | 0005 | LOAD_NAME | arg=1 | target=- | value='__annotations__' | stack=1/- | cache=()
+0012 | 0006 | LOAD_CONST | arg=2 | target=- | value='module_value' | stack=1/- | cache=()
+0014 | 0007 | STORE_SUBSCR | arg=- | target=- | value=None | stack=-3/- | cache=(16,)
+0018 | 0008 | PUSH_NULL | arg=- | target=- | value=None | stack=1/- | cache=() | meta=(('call_protocol', 'null'),) | internal=True
+0020 | 0009 | LOAD_BUILD_CLASS | arg=- | target=- | value=None | stack=1/- | cache=()
+0022 | 0010 | LOAD_CONST | arg=3 | target=- | value=<code Annotated> | stack=1/- | cache=()
+0024 | 0011 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='Annotated',defaults=None,kwdefaults=(),annotations=(),closure=())
+0026 | 0012 | LOAD_CONST | arg=4 | target=- | value='Annotated' | stack=1/- | cache=()
+0028 | 0013 | PRECALL | arg=2 | target=- | value=2 | stack=-2/- | cache=(30,) | meta=(('call_offset', 32), ('argc', 2), ('keyword_names', ())) | internal=True
+0032 | 0014 | CALL | arg=2 | target=- | value=2 | stack=-1/- | cache=(34, 36, 38, 40) | call(argc=2,positional=2,keywords=(),mode=null,method=False,null=True,self=False,ex=False,starargs=False,kwargs=False)
+0042 | 0015 | STORE_NAME | arg=2 | target=- | value='Annotated' | stack=-1/- | cache=()
+0044 | 0016 | LOAD_CONST | arg=5 | target=- | value=None | stack=1/- | cache=()
+0046 | 0017 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: Annotated
-!! StackDepthError: SETUP_ANNOTATIONS at offset 10 requires stack depth 1, found 0 [version=3.11, code='Annotated', offset=10]
+0000 | 0000 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0002 | 0001 | LOAD_NAME | arg=0 | target=- | value='__name__' | stack=1/- | cache=()
+0004 | 0002 | STORE_NAME | arg=1 | target=- | value='__module__' | stack=-1/- | cache=()
+0006 | 0003 | LOAD_CONST | arg=0 | target=- | value='Annotated' | stack=1/- | cache=()
+0008 | 0004 | STORE_NAME | arg=2 | target=- | value='__qualname__' | stack=-1/- | cache=()
+0010 | 0005 | SETUP_ANNOTATIONS | arg=- | target=- | value=None | stack=0/- | cache=()
+0012 | 0006 | LOAD_CONST | arg=1 | target=- | value='str' | stack=1/- | cache=()
+0014 | 0007 | LOAD_NAME | arg=3 | target=- | value='__annotations__' | stack=1/- | cache=()
+0016 | 0008 | LOAD_CONST | arg=2 | target=- | value='member' | stack=1/- | cache=()
+0018 | 0009 | STORE_SUBSCR | arg=- | target=- | value=None | stack=-3/- | cache=(20,)
+0022 | 0010 | LOAD_CONST | arg=3 | target=- | value=None | stack=1/- | cache=()
+0024 | 0011 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()

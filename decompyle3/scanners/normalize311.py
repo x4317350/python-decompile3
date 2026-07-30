@@ -156,6 +156,17 @@ TERMINATORS = {
     "RETURN_GENERATOR",
 }
 
+INTERNAL_OPNAMES = {
+    "CACHE",
+    "RESUME",
+    "EXTENDED_ARG",
+    "PUSH_NULL",
+    "PRECALL",
+    "KW_NAMES",
+    "MAKE_CELL",
+    "COPY_FREE_VARS",
+}
+
 
 @dataclass
 class _StackValue:
@@ -379,16 +390,14 @@ class Normalizer311:
         self, instruction: Instruction, opname: str, co
     ) -> Tuple[str, bool, List[Tuple[str, Any]]]:
         metadata: List[Tuple[str, Any]] = []
-        internal = False
+        internal = opname in INTERNAL_OPNAMES
         kind = opname
 
         if opname == "RESUME":
             kind = "INTERNAL_RESUME"
-            internal = True
             metadata.append(("resume_where", instruction.arg))
         elif opname == "EXTENDED_ARG":
             kind = "INTERNAL_EXTENDED_ARG"
-            internal = True
         elif opname == "BINARY_OP":
             if instruction.arg is None or not (
                 0 <= instruction.arg < len(BINARY_OPERATIONS)
@@ -432,12 +441,7 @@ class Normalizer311:
             kind = "SWAP_STACK"
             metadata.append(("depth", instruction.arg))
         elif opname == "PUSH_NULL":
-            internal = True
             metadata.append(("call_protocol", "null"))
-        elif opname == "KW_NAMES":
-            internal = True
-        elif opname == "PRECALL":
-            internal = True
         elif opname == "CALL_FUNCTION_EX":
             kind = "CALL"
             metadata.extend(
@@ -483,6 +487,8 @@ class Normalizer311:
 
         if opname == "PRECALL":
             return arg, 0, -arg, None, arg + 2
+        if opname == "SETUP_ANNOTATIONS":
+            return 0, 0, 0, None, 0
         if opname == "CALL":
             return 2, 1, -1, None, 2
         if opname == "CALL_FUNCTION_EX":

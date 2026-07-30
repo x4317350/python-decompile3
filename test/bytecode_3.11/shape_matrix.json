@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 3,
+  "phase": 4,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -286,7 +286,7 @@
       "tests": [
         "pytest/test_opcode_corpus311.py::test_each_gap_fixture_contains_declared_opcode"
       ],
-      "notes": "Phase 2 exposes SETUP_ANNOTATIONS and its current Normalizer StackDepthError."
+      "notes": "Phase 4 normalizes SETUP_ANNOTATIONS; parser and behavior coverage remain missing."
     },
     {
       "name": "assert_statement",
