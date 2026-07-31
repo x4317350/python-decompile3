@@ -613,6 +613,19 @@ Shape missing: x
 - 生成报告与 JSON 不同步必须阻止合并；
 - 全量 pytest 不得新增失败或无解释的 skip。
 
+完成情况：
+
+- [x] 增加阶段 9 机器可读发布策略；
+- [x] 精确冻结四层 opcode 状态及已审批的 fail-closed shape；
+- [x] 对矩阵、opcode/shape 报告、真实语料报告、发布报告和支持文档
+  执行一致性检查；
+- [x] 对 `missing`、pass 退化、行为不一致和新增 skip 增加反向门禁测试；
+- [x] 固定 CPython 3.11.9 和阶段 9 CI 依赖版本；
+- [x] GitHub Actions 对当前 push/PR 提交运行独立的 3.11 发布门禁；
+- [x] CircleCI 的 `build-python-3-11` 改为实际使用 CPython 3.11.9；
+- [x] 全量 pytest 的 6 项 legacy skip 按节点和原因进入精确白名单；
+- [x] 增加 `make check-3.11-release` 本地统一入口。
+
 ## 10. 每阶段统一执行流程
 
 每个阶段按下列顺序执行：
@@ -824,8 +837,8 @@ failure.json
 - [x] 3.11 定向回归通过；
 - [x] 全量 pytest 无新增失败和 skip；
 - [x] 标准库和真实项目结果已归档；
-- [ ] CI 能阻止矩阵、报告和实现不同步；
-- [ ] `PYTHON_311_SUPPORT.md` 与最终矩阵一致。
+- [x] CI 能阻止矩阵、报告和实现不同步；
+- [x] `PYTHON_311_SUPPORT.md` 与最终矩阵一致。
 
 ## 16. 执行记录
 
@@ -850,7 +863,7 @@ Behavior：
 当前状态：
 
 - 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5、阶段 6
-  、阶段 7 和阶段 8 已完成；
+  、阶段 7、阶段 8 和阶段 9 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
@@ -866,7 +879,9 @@ Behavior：
 - 阶段 8 固定审计 604 个真实源码：203 个反编译并通过语法校验，
   401 个稳定 fail-closed，0 个语法失败和未包装崩溃；
 - 真实语料暴露的 9 类缺口已进入 shape 矩阵，人工不可约 CFG
-  继续作为第 10 个明确的 fail-closed 边界。
+  继续作为第 10 个明确的 fail-closed 边界；
+- 阶段 9 发布策略精确冻结 110 项 opcode、40 项 shape、9 类真实语料
+  失败和 6 项 legacy skip，生成报告与支持文档均由 CI 检查时效。
 
 阶段 0：
 
@@ -1026,7 +1041,7 @@ golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --chec
 
 ```text
 阶段：8，标准库和真实项目回归
-提交：待本阶段单独提交，建议提交说明为“测试：建立 Python 3.11 真实项目回归基线”
+提交：7bbbf472，提交说明为“测试：建立 Python 3.11 真实项目回归基线”
 新增语料：固定收集 604 个纯 Python 文件；标准库 338、本工程 115、第三方 151
 新增 opcode 覆盖：0；110 项 Scanner、Normalizer、Parser 和 Behavior 状态保持完整
 新增 shape 覆盖：新增 9 项 real-world unsupported_fail_closed；矩阵合计 30 pass、10 fail-closed、0 missing
@@ -1040,4 +1055,24 @@ Behavior：新增标准库 keyword/colorsys/hmac、本工程 util、第三方 pa
 golden/报告：真实语料 JSON/Markdown --check 通过；opcode/shape 报告与矩阵同步
 已知限制：真实语料反编译成功率为 203/604；401 个失败集中于表达式栈、推导式/迭代、异常清理、函数对象、导入、match、递归结构、解包赋值和 with 控制转移
 失败现场：原始 RecursionError 已封装；生成源码潜在 SyntaxWarning 转为 SemanticGenerationError；所有失败样本按 shape、opcode、code name 和 offset 归档
+```
+
+阶段 9：
+
+```text
+阶段：9，CI 和发布门禁
+提交：待本阶段单独提交，建议提交说明为“持续集成：建立 Python 3.11 发布门禁”
+新增语料：0；复用 23 个 corpus、604 个真实源码归档和 6 个行为探针
+新增 opcode 覆盖：0；矩阵阶段更新为 9，110 项四层状态保持完整
+新增 shape 覆盖：0；维持 30 pass、10 fail-closed、0 missing
+Scanner：发布策略要求 110/110 pass，任何状态变化均阻止门禁
+Normalizer：发布策略要求 102 pass + 8 internal_consumed，内部消费集合精确冻结
+Parser：发布策略要求 102 pass + 8 internal_consumed、0 fail-closed、0 missing；pass 退化需显式修改发布策略
+Behavior：110/110 已验证；真实语料要求 6 项一致、0 项不一致
+CI：新增 GitHub Actions CPython 3.11.9 门禁；CircleCI 3.11 job 修正运行时；依赖由 requirements-311-ci.txt 固定
+定向测试：四层矩阵、shape、real-world 和 release gate，621 passed
+全量测试：773 passed, 6 skipped；6 项节点和原因均与发布白名单精确匹配
+golden/报告：23 个 corpus golden --check 通过；opcode、shape、real-world、release 和 support 文档时效门禁通过
+已知限制：CI 运行跨平台 smoke/行为测试；604 文件的字节级输入摘要仍绑定归档记录的 Darwin、CPython 3.11.9 和固定依赖环境
+失败现场：门禁反向测试确认 missing、Parser pass 退化、shape pass 退化、行为 mismatch 和新增 skip 均返回失败
 ```

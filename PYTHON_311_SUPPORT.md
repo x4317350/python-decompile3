@@ -32,6 +32,41 @@ The scanner preserves physical offsets and inline caches, then exposes a
 separate normalized instruction stream. Unsupported input is rejected instead
 of intentionally emitting guessed source.
 
+## Coverage and release gate
+
+The opcode matrix gives every one of CPython 3.11's 110 base opcodes an
+explicit Scanner, Normalizer, Parser, and behavior status. This is an opcode
+contract, not a claim that every possible multi-opcode control-flow shape is
+recoverable.
+
+<!-- BEGIN PYTHON311 RELEASE STATUS -->
+
+当前发布门禁基线：
+
+- `Opcode inventory: 110/110`
+- `Scanner: 110/110`
+- `Normalizer: 110/110 (102 pass, 8 internal_consumed)`
+- `Parser pass: 102/110`
+- `Parser internal_consumed: 8/110`
+- `Parser unsupported_fail_closed: 0/110`
+- `Parser missing: 0/110`
+- `Behavior verified: 110/110`
+- `Shape pass: 30`
+- `Shape fail-closed: 10`
+- `Shape missing: 0`
+- 真实语料：203/604 成功反编译，401 项明确 fail-closed；
+- 差分行为探针：6 项一致，0 项不一致；
+- 全量测试允许的已解释 legacy skip：6 项。
+
+<!-- END PYTHON311 RELEASE STATUS -->
+
+The generated
+`PYTHON_311_OPCODE_COVERAGE.md`, `PYTHON_311_SHAPE_COVERAGE.md`,
+`PYTHON_311_REALWORLD_REGRESSION.md`, and
+`PYTHON_311_RELEASE_GATE.md` reports contain the auditable details. CI rejects
+missing entries, unapproved status changes, stale reports, behavior
+mismatches, unexpected skips, and test failures.
+
 ## Command-line use
 
 Decompile one file to standard output:
@@ -84,10 +119,19 @@ physical bytecode offset when an offset is available.
   specialization forms for tests, but this is not the disk-file contract.
 - Python 3.11 standard-library coverage is a tested subset, not a claim that
   every standard-library module decompiles.
-- Some compiler shapes remain explicitly unsupported, including
-  `except*` combined with an `else` suite or an enclosing `finally`, and some
-  uncommon stack rotations, assertion/import-star paths, and incrementally
-  built mapping layouts.
+- `except*` combined with `else` and/or an enclosing `finally`, compound
+  assertion conditions, import-star namespace behavior, uncommon stack
+  rotations, and incrementally built mappings are covered by the current
+  behavior corpus. This does not imply support for unrelated combinations of
+  those instructions.
+- The real-world audit retains explicit fail-closed boundaries for nine broad
+  families: call/expression stack recovery, comprehension/iterator protocols,
+  exception-cleanup transfers, function-object flow, import protocols,
+  non-canonical match boundaries, recursive structures, unpack assignment,
+  and `with` control transfers.
+- Artificial irreducible control-flow graphs are also rejected explicitly.
+  Together with the nine real-world families, this accounts for the ten
+  fail-closed entries in the current shape matrix.
 - The `match` recovery path targets canonical CPython 3.11 compiler output.
   Artificial or ambiguous case/body boundaries are rejected.
 - Source is rendered with `ast.unparse()`. Original whitespace, quote style,

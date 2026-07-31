@@ -1,0 +1,54 @@
+name: CPython 3.11 release gate
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python311-release-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up CPython 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.9
+          cache: pip
+          cache-dependency-path: requirements-311-ci.txt
+
+      - name: Install pinned release-gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . -r requirements-311-ci.txt
+
+      - name: Check matrix policy and documentation freshness
+        run: python test/bytecode_3.11/run_release_gate.py --check
+
+      - name: Run Scanner, Normalizer, Parser and behavior matrices
+        run: |
+          python -m pytest -q \
+            pytest/test_opcode_inventory311.py \
+            pytest/test_opcode_scanner311.py \
+            pytest/test_opcode_normalizer311.py \
+            pytest/test_opcode_parser311.py \
+            pytest/test_opcode_behavior311.py \
+            pytest/test_shape_behavior311.py \
+            pytest/test_realworld311.py \
+            pytest/test_release_gate311.py
+
+      - name: Check CPython 3.11 golden artifacts
+        run: python test/bytecode_3.11/generate.py --check
+
+      - name: Run full pytest and enforce the skip allowlist
+        run: python test/bytecode_3.11/run_release_gate.py --pytest

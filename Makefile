@@ -14,7 +14,7 @@ IS_PYPY = $(shell $(PYTHON) -c 'import platform; print("pypy" if platform.python
 PYTHON_VERSION = $(shell $(PYTHON) -V 2>&1 | cut -d ' ' -f 2 | cut -d'.' -f1,2 | head -1)$(IS_PYPY)
 
 #EXTRA_DIST=ipython/ipy_trepan.py trepan
-PHONY=all test check clean distcheck pytest check-long dist distclean lint flake8 test rmChangeLog clean_pyc
+PHONY=all test check clean distcheck pytest check-long dist distclean lint flake8 test rmChangeLog clean_pyc check-3.11-release
 
 TEST_TYPES=check-long check-short
 
@@ -36,6 +36,12 @@ check-3.9 check-3.10 check-3.11 check-3.12 check-3.13: pytest
 	$(MAKE) -C test check-bytecode-3.7
 
 check-3.9 check-3.10: pytest
+
+#: Run the complete CPython 3.11 release gate
+check-3.11-release:
+	$(PYTHON) test/bytecode_3.11/run_release_gate.py --check
+	$(PYTHON) test/bytecode_3.11/generate.py --check
+	$(PYTHON) test/bytecode_3.11/run_release_gate.py --pytest
 
 #: Run working tests from Python 3.8
 check-3.8pypy:

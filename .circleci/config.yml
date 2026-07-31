@@ -12,32 +12,14 @@ jobs:
       CIRCLE_TEST_REPORTS: /tmp/circleci-test-results
       COMPILE: --compile
     docker:
-    - image: cimg/python:3.13
+    - image: cimg/python:3.11.9
     steps:
     - checkout
-    - restore_cache:
-        keys:
-        - v1-dep-{{ .Branch }}-
-        - v1-dep-master-
-        - v1-dep-
-    - run: sudo apt update
-      # Until the next xdis release...
-    - run: pip install git+https://github.com/rocky/python-xdis#egg=xdis
-    - run: pip install -e .
-    - run: pip install pytest
-    - save_cache:
-        key: v1-dep-{{ .Branch }}-{{ epoch }}
-        paths:
-        - vendor/bundle
-        - ~/virtualenvs
-        - ~/.m2
-        - ~/.ivy2
-        - ~/.bundle
-        - ~/.go_workspace
-        - ~/.gradle
-        - ~/.cache/bower
-    - run: pip install pytest
-    - run: pip install -e . && make check
+    - run: python -m pip install --upgrade pip
+    - run: python -m pip install -e . -r requirements-311-ci.txt
+    - run: python test/bytecode_3.11/run_release_gate.py --check
+    - run: python test/bytecode_3.11/generate.py --check
+    - run: python test/bytecode_3.11/run_release_gate.py --pytest
     - store_test_results:
         path: /tmp/circleci-test-results
     - store_artifacts:
