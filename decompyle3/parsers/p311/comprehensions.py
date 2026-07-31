@@ -9,6 +9,7 @@ from decompyle3.controlflow.cfg import instruction_target
 from decompyle3.parsers.p311.base import (
     Python311ParseError,
     _COMPARE_OPERATORS,
+    _IGNORED_INTERNAL,
     _StraightLineDecompiler,
 )
 
@@ -74,6 +75,13 @@ class ComprehensionDecompiler311:
         return self._expressions(start, end, 1)[0]
 
     def _target(self, start: int) -> Tuple[ast.expr, int]:
+        while (
+            start < len(self.tokens)
+            and self.tokens[start].kind in _IGNORED_INTERNAL
+        ):
+            start += 1
+        if start >= len(self.tokens):
+            self._error("Comprehension loop target ended before all stores")
         token = self.tokens[start]
         if token.kind.startswith("STORE_"):
             name = token.attr if isinstance(token.attr, str) else token.pattr
@@ -94,15 +102,10 @@ class ComprehensionDecompiler311:
         targets = []
         cursor = start + 1
         for target_index in range(count):
-            store = self.tokens[cursor]
-            if not store.kind.startswith("STORE_"):
-                self._error("Comprehension unpack target contains a non-store")
-            name = store.attr if isinstance(store.attr, str) else store.pattr
-            target = ast.Name(id=name, ctx=ast.Store())
+            target, cursor = self._target(cursor)
             if after >= 0 and target_index == before:
                 target = ast.Starred(value=target, ctx=ast.Store())
             targets.append(target)
-            cursor += 1
         return ast.Tuple(elts=targets, ctx=ast.Store()), cursor
 
     def _filter(self, start: int, jump_index: int) -> ast.expr:

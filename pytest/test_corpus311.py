@@ -23,6 +23,7 @@ EXPECTED_SOURCES = {
     "07_exception_group.py",
     "08_imports_unpacking.py",
     "09_straight_line.py",
+    "10_nested_unpacking.py",
 }
 
 pytestmark = pytest.mark.skipif(

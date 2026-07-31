@@ -106,8 +106,10 @@ def test_each_shape_has_differential_behavior_contract(
     assert len(SHAPE_ITEMS) == 40
     assert item["status"] in ("pass", "unsupported_fail_closed")
 
-    if shape_name.startswith("realworld_"):
-        assert item["status"] == "unsupported_fail_closed"
+    if (
+        shape_name.startswith("realworld_")
+        and item["status"] == "unsupported_fail_closed"
+    ):
         assert (
             "pytest/test_realworld311.py::"
             "test_archived_failures_are_fully_classified"

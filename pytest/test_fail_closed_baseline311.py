@@ -17,9 +17,6 @@ BUILDER_PATH = (
 BASELINE_PATH = (
     ROOT / "test" / "bytecode_3.11" / "fail_closed_baseline311.json"
 )
-ARCHIVE_PATH = (
-    ROOT / "test" / "bytecode_3.11" / "realworld_regression311.json"
-)
 SHAPE_MATRIX_PATH = (
     ROOT / "test" / "bytecode_3.11" / "shape_matrix.json"
 )
@@ -36,7 +33,6 @@ sys.modules[SPEC.name] = builder
 SPEC.loader.exec_module(builder)
 
 BASELINE = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-ARCHIVE = json.loads(ARCHIVE_PATH.read_text(encoding="utf-8"))
 SHAPE_MATRIX = json.loads(SHAPE_MATRIX_PATH.read_text(encoding="utf-8"))
 
 pytestmark = pytest.mark.skipif(
@@ -45,11 +41,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_baseline_totals_match_the_frozen_realworld_archive():
+def test_baseline_totals_preserve_the_frozen_phase_zero_snapshot():
     assert BASELINE["schema_version"] == 1
     assert BASELINE["phase"] == 0
     assert BASELINE["source_commit"] == "9f5bb1e4"
-    assert BASELINE["input_digest"] == ARCHIVE["input_digest"]
+    assert BASELINE["input_digest"] == (
+        "8b69da10c639757a77c33fe575a95f5c9"
+        "cd7d4ebd84e3be835e181a024b9ac62"
+    )
     assert BASELINE["input_files"] == 604
     assert BASELINE["decompile_success"] == 203
     assert BASELINE["fail_closed"] == 401
@@ -59,18 +58,22 @@ def test_baseline_totals_match_the_frozen_realworld_archive():
 
 
 def test_each_realworld_family_preserves_count_and_signature_algebra():
-    archived_counts = ARCHIVE["failure_classifications"]
     baseline_by_name = {
         item["name"]: item for item in BASELINE["shapes"]
     }
+    frozen_counts = {
+        name: item["archived_fail_closed"]
+        for name, item in baseline_by_name.items()
+        if name.startswith("realworld_")
+    }
 
-    assert set(archived_counts) == {
+    assert set(frozen_counts) == {
         name
         for name in baseline_by_name
         if name.startswith("realworld_")
     }
-    assert sum(archived_counts.values()) == BASELINE["fail_closed"]
-    for name, archived_count in archived_counts.items():
+    assert sum(frozen_counts.values()) == BASELINE["fail_closed"]
+    for name, archived_count in frozen_counts.items():
         item = baseline_by_name[name]
         assert item["archived_fail_closed"] == archived_count
         assert sum(item["error_types"].values()) == archived_count
@@ -92,9 +95,8 @@ def test_remediation_order_and_safety_boundary_are_explicit():
         item["name"]: item for item in SHAPE_MATRIX["shapes"]
     }
     for item in BASELINE["shapes"]:
-        assert matrix_by_name[item["name"]]["status"] == (
-            "unsupported_fail_closed"
-        )
+        assert item["status"] == "unsupported_fail_closed"
+        assert item["name"] in matrix_by_name
         if item["name"] == "irreducible_control_flow":
             assert item["archived_fail_closed"] == 0
             assert item["disposition"] == "retain_safety_boundary"

@@ -119,9 +119,10 @@ class _AugmentedValue:
 
 @dataclass
 class _UnpackGroup:
-    value: ast.expr
+    value: Optional[ast.expr]
     targets: List[Optional[ast.expr]]
     remaining: int
+    parent: Optional["_UnpackItem"] = None
 
 
 @dataclass
@@ -553,13 +554,25 @@ class _StraightLineDecompiler:
         )
 
     def _unpack(self, before: int, after: int):
-        value = self._pop_expr()
+        value = self._pop()
+        if isinstance(value, _UnpackItem):
+            parent = value
+            source = None
+        elif isinstance(value, ast.expr):
+            parent = None
+            source = value
+        else:
+            self._error(
+                "UNPACK operand is neither an expression nor an assignment "
+                f"target, found {type(value).__name__}"
+            )
         total = before if after < 0 else before + after + 1
         starred_index = before if after >= 0 else None
         group = _UnpackGroup(
-            value=value,
+            value=source,
             targets=[None] * total,
             remaining=total,
+            parent=parent,
         )
         items = [
             _UnpackItem(
@@ -584,7 +597,14 @@ class _StraightLineDecompiler:
             elts=list(item.group.targets),
             ctx=ast.Store(),
         )
-        self.body.append(ast.Assign(targets=[tuple_target], value=item.group.value))
+        if item.group.parent is not None:
+            self._store_unpack(item.group.parent, tuple_target)
+            return
+        if item.group.value is None:
+            self._error("Root unpacking assignment has no expression value")
+        self.body.append(
+            ast.Assign(targets=[tuple_target], value=item.group.value)
+        )
 
     def _store_import(self, value, target: ast.expr):
         if not isinstance(target, ast.Name):

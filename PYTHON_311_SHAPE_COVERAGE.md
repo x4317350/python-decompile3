@@ -6,9 +6,9 @@
 ## 汇总
 
 - Shape inventory：40
-- pass：30
+- pass：31
 - internal_consumed：0
-- unsupported_fail_closed：10
+- unsupported_fail_closed：9
 - not_applicable：0
 - missing：0
 
@@ -54,7 +54,7 @@
 | `realworld_import_protocol` | realworld_import | unsupported_fail_closed | `—` | `Decompyle3Error` | 1 |
 | `realworld_match_boundary` | realworld_match | unsupported_fail_closed | `—` | `Decompyle3Error` | 1 |
 | `realworld_recursive_structure` | realworld_control_flow | unsupported_fail_closed | `—` | `Python311ParseError` | 2 |
-| `realworld_unpack_assignment` | realworld_assignment | unsupported_fail_closed | `—` | `Decompyle3Error` | 1 |
+| `realworld_unpack_assignment` | realworld_assignment | pass | `test/simple_source/311/10_nested_unpacking.py` | `—` | 6 |
 | `realworld_with_control_transfer` | realworld_exception | unsupported_fail_closed | `—` | `Decompyle3Error` | 1 |
 
 ## Missing
@@ -72,5 +72,4 @@
 - `realworld_import_protocol`：`Decompyle3Error`；Phase 8 records IMPORT_FROM sequences whose owning IMPORT_NAME cannot be proven by the current stack model.
 - `realworld_match_boundary`：`Decompyle3Error`；Phase 8 records match case/body fallthrough boundaries that cannot be structured without guessing.
 - `realworld_recursive_structure`：`Python311ParseError`；Phase 8 converts internal RecursionError escapes into contextual Python311ParseError failures.
-- `realworld_unpack_assignment`：`Decompyle3Error`；Phase 8 records non-canonical UNPACK_SEQUENCE and UNPACK_EX value routing that the current assignment model cannot prove.
 - `realworld_with_control_transfer`：`Decompyle3Error`；Phase 8 records with-body return, yield, and cleanup control transfers that are not one safely recoverable expression.

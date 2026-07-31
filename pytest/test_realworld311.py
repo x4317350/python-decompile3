@@ -83,8 +83,20 @@ def test_archived_failures_are_fully_classified():
     matrix_items = {
         item["name"]: item for item in SHAPE_MATRIX["shapes"]
     }
+    expected = {
+        name
+        for name, item in matrix_items.items()
+        if name.startswith("realworld_")
+        and item["status"] == "unsupported_fail_closed"
+    }
+    resolved = {
+        name
+        for name, item in matrix_items.items()
+        if name.startswith("realworld_") and item["status"] == "pass"
+    }
 
-    assert set(classifications) == runner.REALWORLD_SHAPES
+    assert set(classifications) == expected
+    assert resolved.isdisjoint(classifications)
     assert sum(classifications.values()) == ARCHIVE["totals"]["fail_closed"]
     for shape_name, count in classifications.items():
         assert count > 0

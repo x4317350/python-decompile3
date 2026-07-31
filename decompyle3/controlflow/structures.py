@@ -23,6 +23,7 @@ from decompyle3.parsers.p311.base import (
     Python311ParseError,
     UnsupportedPython311ControlFlow,
     _COMPARE_OPERATORS,
+    _IGNORED_INTERNAL,
     _StraightLineDecompiler,
 )
 
@@ -652,15 +653,33 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self,
         start: int,
     ) -> Tuple[Optional[ast.expr], int]:
+        while (
+            start < len(self.tokens)
+            and self.tokens[start].kind in _IGNORED_INTERNAL
+        ):
+            start += 1
+        if start >= len(self.tokens):
+            self._error("FOR_ITER has no store target")
         token = self.tokens[start]
         if token.kind == "POP_TOP":
             return None, start + 1
+        return self._for_target_element(start)
+
+    def _for_target_element(self, start: int) -> Tuple[ast.expr, int]:
+        while (
+            start < len(self.tokens)
+            and self.tokens[start].kind in _IGNORED_INTERNAL
+        ):
+            start += 1
+        if start >= len(self.tokens):
+            self._error("Unpacking loop target ended before all stores")
+        token = self.tokens[start]
         if token.kind.startswith("STORE_"):
             name = token.attr if isinstance(token.attr, str) else token.pattr
             return ast.Name(id=name, ctx=ast.Store()), start + 1
         if token.kind not in ("UNPACK_SEQUENCE", "UNPACK_EX"):
             self.current_token = token
-            self._error("FOR_ITER is not followed by a store target")
+            self._error("Unpacking loop target contains a non-store opcode")
 
         if token.kind == "UNPACK_SEQUENCE":
             before = int(token.attr)
@@ -674,16 +693,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         targets = []
         cursor = start + 1
         for target_index in range(count):
-            store = self.tokens[cursor]
-            if not store.kind.startswith("STORE_"):
-                self.current_token = store
-                self._error("Unpacking loop target contains a non-store opcode")
-            name = store.attr if isinstance(store.attr, str) else store.pattr
-            target = ast.Name(id=name, ctx=ast.Store())
+            target, cursor = self._for_target_element(cursor)
             if after >= 0 and target_index == before:
                 target = ast.Starred(value=target, ctx=ast.Store())
             targets.append(target)
-            cursor += 1
         return ast.Tuple(elts=targets, ctx=ast.Store()), cursor
 
     def _for_loop(

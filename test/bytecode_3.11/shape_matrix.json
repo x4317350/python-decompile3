@@ -473,13 +473,18 @@
     {
       "name": "realworld_unpack_assignment",
       "category": "realworld_assignment",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/10_nested_unpacking.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_unpack311.py::test_nested_unpack_normalized_protocol_preserves_target_order",
+        "pytest/test_unpack311.py::test_nested_assignment_unpack_sequence_and_ex_preserve_behavior",
+        "pytest/test_unpack311.py::test_nested_for_targets_preserve_iteration_and_unpack_exceptions",
+        "pytest/test_unpack311.py::test_nested_comprehension_target_uses_the_same_recursive_shape",
+        "pytest/test_unpack311.py::test_stage1_realworld_code_objects_recover_and_recompile"
       ],
-      "notes": "Phase 8 records non-canonical UNPACK_SEQUENCE and UNPACK_EX value routing that the current assignment model cannot prove."
+      "notes": "Remediation stage 1 recursively binds nested UNPACK_SEQUENCE and UNPACK_EX assignment, for-loop, and comprehension targets while preserving success and exception behavior."
     },
     {
       "name": "realworld_with_control_transfer",

@@ -78,7 +78,6 @@
       "realworld_import_protocol",
       "realworld_match_boundary",
       "realworld_recursive_structure",
-      "realworld_unpack_assignment",
       "realworld_with_control_transfer"
     ],
     "missing": []
@@ -97,7 +96,6 @@
       "realworld_import_protocol",
       "realworld_match_boundary",
       "realworld_recursive_structure",
-      "realworld_unpack_assignment",
       "realworld_with_control_transfer"
     ]
   },

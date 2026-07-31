@@ -293,6 +293,50 @@ FIXTURE_PROBES = {
         _record("raise", lambda: fail("stage 6"))
         """
     ),
+    "test/simple_source/311/10_nested_unpacking.py": _probe(
+        """
+        _record(
+            "unpack_sequence",
+            lambda: unpack_sequence(
+                ("message", ("file.py", 3, 7, "line"))
+            ),
+        )
+        _record(
+            "unpack_sequence_error",
+            lambda: unpack_sequence(("message", ("file.py", 3))),
+        )
+        _record(
+            "unpack_extended",
+            lambda: unpack_extended(
+                ("head", (1, 2, 3, 4), "tail")
+            ),
+        )
+        _record(
+            "unpack_extended_error",
+            lambda: unpack_extended(("head", (1,), "tail")),
+        )
+        _record(
+            "sequence_loop",
+            lambda: sequence_loop(
+                [((1, 2), 3), ((4, 5), 6)]
+            ),
+        )
+        _record(
+            "sequence_loop_error",
+            lambda: sequence_loop([((1,), 3)]),
+        )
+        _record(
+            "extended_loop",
+            lambda: extended_loop(
+                [((1, 2), 3), ((4, 5, 6), 7)]
+            ),
+        )
+        _record(
+            "nested_comprehension",
+            lambda: collect([((1, 2), 3), ((4, 5), 6)]),
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),
