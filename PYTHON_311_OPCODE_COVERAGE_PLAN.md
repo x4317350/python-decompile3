@@ -561,6 +561,17 @@ fail-closed 数
 
 不允许只记录 traceback 而不更新矩阵。
 
+完成情况：
+
+- [x] 固定收集 338 个标准库、115 个本工程和 151 个第三方源码；
+- [x] 记录反编译、语法、fail-closed、输入拒绝和未包装崩溃指标；
+- [x] 增加 6 个跨标准库、本工程和第三方包的差分行为探针；
+- [x] 将 401 个 fail-closed 归入 9 个新增 real-world shape；
+- [x] 将递归耗尽转换为带版本和 code object 上下文的稳定错误；
+- [x] 对生成源码执行与原 code object 类型一致的重新编译校验；
+- [x] 生成机器可读 JSON 和 Markdown 报告，并由 `--check` 检查时效；
+- [x] 保持语法失败、行为不一致和未包装崩溃均为 0。
+
 ### 阶段 9：CI 和发布门禁
 
 CI 必须执行：
@@ -672,6 +683,14 @@ golden 检查：
   pytest/test_exceptiontable311.py \
   pytest/test_syntax311.py \
   pytest/test_reliability311.py -q
+```
+
+标准库和真实项目回归：
+
+```bash
+.venv311/bin/python \
+  test/bytecode_3.11/run_realworld_regression.py --check
+.venv311/bin/python -m pytest pytest/test_realworld311.py -q
 ```
 
 全量测试：
@@ -804,7 +823,7 @@ failure.json
 - [x] golden 检查通过；
 - [x] 3.11 定向回归通过；
 - [x] 全量 pytest 无新增失败和 skip；
-- [ ] 标准库和真实项目结果已归档；
+- [x] 标准库和真实项目结果已归档；
 - [ ] CI 能阻止矩阵、报告和实现不同步；
 - [ ] `PYTHON_311_SUPPORT.md` 与最终矩阵一致。
 
@@ -831,7 +850,7 @@ Behavior：
 当前状态：
 
 - 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5、阶段 6
-  和阶段 7 已完成；
+  、阶段 7 和阶段 8 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
@@ -840,11 +859,14 @@ Behavior：
 - Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Parser 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Behavior 层已达到 102 pass + 8 internal_consumed，即 110/110；
-- shape inventory 为 31 项：30 pass、1 unsupported_fail_closed、
+- shape inventory 为 40 项：30 pass、10 unsupported_fail_closed、
   0 missing；
 - `except* + else`、`except* + finally` 和 compound assertion
   已由 fail-closed 转为差分行为验证的正式支持；
-- 人工不可约 CFG 是当前 shape 矩阵中唯一保留的 fail-closed 边界。
+- 阶段 8 固定审计 604 个真实源码：203 个反编译并通过语法校验，
+  401 个稳定 fail-closed，0 个语法失败和未包装崩溃；
+- 真实语料暴露的 9 类缺口已进入 shape 矩阵，人工不可约 CFG
+  继续作为第 10 个明确的 fail-closed 边界。
 
 阶段 0：
 
@@ -998,4 +1020,24 @@ Behavior：新增 ExceptionGroup 全处理、部分重抛、普通异常、else/
 golden/报告：23 个 corpus golden --check 通过；opcode/shape 报告 --check 通过
 已知限制：人工不可约 CFG 继续显式 fail-closed，并由 IrreducibleControlFlowError 契约保护
 失败现场：入口 INTERNAL_RESUME 曾使条件启发式跨过 NOP 抢先消费异常区；现已在结构恢复前跳过入口协议并给予异常表精确结构更高优先级
+```
+
+阶段 8：
+
+```text
+阶段：8，标准库和真实项目回归
+提交：待本阶段单独提交，建议提交说明为“测试：建立 Python 3.11 真实项目回归基线”
+新增语料：固定收集 604 个纯 Python 文件；标准库 338、本工程 115、第三方 151
+新增 opcode 覆盖：0；110 项 Scanner、Normalizer、Parser 和 Behavior 状态保持完整
+新增 shape 覆盖：新增 9 项 real-world unsupported_fail_closed；矩阵合计 30 pass、10 fail-closed、0 missing
+Scanner：未修改；维持 110/110 pass
+Normalizer：未修改；维持 102 pass + 8 internal_consumed
+Parser：新增生成源码重新编译校验；函数、协程和异步生成器体在对应作用域校验；递归耗尽转为带上下文的 Python311ParseError
+Behavior：新增标准库 keyword/colorsys/hmac、本工程 util、第三方 packaging/click 共 6 个差分探针，6 项全部一致
+真实语料：604 个输入，203 个反编译并通过语法校验，401 个 fail-closed，0 个语法失败、输入拒绝和未包装崩溃
+定向测试：inventory、shape、real-world 和 reliability，93 passed；real-world 单套 22 passed
+全量测试：766 passed, 6 skipped；6 项均为既有 Python 3.7/3.8 legacy skip
+golden/报告：真实语料 JSON/Markdown --check 通过；opcode/shape 报告与矩阵同步
+已知限制：真实语料反编译成功率为 203/604；401 个失败集中于表达式栈、推导式/迭代、异常清理、函数对象、导入、match、递归结构、解包赋值和 with 控制转移
+失败现场：原始 RecursionError 已封装；生成源码潜在 SyntaxWarning 转为 SemanticGenerationError；所有失败样本按 shape、opcode、code name 和 offset 归档
 ```

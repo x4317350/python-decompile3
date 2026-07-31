@@ -61,7 +61,7 @@ def test_opcode_and_shape_matrices_are_valid():
     matrix_generator.validate_shape_matrix(shape_matrix)
 
     assert len(opcode_matrix["opcodes"]) == 110
-    assert len(shape_matrix["shapes"]) == 31
+    assert len(shape_matrix["shapes"]) == 40
 
 
 def test_checked_in_reports_are_current():

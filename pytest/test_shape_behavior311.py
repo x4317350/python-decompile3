@@ -29,6 +29,12 @@ from support311 import (
 SHAPE_MATRIX_PATH = (
     ROOT / "test" / "bytecode_3.11" / "shape_matrix.json"
 )
+REALWORLD_ARCHIVE_PATH = (
+    ROOT
+    / "test"
+    / "bytecode_3.11"
+    / "realworld_regression311.json"
+)
 SHAPE_TEST_NODE = (
     "pytest/test_shape_behavior311.py::"
     "test_each_shape_has_differential_behavior_contract"
@@ -37,6 +43,9 @@ SHAPE_MATRIX = json.loads(
     SHAPE_MATRIX_PATH.read_text(encoding="utf-8")
 )
 SHAPE_ITEMS = tuple(SHAPE_MATRIX["shapes"])
+REALWORLD_ARCHIVE = json.loads(
+    REALWORLD_ARCHIVE_PATH.read_text(encoding="utf-8")
+)
 
 pytestmark = pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
@@ -94,8 +103,22 @@ def test_each_shape_has_differential_behavior_contract(
         item for item in SHAPE_ITEMS if item["name"] == shape_name
     )
 
-    assert len(SHAPE_ITEMS) == 31
+    assert len(SHAPE_ITEMS) == 40
     assert item["status"] in ("pass", "unsupported_fail_closed")
+
+    if shape_name.startswith("realworld_"):
+        assert item["status"] == "unsupported_fail_closed"
+        assert (
+            "pytest/test_realworld311.py::"
+            "test_archived_failures_are_fully_classified"
+            in item["tests"]
+        )
+        assert (
+            REALWORLD_ARCHIVE["failure_classifications"][shape_name]
+            > 0
+        )
+        return
+
     assert SHAPE_TEST_NODE in item["tests"]
 
     if item["status"] == "unsupported_fail_closed":

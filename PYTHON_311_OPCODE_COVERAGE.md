@@ -28,7 +28,7 @@
 | parser | 102 | 8 | 0 | 0 | 0 |
 | behavior | 102 | 8 | 0 | 0 | 0 |
 
-截至阶段 7，已完成明确状态的层级：scanner、normalizer、parser、behavior；仍待完成：无。
+截至阶段 8，已完成明确状态的层级：scanner、normalizer、parser、behavior；仍待完成：无。
 Corpus 中观察到指令不等同于完成对应层级验证。
 
 ## Opcode 明细

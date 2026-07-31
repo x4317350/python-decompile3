@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import __future__
+import warnings
 from dataclasses import dataclass, field, replace
 from typing import Any, List, Optional, Tuple
 
@@ -1420,6 +1421,111 @@ class Python311BaseParser:
                     code_name=self.code_object.co_name,
                 ) from error
             source = unparse(tree)
+            validation_mode = (
+                "eval"
+                if isinstance(tree, ast.Expression)
+                else (
+                    "single"
+                    if self.compile_mode == "single"
+                    else "exec"
+                )
+            )
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", SyntaxWarning)
+                    if (
+                        validation_mode == "exec"
+                        and self.code_object.co_name != "<module>"
+                    ):
+                        # A function code object is represented as a module
+                        # containing its body so SourceWalker can render the
+                        # statements directly. Validate those statements in
+                        # their original function scope: compiling the raw
+                        # module would reject legitimate return/yield/await
+                        # statements as being outside a function.
+                        parsed_source = ast.parse(
+                            source,
+                            "<decompyle3-3.11-validation>",
+                            mode="exec",
+                        )
+                        function_type = (
+                            ast.AsyncFunctionDef
+                            if self.code_object.co_flags
+                            & (CO_COROUTINE | CO_ASYNC_GENERATOR)
+                            else ast.FunctionDef
+                        )
+                        inner_function = function_type(
+                            name="__decompyle3_validated_code__",
+                            args=ast.arguments(
+                                posonlyargs=[],
+                                args=[],
+                                vararg=None,
+                                kwonlyargs=[],
+                                kw_defaults=[],
+                                kwarg=None,
+                                defaults=[],
+                            ),
+                            body=parsed_source.body or [ast.Pass()],
+                            decorator_list=[],
+                            returns=None,
+                            type_comment=None,
+                        )
+                        closure_names = set(
+                            self.code_object.co_freevars
+                        )
+                        for node in ast.walk(parsed_source):
+                            if isinstance(node, ast.Nonlocal):
+                                closure_names.update(node.names)
+                        closure_setup = [
+                            ast.Assign(
+                                targets=[
+                                    ast.Name(id=name, ctx=ast.Store())
+                                ],
+                                value=ast.Constant(value=None),
+                            )
+                            for name in sorted(closure_names)
+                        ]
+                        validation_tree = ast.Module(
+                            body=[
+                                ast.FunctionDef(
+                                    name="__decompyle3_validation_scope__",
+                                    args=ast.arguments(
+                                        posonlyargs=[],
+                                        args=[],
+                                        vararg=None,
+                                        kwonlyargs=[],
+                                        kw_defaults=[],
+                                        kwarg=None,
+                                        defaults=[],
+                                    ),
+                                    body=closure_setup + [inner_function],
+                                    decorator_list=[],
+                                    returns=None,
+                                    type_comment=None,
+                                )
+                            ],
+                            type_ignores=[],
+                        )
+                        compile(
+                            ast.fix_missing_locations(validation_tree),
+                            "<decompyle3-3.11-validation>",
+                            "exec",
+                            dont_inherit=True,
+                        )
+                    else:
+                        compile(
+                            source,
+                            "<decompyle3-3.11-validation>",
+                            validation_mode,
+                            dont_inherit=True,
+                        )
+            except (SyntaxError, SyntaxWarning) as error:
+                raise SemanticGenerationError(
+                    "Parser311 generated source that does not recompile "
+                    "cleanly",
+                    version=(3, 11),
+                    code_name=self.code_object.co_name,
+                ) from error
             self.cfg = decompiler.cfg
             self.control_flow = decompiler.control_flow
             if self.debug.get("cfg", False):
@@ -1437,3 +1543,10 @@ class Python311BaseParser:
                 code_name=self.code_object.co_name,
             )
             raise
+        except RecursionError as error:
+            raise Python311ParseError(
+                "Parser311 recursion limit reached while structuring "
+                "control flow",
+                version=(3, 11),
+                code_name=self.code_object.co_name,
+            ) from error

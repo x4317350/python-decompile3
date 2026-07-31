@@ -1,0 +1,333 @@
+{
+  "behavior": {
+    "cases": [
+      {
+        "group": "stdlib",
+        "name": "stdlib_keyword",
+        "status": "consistent"
+      },
+      {
+        "group": "stdlib",
+        "name": "stdlib_colorsys",
+        "status": "consistent"
+      },
+      {
+        "group": "stdlib",
+        "name": "stdlib_hmac",
+        "status": "consistent"
+      },
+      {
+        "group": "project",
+        "name": "project_util",
+        "status": "consistent"
+      },
+      {
+        "group": "third_party",
+        "name": "packaging_structures",
+        "status": "consistent"
+      },
+      {
+        "group": "third_party",
+        "name": "click_utils",
+        "status": "consistent"
+      }
+    ],
+    "consistent": 6,
+    "input_cases": 6,
+    "mismatch": 0,
+    "missing_input": 0
+  },
+  "environment": {
+    "package_versions": {
+      "attrs": "26.1.0",
+      "click": "8.4.2",
+      "packaging": "26.2",
+      "platformdirs": "4.11.0",
+      "pluggy": "1.6.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "darwin",
+    "runtime": "3.11.9"
+  },
+  "failure_classifications": {
+    "realworld_call_and_expression_stack": 217,
+    "realworld_comprehension_and_iterator_protocol": 67,
+    "realworld_exception_cleanup_control_transfer": 57,
+    "realworld_function_object_flow": 9,
+    "realworld_import_protocol": 6,
+    "realworld_match_boundary": 1,
+    "realworld_recursive_structure": 13,
+    "realworld_unpack_assignment": 2,
+    "realworld_with_control_transfer": 29
+  },
+  "failure_samples": {
+    "realworld_call_and_expression_stack": [
+      {
+        "error": "Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE) [version=3.11, code='<dictcomp>', offset=20]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/dominators.py",
+        "opcode": "POP_JUMP_FORWARD_IF_FALSE"
+      },
+      {
+        "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_handler_has_match', offset=64]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/exception_structures.py",
+        "opcode": "POP_TOP"
+      },
+      {
+        "error": "Instruction range 6:31 does not contain 1 expression value(s) (MatchStructureDecompiler311._looks_like_case_start.<locals>.<genexpr>) [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/match_structures.py",
+        "opcode": null
+      }
+    ],
+    "realworld_comprehension_and_iterator_protocol": [
+      {
+        "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='main', offset=608]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/bin/decompile_code_type.py",
+        "opcode": "FOR_ITER"
+      },
+      {
+        "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='format', offset=22]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/cfg.py",
+        "opcode": "FOR_ITER"
+      },
+      {
+        "error": "This opcode is not supported by the CPython 3.11 structure decompiler (opcode MAP_ADD) [version=3.11, code='customize_grammar_rules37', offset=8638]",
+        "error_type": "UnsupportedPython311ControlFlow",
+        "group": "project",
+        "name": "decompyle3/parsers/p37/base.py",
+        "opcode": "MAP_ADD"
+      }
+    ],
+    "realworld_exception_cleanup_control_transfer": [
+      {
+        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='main_bin', offset=1580]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/bin/decompile.py",
+        "opcode": "RERAISE"
+      },
+      {
+        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='_parse_varint', offset=94]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/exceptiontable311.py",
+        "opcode": "RERAISE"
+      },
+      {
+        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='verify_source', offset=182]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/main.py",
+        "opcode": "RERAISE"
+      }
+    ],
+    "realworld_function_object_flow": [
+      {
+        "error": "Expected an expression, found parser-only value _FunctionValue (opcode CALL) [version=3.11, code='<module>', offset=354]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "_pyio.py",
+        "opcode": "CALL"
+      },
+      {
+        "error": "A function definition is stored to a non-name target (opcode STORE_ATTR) [version=3.11, code='lru_cache', offset=206]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "functools.py",
+        "opcode": "STORE_ATTR"
+      },
+      {
+        "error": "A function definition is stored to a non-name target (opcode STORE_ATTR) [version=3.11, code='freeze', offset=14]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "importlib/metadata/_collections.py",
+        "opcode": "STORE_ATTR"
+      }
+    ],
+    "realworld_import_protocol": [
+      {
+        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/scanners/pypy37.py",
+        "opcode": "IMPORT_FROM"
+      },
+      {
+        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/scanners/pypy38.py",
+        "opcode": "IMPORT_FROM"
+      },
+      {
+        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=26]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/semantics/customize311.py",
+        "opcode": "IMPORT_FROM"
+      }
+    ],
+    "realworld_match_boundary": [
+      {
+        "error": "Match case body has no structural terminator ('<module>', offset 424) [version=3.11, code='<module>', offset=424]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "tarfile.py",
+        "opcode": null
+      }
+    ],
+    "realworld_recursive_structure": [
+      {
+        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/parsers/reduce_check/ifelsestmt.py",
+        "opcode": null
+      },
+      {
+        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/parsers/reduce_check/ifstmts_jump.py",
+        "opcode": null
+      },
+      {
+        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/semantics/customize3.py",
+        "opcode": null
+      }
+    ],
+    "realworld_unpack_assignment": [
+      {
+        "error": "Expected an expression on the operand stack, found _UnpackItem (opcode UNPACK_SEQUENCE) [version=3.11, code='showsyntaxerror', offset=162]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "code.py",
+        "opcode": "UNPACK_SEQUENCE"
+      },
+      {
+        "error": "Unpacking loop target contains a non-store opcode (opcode UNPACK_SEQUENCE) [version=3.11, code='_run_after_forkers', offset=128]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "multiprocessing/util.py",
+        "opcode": "UNPACK_SEQUENCE"
+      }
+    ],
+    "realworld_with_control_transfer": [
+      {
+        "error": "Returning with-body is not one expression ('_patch', offset 234) [version=3.11, code='<module>', offset=234]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "_threading_local.py",
+        "opcode": null
+      },
+      {
+        "error": "Returning with-body is not one expression ('__iter__', offset 34) [version=3.11, code='<module>', offset=34]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "_weakrefset.py",
+        "opcode": null
+      },
+      {
+        "error": "Returning with-body is not one expression ('dump_stats', offset 40) [version=3.11, code='<module>', offset=40]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "cProfile.py",
+        "opcode": null
+      }
+    ]
+  },
+  "first_failure": {
+    "error_type": "Python311ParseError",
+    "group": "project",
+    "name": "decompyle3/bin/decompile.py",
+    "opcode": "RERAISE",
+    "shape": "realworld_exception_cleanup_control_transfer"
+  },
+  "groups": {
+    "project": {
+      "decompile_success": 54,
+      "fail_closed": 61,
+      "input_files": 115,
+      "malformed_or_unsupported_input": 0,
+      "syntax_failure": 0,
+      "syntax_success": 54,
+      "unexpected_crash": 0
+    },
+    "stdlib": {
+      "decompile_success": 97,
+      "fail_closed": 241,
+      "input_files": 338,
+      "malformed_or_unsupported_input": 0,
+      "syntax_failure": 0,
+      "syntax_success": 97,
+      "unexpected_crash": 0
+    },
+    "third_party": {
+      "decompile_success": 52,
+      "fail_closed": 99,
+      "input_files": 151,
+      "malformed_or_unsupported_input": 0,
+      "syntax_failure": 0,
+      "syntax_success": 52,
+      "unexpected_crash": 0
+    }
+  },
+  "input_digest": "8b69da10c639757a77c33fe575a95f5c9cd7d4ebd84e3be835e181a024b9ac62",
+  "phase": 8,
+  "schema_version": 1,
+  "selection": {
+    "project": "decompyle3/**/*.py",
+    "stdlib": {
+      "exclude_test_trees": true,
+      "packages": [
+        "asyncio",
+        "collections",
+        "concurrent",
+        "email",
+        "http",
+        "importlib",
+        "json",
+        "logging",
+        "multiprocessing",
+        "unittest",
+        "urllib",
+        "xml"
+      ],
+      "top_level_modules": true
+    },
+    "third_party_packages": [
+      "attr",
+      "attrs",
+      "click",
+      "packaging",
+      "platformdirs",
+      "pluggy",
+      "_pytest"
+    ]
+  },
+  "target": {
+    "implementation": "CPython",
+    "version": "3.11"
+  },
+  "totals": {
+    "decompile_success": 203,
+    "fail_closed": 401,
+    "input_files": 604,
+    "malformed_or_unsupported_input": 0,
+    "syntax_failure": 0,
+    "syntax_success": 203,
+    "unexpected_crash": 0
+  }
+}

@@ -1,0 +1,182 @@
+"""Phase 8 standard-library and real-world regression contracts."""
+
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+import sys
+import sysconfig
+from pathlib import Path
+
+import pytest
+
+from decompyle3.errors import SemanticGenerationError
+from decompyle3.parsers.p311.base import Python311ParseError
+from support311 import ROOT, compare_behavior311
+
+
+RUNNER_PATH = (
+    ROOT / "test" / "bytecode_3.11" / "run_realworld_regression.py"
+)
+ARCHIVE_PATH = (
+    ROOT / "test" / "bytecode_3.11" / "realworld_regression311.json"
+)
+REPORT_PATH = ROOT / "PYTHON_311_REALWORLD_REGRESSION.md"
+SHAPE_MATRIX_PATH = (
+    ROOT / "test" / "bytecode_3.11" / "shape_matrix.json"
+)
+
+SPEC = importlib.util.spec_from_file_location(
+    "run_realworld_regression311",
+    RUNNER_PATH,
+)
+assert SPEC is not None and SPEC.loader is not None
+runner = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = runner
+SPEC.loader.exec_module(runner)
+
+ARCHIVE = json.loads(ARCHIVE_PATH.read_text(encoding="utf-8"))
+SHAPE_MATRIX = json.loads(SHAPE_MATRIX_PATH.read_text(encoding="utf-8"))
+
+pytestmark = pytest.mark.skipif(
+    sys.version_info[:2] != (3, 11),
+    reason="CPython 3.11 real-world regression requires CPython 3.11",
+)
+
+
+def test_archived_realworld_report_has_required_metrics():
+    totals = ARCHIVE["totals"]
+    behavior = ARCHIVE["behavior"]
+
+    assert ARCHIVE["phase"] == 8
+    assert ARCHIVE["target"] == {
+        "implementation": "CPython",
+        "version": "3.11",
+    }
+    assert totals["input_files"] == sum(
+        group["input_files"] for group in ARCHIVE["groups"].values()
+    )
+    assert totals["input_files"] == (
+        totals["decompile_success"]
+        + totals["fail_closed"]
+        + totals["malformed_or_unsupported_input"]
+        + totals["unexpected_crash"]
+    )
+    assert totals["syntax_success"] + totals["syntax_failure"] == (
+        totals["decompile_success"]
+    )
+    assert totals["syntax_failure"] == 0
+    assert totals["unexpected_crash"] == 0
+    assert behavior["input_cases"] == 6
+    assert behavior["consistent"] == 6
+    assert behavior["mismatch"] == 0
+    assert behavior["missing_input"] == 0
+    assert all(
+        ARCHIVE["groups"][group]["input_files"] > 0
+        for group in ("stdlib", "project", "third_party")
+    )
+
+
+def test_archived_failures_are_fully_classified():
+    classifications = ARCHIVE["failure_classifications"]
+    matrix_items = {
+        item["name"]: item for item in SHAPE_MATRIX["shapes"]
+    }
+
+    assert set(classifications) == runner.REALWORLD_SHAPES
+    assert sum(classifications.values()) == ARCHIVE["totals"]["fail_closed"]
+    for shape_name, count in classifications.items():
+        assert count > 0
+        item = matrix_items[shape_name]
+        assert item["status"] == "unsupported_fail_closed"
+        assert item["expected_error"] is not None
+        assert (
+            "pytest/test_realworld311.py::"
+            "test_archived_failures_are_fully_classified"
+            in item["tests"]
+        )
+        samples = ARCHIVE["failure_samples"][shape_name]
+        assert samples
+        assert all(sample["error_type"] for sample in samples)
+    assert ARCHIVE["first_failure"]["shape"] in classifications
+
+
+def test_realworld_inventory_and_report_match_archive():
+    inputs = runner.collect_inputs()
+    assert len(inputs) == ARCHIVE["totals"]["input_files"]
+    assert runner._input_digest(inputs) == ARCHIVE["input_digest"]
+    assert runner.render_report(ARCHIVE) == REPORT_PATH.read_text(
+        encoding="utf-8"
+    )
+
+
+def smoke_sources():
+    stdlib = Path(sysconfig.get_path("stdlib"))
+    purelib = Path(sysconfig.get_path("purelib"))
+    return (
+        stdlib / "abc.py",
+        stdlib / "colorsys.py",
+        stdlib / "copy.py",
+        stdlib / "hmac.py",
+        stdlib / "keyword.py",
+        ROOT / "decompyle3" / "controlflow" / "basicblock.py",
+        ROOT / "decompyle3" / "util.py",
+        ROOT / "decompyle3" / "version.py",
+        purelib / "attrs" / "exceptions.py",
+        purelib / "click" / "_utils.py",
+        purelib / "packaging" / "_structures.py",
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    smoke_sources(),
+    ids=lambda path: path.name,
+)
+def test_realworld_smoke_sources_recover_and_recompile(source):
+    recovered = runner._recover(source)
+    tree = ast.parse(recovered, filename=f"<smoke-{source.name}>")
+    compile(tree, f"<smoke-{source.name}>", "exec", dont_inherit=True)
+
+
+@pytest.mark.parametrize(
+    "case",
+    runner.behavior_cases(),
+    ids=lambda case: case.name,
+)
+def test_realworld_differential_behavior(case, tmp_path):
+    comparison = compare_behavior311(
+        case.path,
+        case.probe,
+        tmp_path / case.name,
+        shape_name=case.name,
+    )
+    assert comparison.original.exitcode == 0
+    assert comparison.recovered.exitcode == 0
+
+
+def test_realworld_recursion_exhaustion_fails_closed():
+    source = Path(sysconfig.get_path("stdlib")) / "fnmatch.py"
+    with pytest.raises(
+        Python311ParseError,
+        match="recursion limit reached",
+    ) as raised:
+        runner._recover(source)
+    assert raised.value.version == (3, 11)
+    assert isinstance(raised.value.code_name, str)
+
+
+def test_suspicious_generated_source_warning_fails_closed():
+    source = (
+        Path(sysconfig.get_path("stdlib"))
+        / "multiprocessing"
+        / "spawn.py"
+    )
+    with pytest.raises(
+        SemanticGenerationError,
+        match="does not recompile cleanly",
+    ) as raised:
+        runner._recover(source)
+    assert raised.value.version == (3, 11)
+    assert isinstance(raised.value.code_name, str)

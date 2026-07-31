@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 7,
+  "phase": 8,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -390,6 +390,107 @@
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
       "notes": "Phase 5 verifies local, global, nonlocal, attribute, and subscript deletion recovery. Phase 6 verifies its isolated differential behavior contract."
+    },
+    {
+      "name": "realworld_call_and_expression_stack",
+      "category": "realworld_expression",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
+        "pytest/test_realworld311.py::test_suspicious_generated_source_warning_fails_closed"
+      ],
+      "notes": "Phase 8 groups real-world call operands, stack rotations, expression joins, and generated-source validation failures; these inputs fail closed instead of emitting unchecked source."
+    },
+    {
+      "name": "realworld_comprehension_and_iterator_protocol",
+      "category": "realworld_comprehension",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records non-canonical MAP_ADD, SET_ADD, FOR_ITER, RETURN_GENERATOR, and YIELD_VALUE layouts found in standard-library and third-party modules."
+    },
+    {
+      "name": "realworld_exception_cleanup_control_transfer",
+      "category": "realworld_exception",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records complex RERAISE, POP_EXCEPT, PUSH_EXC_INFO, and terminal finally cleanup layouts outside the supported canonical exception shapes."
+    },
+    {
+      "name": "realworld_function_object_flow",
+      "category": "realworld_function",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records dynamically routed function objects and function definitions stored through non-name targets."
+    },
+    {
+      "name": "realworld_import_protocol",
+      "category": "realworld_import",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records IMPORT_FROM sequences whose owning IMPORT_NAME cannot be proven by the current stack model."
+    },
+    {
+      "name": "realworld_match_boundary",
+      "category": "realworld_match",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records match case/body fallthrough boundaries that cannot be structured without guessing."
+    },
+    {
+      "name": "realworld_recursive_structure",
+      "category": "realworld_control_flow",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Python311ParseError",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
+        "pytest/test_realworld311.py::test_realworld_recursion_exhaustion_fails_closed"
+      ],
+      "notes": "Phase 8 converts internal RecursionError escapes into contextual Python311ParseError failures."
+    },
+    {
+      "name": "realworld_unpack_assignment",
+      "category": "realworld_assignment",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records non-canonical UNPACK_SEQUENCE and UNPACK_EX value routing that the current assignment model cannot prove."
+    },
+    {
+      "name": "realworld_with_control_transfer",
+      "category": "realworld_exception",
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
+      "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+      ],
+      "notes": "Phase 8 records with-body return, yield, and cleanup control transfers that are not one safely recoverable expression."
     }
   ]
 }
