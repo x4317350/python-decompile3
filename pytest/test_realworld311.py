@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from decompyle3.controlflow import IrreducibleControlFlowError
 from support311 import ROOT, compare_behavior311
 
 
@@ -114,6 +115,17 @@ def test_archived_failures_are_fully_classified():
         assert samples
         assert all(sample["error_type"] for sample in samples)
     assert ARCHIVE["first_failure"]["shape"] in classifications
+
+
+def test_irreducible_failure_has_a_dedicated_zero_count_classification():
+    error = IrreducibleControlFlowError(
+        "Irreducible control flow has multiple entries: B1, B2"
+    )
+
+    assert runner.classify_failure(error) == "irreducible_control_flow"
+    assert "irreducible_control_flow" not in ARCHIVE[
+        "failure_classifications"
+    ]
 
 
 def test_realworld_inventory_and_report_match_archive_environment():

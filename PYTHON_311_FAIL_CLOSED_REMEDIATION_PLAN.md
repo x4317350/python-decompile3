@@ -551,8 +551,9 @@ git status --short
 - 阶段 6 已完成并提交；
 - 阶段 7 已完成并提交；
 - 阶段 8 已完成并提交；
-- 阶段 9 已完成，等待单独提交；
-- 阶段 10 及后续阶段尚未开始；
+- 阶段 9 已完成并提交；
+- 阶段 10 已完成，等待单独提交；
+- 阶段 11 尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
@@ -563,6 +564,7 @@ git status --short
 - 阶段 6 修复提交为 `45c77535`；
 - 阶段 7 修复提交为 `4291bda5`；
 - 阶段 8 修复提交为 `32ab3a89`；
+- 阶段 9 修复提交为 `d06a8fa8`；
 - 当前 shape 状态为 38 pass、2 fail-closed、0 missing。
 
 每阶段完成后追加：
@@ -758,7 +760,7 @@ git status --short
 
 ```text
 阶段：9，加固 match case 边界
-提交：本阶段修复提交（等待单独提交）
+提交：d06a8fa8，提交说明为“修复：完成 Python 3.11 match 边界加固”
 目标 shape：realworld_match_boundary
 阶段前计数：0；原冻结基线 1 已在阶段 4 通过限制普通表达式 lookahead 自然归零，本阶段补齐结构性边界证明和安全拒绝
 阶段后计数：0
@@ -772,4 +774,24 @@ tarfile 验证：原模块 offset 424 的 match 误判已消失；整文件继�
 全量测试：831 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：38 shape pass、2 fail-closed、0 missing；报告时效、golden、真实语料归档和完整门禁均通过
 已知限制：真实语料仍有调用/表达式栈 15、推导式/迭代协议 1、高级异常清理 96；人工不可约 CFG 保持明确 fail-closed
+```
+
+阶段 10：
+
+```text
+阶段：10，审查人工不可约 CFG
+提交：本阶段修复提交（等待单独提交）
+目标 shape：irreducible_control_flow
+阶段前计数：0 个真实语料；人工 CFG 保持明确 fail-closed
+阶段后计数：0 个真实语料；保持 unsupported_fail_closed
+审查结论：维护的 CPython 3.11 源码 corpus 和 604 文件归档均未产生不可约 CFG；不引入 while True + synthetic state 的猜测性源码；保留 IrreducibleControlFlowError 安全边界
+已加固签名：SCC 分析改为仅遍历可达节点的迭代算法；自然循环与多入口判定忽略死前驱；错误上下文稳定排序并限制超大组件的诊断长度；2500 block 人工 SCC 不再受 Python 递归深度影响
+剩余子 shape：人工构造、篡改或非 CPython 3.11 生产者生成的多入口不可约 CFG 继续 fail-closed
+新增 fixture：pytest/test_irreducible_controlflow311.py；覆盖多入口诊断、边顺序稳定性、死边、不可达组件、合法循环/汇合、2500 block 复杂度边界和维护的 CPython 3.11 corpus
+行为验证：维护的 CPython 3.11 corpus 全部 code object 均通过可约性检查；真实语料运行器对 IrreducibleControlFlowError 使用独立分类
+真实语料：604 个输入重放；492 success、112 fail-closed；0 syntax failure、0 unexpected crash；irreducible_control_flow 分类为 0；6/6 真实语料行为探针一致
+专项测试：不可约 CFG、控制流、shape behavior、真实语料和发布门禁回归共 85 passed
+全量测试：839 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：110/110 opcode 四层覆盖完整；38 shape pass、2 fail-closed、0 missing；报告时效、golden、真实语料归档和完整门禁均通过；不可约 CFG 继续作为已审查的人工安全边界
+已知限制：真实语料仍有调用/表达式栈 15、推导式/迭代协议 1、高级异常清理 96；人工不可约 CFG 不计入 604 文件成功率
 ```

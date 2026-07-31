@@ -20,6 +20,7 @@ from pathlib import Path
 
 from xdis.version_info import PythonImplementation
 
+from decompyle3.controlflow import IrreducibleControlFlowError
 from decompyle3.errors import Decompyle3Error
 from decompyle3.semantics.pysource import code_deparse
 
@@ -144,6 +145,8 @@ def classify_failure(error: BaseException) -> str:
     """Map one fail-closed error to a shape-matrix category."""
     message = str(error)
     code_name = getattr(error, "code_name", None)
+    if isinstance(error, IrreducibleControlFlowError):
+        return "irreducible_control_flow"
     if "recursion limit reached" in message:
         return "realworld_recursive_structure"
     if "Match case" in message or "match pattern" in message.lower():

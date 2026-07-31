@@ -25,7 +25,7 @@
 | `if_elif_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
 | `for_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
 | `while_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
-| `irreducible_control_flow` | control_flow | unsupported_fail_closed | `—` | `IrreducibleControlFlowError` | 2 |
+| `irreducible_control_flow` | control_flow | unsupported_fail_closed | `—` | `IrreducibleControlFlowError` | 10 |
 | `nested_comprehension_filter` | comprehension | pass | `test/simple_source/311/03_comprehensions.py` | `—` | 2 |
 | `generator_and_yield_from` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
 | `coroutine_await` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
@@ -64,5 +64,5 @@
 
 ## Fail-closed
 
-- `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes.
+- `irreducible_control_flow`：`IrreducibleControlFlowError`；Stage 10 retains the explicit IrreducibleControlFlowError safety boundary after confirming that the maintained CPython 3.11 corpus and 604-file archive contain no irreducible CFG. Iterative reachable-edge SCC analysis provides deterministic component/entry diagnostics, ignores dead incoming edges, avoids Python recursion leakage on large hostile graphs, and accepts reducible loops and acyclic merges.
 - `realworld_exception_cleanup_control_transfer`：`Decompyle3Error`；Stage 3 verifies the canonical exception-cleanup fixture, but Stage 4 exposes 25 advanced nested return/call/control-transfer layouts in recognized exception-table regions. They retain exact parser diagnostics with an exception-cleanup shape hint and fail closed instead of falling through to ordinary expression recovery.

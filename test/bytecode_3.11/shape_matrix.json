@@ -129,9 +129,17 @@
       "expected_error": "IrreducibleControlFlowError",
       "tests": [
         "pytest/test_controlflow311.py::test_irreducible_graph_is_rejected_explicitly",
+        "pytest/test_irreducible_controlflow311.py::test_irreducible_error_has_stable_component_and_entry_context",
+        "pytest/test_irreducible_controlflow311.py::test_irreducible_diagnostic_is_independent_of_edge_order",
+        "pytest/test_irreducible_controlflow311.py::test_dead_predecessor_does_not_create_a_false_second_entry",
+        "pytest/test_irreducible_controlflow311.py::test_unreachable_irreducible_component_is_ignored",
+        "pytest/test_irreducible_controlflow311.py::test_reducible_loop_and_acyclic_merge_remain_accepted",
+        "pytest/test_irreducible_controlflow311.py::test_large_irreducible_scc_fails_closed_without_python_recursion",
+        "pytest/test_irreducible_controlflow311.py::test_cpython311_corpus_contains_only_reducible_cfgs",
+        "pytest/test_realworld311.py::test_irreducible_failure_has_a_dedicated_zero_count_classification",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes."
+      "notes": "Stage 10 retains the explicit IrreducibleControlFlowError safety boundary after confirming that the maintained CPython 3.11 corpus and 604-file archive contain no irreducible CFG. Iterative reachable-edge SCC analysis provides deterministic component/entry diagnostics, ignores dead incoming edges, avoids Python recursion leakage on large hostile graphs, and accepts reducible loops and acyclic merges."
     },
     {
       "name": "nested_comprehension_filter",

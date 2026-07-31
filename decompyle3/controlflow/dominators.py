@@ -12,6 +12,19 @@ from decompyle3.errors import ControlFlowError
 class IrreducibleControlFlowError(ControlFlowError):
     """Raised for an SCC with more than one external entry."""
 
+    def __init__(
+        self,
+        message,
+        *,
+        component_blocks=(),
+        entry_blocks=(),
+        entry_edges=(),
+    ):
+        super().__init__(message)
+        self.component_blocks = tuple(component_blocks)
+        self.entry_blocks = tuple(entry_blocks)
+        self.entry_edges = tuple(entry_edges)
+
 
 @dataclass(frozen=True)
 class NaturalLoop:
@@ -28,6 +41,14 @@ class ControlFlowAnalysis:
     immediate_post_dominators: Dict[int, Optional[int]]
     back_edges: Tuple[Tuple[int, int], ...]
     loops: Tuple[NaturalLoop, ...]
+
+
+def _bounded_diagnostic(items, formatter, limit=16):
+    items = tuple(items)
+    rendered = ", ".join(formatter(item) for item in items[:limit])
+    if len(items) > limit:
+        rendered += f", ... (+{len(items) - limit} more)"
+    return rendered
 
 
 def _fixed_point_sets(graph, reverse=False):
@@ -84,76 +105,114 @@ def _immediate(sets):
 
 
 def _natural_loop(graph, latch: int, header: int) -> FrozenSet[int]:
+    reachable = set(graph.reachable_blocks)
     members = {header, latch}
     pending = [] if latch == header else [latch]
     while pending:
         node = pending.pop()
         for predecessor in graph.predecessors(node):
-            if predecessor not in members:
+            if predecessor in reachable and predecessor not in members:
                 members.add(predecessor)
                 pending.append(predecessor)
     return frozenset(members)
 
 
 def _strong_components(graph) -> List[Set[int]]:
+    """Return reachable SCCs without depending on Python recursion depth."""
     reachable = set(graph.reachable_blocks)
-    index = 0
-    indices = {}
-    lowlinks = {}
-    stack = []
-    on_stack = set()
-    components = []
+    successors = {node: set() for node in reachable}
+    predecessors = {node: set() for node in reachable}
+    for edge in graph.edges:
+        if edge.source in reachable and edge.target in reachable:
+            successors[edge.source].add(edge.target)
+            predecessors[edge.target].add(edge.source)
 
-    def visit(node):
-        nonlocal index
-        indices[node] = index
-        lowlinks[node] = index
-        index += 1
-        stack.append(node)
-        on_stack.add(node)
-
-        for successor in graph.successors(node):
-            if successor not in reachable:
+    visited = set()
+    finish_order = []
+    for root in sorted(reachable):
+        if root in visited:
+            continue
+        visited.add(root)
+        pending = [(root, iter(sorted(successors[root])))]
+        while pending:
+            node, children = pending[-1]
+            try:
+                successor = next(children)
+            except StopIteration:
+                pending.pop()
+                finish_order.append(node)
                 continue
-            if successor not in indices:
-                visit(successor)
-                lowlinks[node] = min(lowlinks[node], lowlinks[successor])
-            elif successor in on_stack:
-                lowlinks[node] = min(lowlinks[node], indices[successor])
+            if successor not in visited:
+                visited.add(successor)
+                pending.append(
+                    (successor, iter(sorted(successors[successor])))
+                )
 
-        if lowlinks[node] == indices[node]:
-            component = set()
-            while True:
-                member = stack.pop()
-                on_stack.remove(member)
-                component.add(member)
-                if member == node:
-                    break
-            components.append(component)
-
-    for node in sorted(reachable):
-        if node not in indices:
-            visit(node)
+    components = []
+    assigned = set()
+    for root in reversed(finish_order):
+        if root in assigned:
+            continue
+        component = set()
+        pending = [root]
+        assigned.add(root)
+        while pending:
+            node = pending.pop()
+            component.add(node)
+            for predecessor in sorted(
+                predecessors[node],
+                reverse=True,
+            ):
+                if predecessor not in assigned:
+                    assigned.add(predecessor)
+                    pending.append(predecessor)
+        components.append(component)
     return components
 
 
 def _ensure_reducible(graph):
+    reachable = set(graph.reachable_blocks)
     for component in _strong_components(graph):
-        cyclic = len(component) > 1 or any(
-            successor == next(iter(component))
-            for successor in graph.successors(next(iter(component)))
-        )
+        first = min(component)
+        cyclic = len(component) > 1 or first in graph.successors(first)
         if not cyclic:
             continue
-        entries = {
-            edge.target
-            for edge in graph.edges
-            if edge.target in component and edge.source not in component
-        }
+        entry_edges = tuple(
+            sorted(
+                (
+                    edge.source,
+                    edge.target,
+                    edge.kind,
+                )
+                for edge in graph.edges
+                if edge.source in reachable
+                and edge.target in component
+                and edge.source not in component
+            )
+        )
+        entries = {target for _, target, _ in entry_edges}
         if len(entries) > 1:
-            formatted = ", ".join(f"B{entry}" for entry in sorted(entries))
+            sorted_entries = tuple(sorted(entries))
+            sorted_component = tuple(sorted(component))
+            formatted = _bounded_diagnostic(
+                sorted_entries,
+                lambda entry: f"B{entry}",
+            )
+            component_text = _bounded_diagnostic(
+                sorted_component,
+                lambda block: f"B{block}",
+            )
+            edge_text = _bounded_diagnostic(
+                entry_edges,
+                lambda edge: f"B{edge[0]}->B{edge[1]}:{edge[2]}",
+            )
             raise IrreducibleControlFlowError(
-                f"Irreducible control flow has multiple entries: {formatted}"
+                "Irreducible control flow has multiple entries: "
+                f"{formatted}; component: {component_text}; "
+                f"entry edges: {edge_text}",
+                component_blocks=sorted_component,
+                entry_blocks=sorted_entries,
+                entry_edges=entry_edges,
             )
 
 

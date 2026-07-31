@@ -129,9 +129,13 @@ physical bytecode offset when an offset is available.
   recovery, and advanced exception-cleanup transfers. Recursive structure
   exhaustion has been eliminated from the fixed archive.
 - Artificial irreducible control-flow graphs are also rejected explicitly.
-  Together with the advanced exception-cleanup family represented as a shape
-  boundary, this accounts for the two
-  fail-closed entries in the current shape matrix.
+  The maintained CPython 3.11 source corpus and the fixed 604-file archive
+  contain no such graph. The detector uses reachable-only iterative SCC
+  analysis, ignores dead incoming edges, and emits bounded deterministic
+  diagnostics, so large hostile graphs fail closed without depending on
+  Python recursion depth. Together with the advanced exception-cleanup family
+  represented as a shape boundary, this accounts for the two fail-closed
+  entries in the current shape matrix.
 - The `match` recovery path targets canonical CPython 3.11 compiler output.
   Artificial or ambiguous case/body boundaries are rejected.
 - Source is rendered with `ast.unparse()`. Original whitespace, quote style,
