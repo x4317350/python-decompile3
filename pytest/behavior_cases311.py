@@ -491,6 +491,38 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/simple_source/311/14_function_object_flow.py": _probe(
+        """
+        def _function_object_snapshot():
+            result = decorated(4, scale=5)
+            original = decorated.original.original
+            descriptor = DescriptorDemo(6)
+            holder, mapping, sequence, assigned = build_lambdas(7)
+            return (
+                result,
+                list(EVENTS),
+                original.__defaults__,
+                original.__kwdefaults__,
+                {
+                    key: value.__name__
+                    for key, value in original.__annotations__.items()
+                },
+                descriptor.add(2, 4),
+                descriptor.owner_name(),
+                descriptor.doubled,
+                default_callback(),
+                holder.transform(),
+                holder.transform(5),
+                mapping["scale"](3),
+                mapping["identity"]("value"),
+                sequence[0](),
+                sequence[1][0](2),
+                assigned["offset"](4),
+            )
+
+        _record("function_object_flow", _function_object_snapshot)
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

@@ -545,13 +545,17 @@ git status --short
 - 阶段 0 已完成并提交；
 - 阶段 1 已完成并提交；
 - 阶段 2 已完成并提交；
-- 阶段 3 已完成，等待单独提交；
-- 阶段 4 及后续阶段尚未开始；
+- 阶段 3 已完成并提交；
+- 阶段 4 已完成并提交；
+- 阶段 5 已完成，等待单独提交；
+- 阶段 6 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
 - 阶段 2 修复提交为 `b41d6cdb`；
-- 当前 shape 状态为 33 pass、7 fail-closed、0 missing。
+- 阶段 3 修复提交为 `58452b95`；
+- 阶段 4 修复提交为 `ae53e1ae`；
+- 当前 shape 状态为 35 pass、5 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -651,7 +655,7 @@ git status --short
 
 ```text
 阶段：4，修复调用与表达式栈
-提交：本阶段修复提交（等待单独提交）
+提交：ae53e1ae，提交说明为“修复：完成 Python 3.11 调用与表达式栈恢复”
 目标 shape：realworld_call_and_expression_stack
 阶段前计数：219；原冻结基线 217，另有阶段 2、3 清除前置错误后守恒迁入 2 项
 阶段后计数：0
@@ -664,4 +668,23 @@ git status --short
 全量测试：808 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：34 shape pass、6 fail-closed、0 missing；调用/表达式栈与 match 边界转为 pass，高级异常清理恢复为精确 fail-closed；完整门禁、报告时效、golden 和 skip 白名单检查通过
 已知限制：25 个高级异常清理布局在阶段 4 暴露后恢复为精确 fail-closed 状态；推导式 124、函数对象 15、递归 33、with 76 继续由后续阶段处理
+```
+
+阶段 5：
+
+```text
+阶段：5，修复函数对象流
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_function_object_flow
+阶段前计数：15；原冻结基线 9，另有前置阶段清除 import、调用和表达式栈错误后暴露或迁入 6 项
+阶段后计数：0
+已修复签名：_FunctionValue 进入 BUILD_TUPLE、BUILD_LIST、BUILD_MAP、BUILD_CONST_KEY_MAP 等变长表达式消费者；lambda 存入 attribute 和 subscript；lambda 作为默认值、容器成员和闭包值；装饰器调用与普通函数值调用；defaults、kwdefaults、annotations、closure、descriptor 及装饰顺序；同时用 CFG 区分 case _ 的 NOP 边界与装饰器行表填充
+剩余子 shape：原函数对象粗分类归零；15 个代表文件中 4 个完整恢复，其余 11 个守恒迁移到推导式、with、高级异常清理和递归等后续精确家族
+新增 fixture：test/simple_source/311/14_function_object_flow.py；同步 dis 和 normalized token golden
+行为验证：覆盖双层装饰器求值与调用顺序、函数签名与 annotations、staticmethod/classmethod/property、lambda 的属性/下标/字典/列表/元组/默认值/闭包消费，以及 match 通配分支与装饰器 NOP 边界
+真实语料：604 个输入重放；335 success、269 fail-closed；0 syntax failure、0 unexpected crash；函数对象和调用/表达式栈分类均归零；6/6 真实语料行为探针一致
+专项测试：函数对象、shape behavior、发布门禁、opcode corpus 和控制流共 98 passed；阶段 2 后继错误断言回归 49 passed
+全量测试：813 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：35 shape pass、5 fail-closed、0 missing；函数对象流转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
+已知限制：推导式/迭代协议 130、高级异常清理 27、递归结构 34、with 控制转移 78 继续由后续阶段处理；人工不可约 CFG 保持明确 fail-closed
 ```

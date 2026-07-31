@@ -435,13 +435,16 @@
     {
       "name": "realworld_function_object_flow",
       "category": "realworld_function",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/14_function_object_flow.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_function_object_flow311.py::test_scanner_and_ast_cover_delayed_function_consumers",
+        "pytest/test_function_object_flow311.py::test_decorator_order_signature_and_descriptors_preserve_behavior",
+        "pytest/test_function_object_flow311.py::test_lambda_targets_defaults_collections_and_closures_preserve_behavior"
       ],
-      "notes": "Phase 8 records dynamically routed function objects and function definitions stored through non-name targets."
+      "notes": "Stage 5 preserves delayed lambda values through attribute, subscript, collection, default-value, closure, descriptor, and decorator consumers with differential behavior coverage."
     },
     {
       "name": "realworld_import_protocol",

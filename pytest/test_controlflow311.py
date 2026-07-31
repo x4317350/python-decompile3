@@ -6,6 +6,7 @@ import ast
 import io
 import sys
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 from xdis.version_info import PythonImplementation
@@ -15,6 +16,9 @@ from decompyle3.controlflow.cfg import ControlFlowGraph, Edge, build_cfg
 from decompyle3.controlflow.dominators import (
     IrreducibleControlFlowError,
     analyze_control_flow,
+)
+from decompyle3.controlflow.match_structures import (
+    MatchStructureDecompiler311,
 )
 from decompyle3.parsers.main import python_parser
 from decompyle3.scanners.scanner311 import Scanner311
@@ -177,6 +181,57 @@ def test_irreducible_graph_is_rejected_explicitly():
         IrreducibleControlFlowError, match="multiple entries: B1, B2"
     ):
         analyze_control_flow(graph)
+
+
+def test_match_wildcard_nop_is_distinguished_from_decorator_padding():
+    wildcard_tokens = (
+        FakeInstruction(0, "MATCH_CLASS"),
+        FakeInstruction(
+            2,
+            "POP_JUMP_FORWARD_IF_NONE",
+            target=8,
+            attr=8,
+        ),
+        FakeInstruction(4, "RETURN_VALUE"),
+        FakeInstruction(8, "POP_TOP"),
+        FakeInstruction(10, "NOP"),
+        FakeInstruction(12, "RETURN_VALUE"),
+    )
+    wildcard_owner = SimpleNamespace(
+        tokens=wildcard_tokens,
+        offset_to_index={
+            token.offset: index
+            for index, token in enumerate(wildcard_tokens)
+        },
+        cfg=build_cfg(wildcard_tokens),
+    )
+    wildcard_matcher = MatchStructureDecompiler311(wildcard_owner)
+
+    decorator_tokens = (
+        FakeInstruction(
+            0,
+            "POP_JUMP_FORWARD_IF_FALSE",
+            target=8,
+            attr=8,
+        ),
+        FakeInstruction(2, "RETURN_VALUE"),
+        FakeInstruction(8, "LOAD_NAME"),
+        FakeInstruction(10, "NOP"),
+        FakeInstruction(12, "MAKE_FUNCTION"),
+        FakeInstruction(14, "RETURN_VALUE"),
+    )
+    decorator_owner = SimpleNamespace(
+        tokens=decorator_tokens,
+        offset_to_index={
+            token.offset: index
+            for index, token in enumerate(decorator_tokens)
+        },
+        cfg=build_cfg(decorator_tokens),
+    )
+    decorator_matcher = MatchStructureDecompiler311(decorator_owner)
+
+    assert wildcard_matcher._looks_like_case_start(4)
+    assert not decorator_matcher._looks_like_case_start(3)
 
 
 def test_cfg_debug_option_prints_stable_graph(capsys):

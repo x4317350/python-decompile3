@@ -377,13 +377,22 @@ class _StraightLineDecompiler:
 
     def _pop_exprs(self, count: int) -> List[ast.expr]:
         values = self._pop_many(count)
-        if not all(isinstance(value, ast.expr) for value in values):
+        expressions = []
+        unsupported = []
+        for value in values:
+            if isinstance(value, ast.expr) or isinstance(
+                value,
+                _FunctionValue,
+            ):
+                expressions.append(self._expression_value(value))
+            else:
+                unsupported.append(value)
+        if unsupported:
             found = ", ".join(
                 sorted(
                     {
                         type(value).__name__
-                        for value in values
-                        if not isinstance(value, ast.expr)
+                        for value in unsupported
                     }
                 )
             )
@@ -391,7 +400,7 @@ class _StraightLineDecompiler:
                 "Expected only expressions in a variable-length operand; "
                 f"found {found}"
             )
-        return [self._expression_value(value) for value in values]
+        return expressions
 
     def _flush_assignment(self):
         if self.pending_assignment_value is None:
@@ -1067,12 +1076,14 @@ class _StraightLineDecompiler:
             self._store_import(value, target)
             return
         if isinstance(value, _FunctionValue):
-            if not isinstance(target, ast.Name):
-                self._error("A function definition is stored to a non-name target")
             if getattr(value.code, "co_name", None) == "<lambda>":
                 expression = self._lambda_node(value)
                 self._queue_assignment(target, expression)
             else:
+                if not isinstance(target, ast.Name):
+                    self._error(
+                        "A function definition is stored to a non-name target"
+                    )
                 self.body.append(self._function_node(value, target.id))
             return
         if isinstance(value, _ClassValue):

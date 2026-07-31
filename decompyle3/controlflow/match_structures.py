@@ -64,8 +64,31 @@ class MatchStructureDecompiler311:
 
     def _looks_like_case_start(self, index: int) -> bool:
         kind = self.tokens[index].kind
-        if kind in ("MATCH_MAPPING", "MATCH_SEQUENCE", "NOP"):
+        if kind in ("MATCH_MAPPING", "MATCH_SEQUENCE"):
             return True
+        if kind == "NOP":
+            # CPython uses NOP as the pattern marker for an irrefutable
+            # wildcard case, but NOP also appears between a decorator and its
+            # MAKE_FUNCTION sequence.  A wildcard marker starts a basic block
+            # reached through a failed POP_JUMP_* pattern decision; that block
+            # may contain only POP_TOP cleanup before the NOP.  Deriving the
+            # boundary from the CFG avoids both decorator padding and an
+            # arbitrary backward instruction window.
+            block = self.owner.cfg.block_at(self.tokens[index].offset)
+            prefix = tuple(
+                instruction
+                for instruction in block.instructions
+                if instruction.offset < self.tokens[index].offset
+            )
+            if any(instruction.kind != "POP_TOP" for instruction in prefix):
+                return False
+            return any(
+                edge.kind != "exception"
+                and self.owner.cfg.block(edge.source).last.kind.startswith(
+                    "POP_JUMP_"
+                )
+                for edge in self.owner.cfg.incoming(block.index)
+            )
         if kind.startswith("POP_JUMP_") or kind.startswith("STORE_"):
             return True
         lookahead = []

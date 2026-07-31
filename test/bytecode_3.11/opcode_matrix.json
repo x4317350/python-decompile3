@@ -25,8 +25,8 @@
   "baseline": {
     "corpus_glob": "test/simple_source/311/*.py",
     "opcode_fixture_glob": "test/bytecode_3.11/opcode_fixtures/**/*.py",
-    "corpus_source_count": 27,
-    "code_object_count": 158,
+    "corpus_source_count": 28,
+    "code_object_count": 177,
     "raw_seen_count": 110,
     "normalized_seen_count": 109,
     "raw_missing": [],

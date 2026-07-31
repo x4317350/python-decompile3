@@ -27,6 +27,7 @@ EXPECTED_SOURCES = {
     "11_import_transactions.py",
     "12_exception_cleanup.py",
     "13_call_expression_stack.py",
+    "14_function_object_flow.py",
 }
 
 pytestmark = pytest.mark.skipif(
