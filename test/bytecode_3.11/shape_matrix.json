@@ -469,13 +469,15 @@
       "name": "realworld_match_boundary",
       "category": "realworld_match",
       "status": "pass",
-      "fixture": "test/simple_source/311/06_match.py",
+      "fixture": "test/simple_source/311/18_match_boundaries.py",
       "expected_error": null,
       "tests": [
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
-        "pytest/test_syntax311.py::test_recovered_match_preserves_bindings_guards_and_behavior"
+        "pytest/test_match_boundaries311.py::test_case_boundaries_reparse_recompile_and_preserve_nested_ast",
+        "pytest/test_match_boundaries311.py::test_guard_fallthrough_return_raise_and_nesting_preserve_behavior",
+        "pytest/test_match_boundaries311.py::test_ambiguous_case_exit_targets_fail_closed"
       ],
-      "notes": "Stage 4 bounds match lookahead at ordinary call, collection builder, function creation, and store operations, preventing expression code from being misclassified as a match statement. The fixed 604-file archive has no remaining match-boundary failure classification."
+      "notes": "Stage 9 derives each case's physical end from pattern and guard failure edges, validates body ownership with dominators, validates shared exits with post-dominators, and rejects inconsistent join targets. The focused fixture covers the minimized tarfile module false positive plus guard, fallthrough, return, raise, conditional and nested match bodies; the fixed 604-file archive has no remaining match-boundary classification."
     },
     {
       "name": "realworld_recursive_structure",

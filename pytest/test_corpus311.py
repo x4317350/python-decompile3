@@ -31,6 +31,7 @@ EXPECTED_SOURCES = {
     "15_comprehension_iterator_protocol.py",
     "16_with_control_transfer.py",
     "17_recursive_structure.py",
+    "18_match_boundaries.py",
 }
 
 pytestmark = pytest.mark.skipif(

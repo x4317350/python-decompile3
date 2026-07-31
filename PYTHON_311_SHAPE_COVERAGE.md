@@ -52,7 +52,7 @@
 | `realworld_exception_cleanup_control_transfer` | realworld_exception | unsupported_fail_closed | `—` | `Decompyle3Error` | 5 |
 | `realworld_function_object_flow` | realworld_function | pass | `test/simple_source/311/14_function_object_flow.py` | `—` | 4 |
 | `realworld_import_protocol` | realworld_import | pass | `test/simple_source/311/11_import_transactions.py` | `—` | 6 |
-| `realworld_match_boundary` | realworld_match | pass | `test/simple_source/311/06_match.py` | `—` | 2 |
+| `realworld_match_boundary` | realworld_match | pass | `test/simple_source/311/18_match_boundaries.py` | `—` | 4 |
 | `realworld_recursive_structure` | realworld_control_flow | pass | `test/simple_source/311/17_recursive_structure.py` | `—` | 6 |
 | `realworld_unpack_assignment` | realworld_assignment | pass | `test/simple_source/311/10_nested_unpacking.py` | `—` | 6 |
 | `realworld_with_control_transfer` | realworld_exception | pass | `test/simple_source/311/16_with_control_transfer.py` | `—` | 5 |

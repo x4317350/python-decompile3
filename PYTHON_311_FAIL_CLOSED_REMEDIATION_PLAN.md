@@ -550,8 +550,9 @@ git status --short
 - 阶段 5 已完成并提交；
 - 阶段 6 已完成并提交；
 - 阶段 7 已完成并提交；
-- 阶段 8 已完成，等待单独提交；
-- 阶段 9 及后续阶段尚未开始；
+- 阶段 8 已完成并提交；
+- 阶段 9 已完成，等待单独提交；
+- 阶段 10 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
@@ -561,6 +562,7 @@ git status --short
 - 阶段 5 修复提交为 `30595e11`；
 - 阶段 6 修复提交为 `45c77535`；
 - 阶段 7 修复提交为 `4291bda5`；
+- 阶段 8 修复提交为 `32ab3a89`；
 - 当前 shape 状态为 38 pass、2 fail-closed、0 missing。
 
 每阶段完成后追加：
@@ -737,7 +739,7 @@ git status --short
 
 ```text
 阶段：8，修复递归结构
-提交：本阶段修复提交（等待单独提交）
+提交：32ab3a89，提交说明为“修复：完成 Python 3.11 递归结构恢复”
 目标 shape：realworld_recursive_structure
 阶段前计数：51；原冻结基线 13，另有前置阶段清除调用、推导式和 with 错误后暴露或迁入 38 项
 阶段后计数：0
@@ -750,4 +752,24 @@ git status --short
 全量测试：827 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：38 shape pass、2 fail-closed、0 missing；递归结构转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
 已知限制：真实语料仍有调用/表达式栈 14、推导式/迭代协议 1、高级异常清理 97；人工不可约 CFG 保持明确 fail-closed
+```
+
+阶段 9：
+
+```text
+阶段：9，加固 match case 边界
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_match_boundary
+阶段前计数：0；原冻结基线 1 已在阶段 4 通过限制普通表达式 lookahead 自然归零，本阶段补齐结构性边界证明和安全拒绝
+阶段后计数：0
+已修复签名：嵌套 if/match 的首个 JUMP_FORWARD、分支内 return/raise、refutable 最后一项 fallthrough、guard 失败边和多个 case 的公共 join；由 pattern/guard 失败边限定 case 物理区间，以 dominator 验证 body 出口归属，以 post-dominator 和公共目标验证 join
+剩余子 shape：非 canonical 且存在多个不一致出口目标的人工 CFG 保持 Python311ParseError fail-closed；真实语料无 match 边界残留
+新增 fixture：test/simple_source/311/18_match_boundaries.py；同步 dis 和 normalized token golden；包含 tarfile.py 原误报的最小化模块级字典/比较布局
+行为验证：覆盖 guard、普通 fallthrough、return、raise、条件 return/raise、嵌套 if、嵌套 match、共享 join、无通配项 refutable match 和歧义出口安全拒绝
+真实语料：604 个输入重放；492 success、112 fail-closed；0 syntax failure、0 unexpected crash；match 边界分类保持为 0；6/6 真实语料行为探针一致
+tarfile 验证：原模块 offset 424 的 match 误判已消失；整文件继续在 _Stream.__init__ offset 1074 的已知高级异常清理边界 fail-closed，因此不在阶段 9 跨类放宽
+专项测试：match 边界、既有 syntax/control-flow、shape behavior、corpus 和 opcode corpus 共 101 passed
+全量测试：831 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：38 shape pass、2 fail-closed、0 missing；报告时效、golden、真实语料归档和完整门禁均通过
+已知限制：真实语料仍有调用/表达式栈 15、推导式/迭代协议 1、高级异常清理 96；人工不可约 CFG 保持明确 fail-closed
 ```

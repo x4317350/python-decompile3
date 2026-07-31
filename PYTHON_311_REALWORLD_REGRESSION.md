@@ -7,7 +7,7 @@
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`e6abbfbdfc304893d01b1582b4655029709cab5a48340afb1d63e60bd4c803c5`
+- 输入摘要：`7663bc43b7b77a0fd2363a55fece79c5d951439cb9f8df18f77a40abcb4cf754`
 
 第三方版本：
 
@@ -45,9 +45,9 @@
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_call_and_expression_stack` | 14 |
+| `realworld_call_and_expression_stack` | 15 |
 | `realworld_comprehension_and_iterator_protocol` | 1 |
-| `realworld_exception_cleanup_control_transfer` | 97 |
+| `realworld_exception_cleanup_control_transfer` | 96 |
 
 ## 行为探针
 

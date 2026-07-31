@@ -656,6 +656,48 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/simple_source/311/18_match_boundaries.py": _probe(
+        """
+        _record(
+            "boundary",
+            lambda: [
+                boundary(value, [])
+                for value in (0, 2, "stop", "other")
+            ],
+        )
+        _record("boundary_raise", lambda: boundary(None, []))
+        _record(
+            "nested",
+            lambda: [
+                nested_boundary(value, [])
+                for value in (("outer", 1), ("outer", 2), "other")
+            ],
+        )
+        _record(
+            "refutable",
+            lambda: [
+                refutable_fallthrough(value, [])
+                for value in ("hit", "miss")
+            ],
+        )
+        _record(
+            "conditional",
+            lambda: [
+                conditional_exit(value, flag, [])
+                for value, flag in (
+                    ("mixed", True),
+                    ("mixed", False),
+                    ("raise", False),
+                    ("other", True),
+                )
+            ],
+        )
+        _record(
+            "conditional_raise",
+            lambda: conditional_exit("raise", True, []),
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

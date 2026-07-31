@@ -578,20 +578,155 @@ class MatchStructureDecompiler311:
                     return None
         return None
 
+    def _case_failure_index(
+        self,
+        case_start: int,
+        body_start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Return the first physical block used by this case's failed match."""
+        body_offset = self.tokens[body_start].offset
+        candidates = []
+        for index in range(case_start, body_start):
+            token = self.tokens[index]
+            if (
+                not token.kind.startswith("POP_JUMP_")
+                and token.kind != "JUMP_FORWARD"
+            ):
+                continue
+            target = instruction_target(token)
+            target_index = self.offset_to_index.get(target)
+            if (
+                target_index is not None
+                and target > body_offset
+                and target_index < end
+            ):
+                candidates.append(target_index)
+        return min(candidates) if candidates else None
+
+    def _validated_exit_join(
+        self,
+        body_start: int,
+        physical_end: int,
+    ) -> Tuple[Optional[int], Optional[int]]:
+        """Find one CFG-proven case exit and its trailing jump instruction."""
+        graph = self.owner.cfg
+        analysis = self.owner.control_flow
+        body_block = graph.block_at(self.tokens[body_start].offset).index
+        candidates = []
+        for index in range(body_start, physical_end):
+            token = self.tokens[index]
+            if token.kind != "JUMP_FORWARD":
+                continue
+            target = instruction_target(token)
+            target_index = self.offset_to_index.get(target)
+            if target_index is None or target_index < physical_end:
+                continue
+            source_block = graph.block_at(token.offset).index
+            target_block = graph.block_at(target).index
+            if body_block not in analysis.dominators.get(source_block, ()):
+                self._error(
+                    "Match case exit is not dominated by its body entry",
+                    index,
+                )
+            if target_block not in analysis.post_dominators.get(
+                source_block,
+                (),
+            ):
+                self._error(
+                    "Match case exit target does not post-dominate its jump",
+                    index,
+                )
+            candidates.append((index, target))
+
+        targets = {target for _, target in candidates}
+        if len(targets) > 1:
+            self._error(
+                "Match case body has ambiguous exit targets",
+                candidates[-1][0],
+            )
+        if not candidates:
+            return None, None
+        return candidates[-1][0], candidates[-1][1]
+
+    def _fallthrough_join(
+        self,
+        body_start: int,
+        physical_end: int,
+    ) -> Optional[int]:
+        """Validate a direct case-body fallthrough into a shared CFG join."""
+        if physical_end >= len(self.tokens):
+            return None
+        join_token = self.tokens[physical_end]
+        if join_token.kind in ("POP_TOP", "SWAP_STACK"):
+            return None
+
+        graph = self.owner.cfg
+        analysis = self.owner.control_flow
+        body_block = graph.block_at(self.tokens[body_start].offset).index
+        join_block = graph.block_at(join_token.offset).index
+        if join_block not in analysis.post_dominators.get(body_block, ()):
+            return None
+
+        previous_block = graph.block_at(
+            self.tokens[physical_end - 1].offset
+        ).index
+        if not any(
+            edge.target == join_block and edge.kind != "exception"
+            for edge in graph.outgoing(previous_block)
+        ):
+            return None
+        return join_token.offset
+
     def _body_end(
         self,
         body_start: int,
         end: int,
-        allow_fallthrough: bool = False,
+        failure_index: Optional[int] = None,
+        known_join_index: Optional[int] = None,
     ) -> Tuple[int, Optional[int]]:
-        for index in range(body_start, end):
-            token = self.tokens[index]
-            if token.kind in ("RAISE_VARARGS", "RETURN_VALUE"):
-                return index + 1, None
-            if token.kind == "JUMP_FORWARD":
-                return index, instruction_target(token)
-        if allow_fallthrough:
-            return end, None
+        physical_end = (
+            failure_index
+            if failure_index is not None
+            else known_join_index
+            if known_join_index is not None
+            else end
+        )
+        if physical_end <= body_start:
+            self._error("Match case body has an invalid boundary", body_start)
+
+        exit_index, join = self._validated_exit_join(
+            body_start,
+            physical_end,
+        )
+        if exit_index is not None:
+            trailing_index = physical_end - 1
+            body_end = (
+                exit_index if exit_index == trailing_index else physical_end
+            )
+            return body_end, join
+
+        last = self.tokens[physical_end - 1]
+        if last.kind in ("RAISE_VARARGS", "RERAISE", "RETURN_VALUE"):
+            return physical_end, None
+
+        expected_join = (
+            self.tokens[known_join_index].offset
+            if known_join_index is not None
+            else None
+        )
+        fallthrough_join = self._fallthrough_join(
+            body_start,
+            physical_end,
+        )
+        if (
+            fallthrough_join is not None
+            and (
+                expected_join is None
+                or fallthrough_join == expected_join
+            )
+        ):
+            return physical_end, fallthrough_join
         self._error("Match case body has no structural terminator", body_start)
 
     def _next_case(
@@ -640,16 +775,21 @@ class MatchStructureDecompiler311:
             if body_start is None:
                 return None
             pattern, guard = self._pattern_and_guard(cursor, body_start)
+            failure_index = self._case_failure_index(
+                cursor,
+                body_start,
+                end,
+            )
             known_join_index = (
                 self.offset_to_index[min(join_offsets)]
                 if join_offsets
-                else end
+                else None
             )
-            has_known_join = body_start < known_join_index < end
             body_end, join = self._body_end(
                 body_start,
-                known_join_index if has_known_join else end,
-                allow_fallthrough=has_known_join,
+                end,
+                failure_index=failure_index,
+                known_join_index=known_join_index,
             )
             body = self.owner._capture_region(body_start, body_end, loop)
             if (
@@ -668,6 +808,11 @@ class MatchStructureDecompiler311:
                 )
             )
             if join is not None:
+                if join_offsets and join not in join_offsets:
+                    self._error(
+                        "Match cases have ambiguous join targets",
+                        body_start,
+                    )
                 join_offsets.append(join)
             irrefutable = (
                 isinstance(pattern, ast.MatchAs)
@@ -681,7 +826,12 @@ class MatchStructureDecompiler311:
                     else body_end
                 )
                 break
-            cursor = self._next_case(body_end, case_line, end)
+            next_search = (
+                failure_index
+                if failure_index is not None
+                else body_end
+            )
+            cursor = self._next_case(next_search, case_line, end)
             final_index = body_end
             if cursor is None:
                 if join_offsets:
