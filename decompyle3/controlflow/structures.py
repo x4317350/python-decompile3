@@ -270,6 +270,28 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if kind in _CONDITIONAL_JUMPS:
                 return index
             if (
+                kind
+                in (
+                    "STORE_DEREF",
+                    "STORE_FAST",
+                    "STORE_GLOBAL",
+                    "STORE_NAME",
+                )
+                and index > start
+                and self.tokens[index - 1].kind == "COPY_STACK"
+                and self.tokens[index - 1].attr == 1
+            ):
+                continue
+            if (
+                kind == "GET_ITER"
+                and index + 1 < len(self.tokens)
+                and self.tokens[index + 1].kind != "FOR_ITER"
+            ):
+                # A comprehension function receives its hidden iterator as
+                # part of a CALL expression; only GET_ITER/FOR_ITER starts a
+                # source-level loop statement.
+                continue
+            if (
                 kind in _STATEMENT_BOUNDARIES
                 or kind in UNCONDITIONAL_JUMPS
                 or kind.startswith("JUMP_IF_")
@@ -307,60 +329,454 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self.current_token = token
         self._error("Unknown conditional jump outcome")
 
+    def _resolve_condition_endpoint(self, offset: int) -> int:
+        """Resolve compiler-generated forward-jump trampolines."""
+        seen = set()
+        while offset not in seen:
+            seen.add(offset)
+            index = self.offset_to_index.get(offset)
+            if index is None:
+                return offset
+            while (
+                index < len(self.tokens)
+                and self.tokens[index].kind in _IGNORED_INTERNAL
+            ):
+                index += 1
+            if index >= len(self.tokens):
+                return offset
+            offset = self.tokens[index].offset
+            if self.tokens[index].kind != "JUMP_FORWARD":
+                return offset
+            offset = instruction_target(self.tokens[index])
+        return offset
+
+    def _terminal_return_signature(self, offset: int) -> Optional[str]:
+        """Describe a side-effect-free terminal return block for merging."""
+        start = self.offset_to_index.get(offset)
+        if start is None:
+            return None
+        if (
+            self.tokens[start].kind == "RETURN_VALUE"
+            and self.tokens[start].offset
+            in self._suppressed_exception_protocol_offsets
+        ):
+            return "__suppressed_return_value__"
+        while (
+            start < len(self.tokens)
+            and (
+                self.tokens[start].kind in _IGNORED_INTERNAL
+                or self.tokens[start].offset
+                in self._suppressed_exception_protocol_offsets
+            )
+        ):
+            start += 1
+        for index in range(start, len(self.tokens)):
+            kind = self.tokens[index].kind
+            if kind == "RETURN_VALUE":
+                try:
+                    expression = self._expression_slice(start, index)
+                except Python311ParseError:
+                    return None
+                return ast.dump(expression, include_attributes=False)
+            if (
+                kind in _CONDITIONAL_JUMPS
+                or kind in UNCONDITIONAL_JUMPS
+                or kind in _STATEMENT_BOUNDARIES
+            ):
+                return None
+        return None
+
+    def _equivalent_condition_endpoints(
+        self,
+        left: int,
+        right: int,
+    ) -> bool:
+        left_signature = self._terminal_return_signature(left)
+        return (
+            left_signature is not None
+            and left_signature == self._terminal_return_signature(right)
+        )
+
+    def _coalesce_condition_endpoints(
+        self,
+        nodes: Dict[int, _DecisionNode],
+        endpoints: Set[int],
+    ) -> Tuple[Dict[int, _DecisionNode], Set[int]]:
+        if len(endpoints) <= 2:
+            return nodes, endpoints
+        canonical = {}
+        by_signature = {}
+        for endpoint in sorted(endpoints):
+            signature = self._terminal_return_signature(endpoint)
+            if signature is None:
+                canonical[endpoint] = endpoint
+                continue
+            canonical[endpoint] = by_signature.setdefault(signature, endpoint)
+        if all(endpoint == target for endpoint, target in canonical.items()):
+            return nodes, endpoints
+        remapped = {
+            offset: _DecisionNode(
+                start_index=node.start_index,
+                jump_index=node.jump_index,
+                predicate=node.predicate,
+                true_offset=canonical.get(node.true_offset, node.true_offset),
+                false_offset=canonical.get(node.false_offset, node.false_offset),
+            )
+            for offset, node in nodes.items()
+        }
+        return remapped, {canonical.get(endpoint, endpoint) for endpoint in endpoints}
+
+    def _chained_condition_plan(
+        self,
+        start: int,
+    ) -> Optional[_ConditionPlan]:
+        """Recover a chained comparison whose first result is already stacked."""
+        if (
+            start >= len(self.tokens)
+            or self.tokens[start].kind not in _CONDITIONAL_JUMPS
+            or len(self.stack) < 2
+            or not isinstance(self.stack[-1], ast.Compare)
+            or len(self.stack[-1].ops) != 1
+            or len(self.stack[-1].comparators) != 1
+            or not isinstance(self.stack[-2], ast.expr)
+            or ast.dump(
+                self.stack[-2],
+                include_attributes=False,
+            )
+            != ast.dump(
+                self.stack[-1].comparators[0],
+                include_attributes=False,
+            )
+        ):
+            return None
+
+        first = self.stack[-1]
+        cleanup_offset = instruction_target(self.tokens[start])
+        cleanup_index = self.offset_to_index.get(cleanup_offset)
+        if (
+            cleanup_index is None
+            or self.tokens[cleanup_index].kind != "POP_TOP"
+            or cleanup_index + 1 >= len(self.tokens)
+        ):
+            return None
+
+        operators = list(first.ops)
+        comparators = list(first.comparators)
+        cursor = start + 1
+        final_jump = None
+        while cursor < cleanup_index:
+            marker = next(
+                (
+                    index
+                    for index in range(cursor, cleanup_index)
+                    if self.tokens[index].kind in _COMPARE_OPERATORS
+                    or self.tokens[index].kind == "SWAP_STACK"
+                ),
+                None,
+            )
+            if marker is None or marker == cursor:
+                return None
+            try:
+                comparator = self._expression_slice(cursor, marker)
+            except Python311ParseError:
+                return None
+
+            if self.tokens[marker].kind == "SWAP_STACK":
+                jump_index = marker + 3
+                while (
+                    jump_index < cleanup_index
+                    and self.tokens[jump_index].kind in _IGNORED_INTERNAL
+                ):
+                    jump_index += 1
+                if (
+                    jump_index >= cleanup_index
+                    or self.tokens[marker].attr != 2
+                    or self.tokens[marker + 1].kind != "COPY_STACK"
+                    or self.tokens[marker + 1].attr != 2
+                    or self.tokens[marker + 2].kind
+                    not in _COMPARE_OPERATORS
+                    or self.tokens[jump_index].kind
+                    not in _CONDITIONAL_JUMPS
+                    or instruction_target(self.tokens[jump_index])
+                    != cleanup_offset
+                ):
+                    return None
+                operators.append(
+                    _COMPARE_OPERATORS[self.tokens[marker + 2].kind]()
+                )
+                comparators.append(comparator)
+                cursor = jump_index + 1
+                continue
+
+            jump_index = marker + 1
+            while (
+                jump_index < cleanup_index
+                and self.tokens[jump_index].kind in _IGNORED_INTERNAL
+            ):
+                jump_index += 1
+            if (
+                jump_index >= len(self.tokens)
+                or self.tokens[jump_index].kind not in _CONDITIONAL_JUMPS
+            ):
+                return None
+            operators.append(_COMPARE_OPERATORS[self.tokens[marker].kind]())
+            comparators.append(comparator)
+            final_jump = jump_index
+            break
+
+        if final_jump is None:
+            return None
+
+        true_offset, false_offset = self._jump_outcomes(final_jump)
+        true_endpoint = self._resolve_condition_endpoint(true_offset)
+        false_endpoint = self._resolve_condition_endpoint(false_offset)
+        cleanup_endpoint = self._resolve_condition_endpoint(
+            self.tokens[cleanup_index + 1].offset
+        )
+        if (
+            true_endpoint == false_endpoint
+            or (
+                cleanup_endpoint != false_endpoint
+                and not self._equivalent_condition_endpoints(
+                    cleanup_endpoint,
+                    false_endpoint,
+                )
+            )
+        ):
+            return None
+
+        predicate = ast.Compare(
+            left=first.left,
+            ops=operators,
+            comparators=comparators,
+        )
+        entry_offset = self.tokens[start].offset
+        node = _DecisionNode(
+            start_index=start,
+            jump_index=final_jump,
+            predicate=predicate,
+            true_offset=true_endpoint,
+            false_offset=false_endpoint,
+        )
+        del self.stack[-2:]
+        return _ConditionPlan(
+            entry_offset=entry_offset,
+            nodes={entry_offset: node},
+            endpoints=tuple(sorted((true_endpoint, false_endpoint))),
+            true_endpoint=true_endpoint,
+            false_endpoint=false_endpoint,
+            expression=predicate,
+        )
+
     def _condition_plan(self, start: int) -> Optional[_ConditionPlan]:
+        chained = self._chained_condition_plan(start)
+        if chained is not None:
+            return chained
         jump_index = self._condition_jump(start)
         if jump_index is None:
             return None
-        first_line = next(
+        stacked_predicate = None
+        if (
+            jump_index == start
+            and self.stack
+            and isinstance(self.stack[-1], ast.expr)
+        ):
+            stacked_predicate = self.stack[-1]
+        else:
+            try:
+                self._predicate(start, jump_index)
+            except Python311ParseError:
+                # A conditional expression may be nested inside an already
+                # partially constructed call or collection.  In that case the
+                # current instruction is a stack prefix, not the predicate
+                # boundary.  Let the straight-line parser consume one
+                # instruction and retry from the next logical value.
+                return None
+        condition_line = next(
             (
-                token.linestart
-                for token in self.tokens[start:jump_index]
-                if token.linestart is not None
+                self.tokens[index].linestart
+                for index in range(start, jump_index + 1)
+                if self.tokens[index].linestart is not None
             ),
             None,
         )
-        nodes: Dict[int, _DecisionNode] = {}
-        endpoints: Set[int] = set()
-        pending = [start]
+        if condition_line is None:
+            condition_line = next(
+                (
+                    self.tokens[index].linestart
+                    for index in range(start - 1, -1, -1)
+                    if self.tokens[index].linestart is not None
+                ),
+                None,
+            )
 
-        while pending:
-            node_start = pending.pop()
-            offset = self.tokens[node_start].offset
-            if offset in nodes:
-                continue
-            node_jump = self._condition_jump(node_start)
+        def collect(allow_multiline: bool):
+            nodes: Dict[int, _DecisionNode] = {}
+            endpoints: Set[int] = set()
+            pending = [start]
+
+            while pending:
+                node_start = pending.pop()
+                offset = self.tokens[node_start].offset
+                if offset in nodes:
+                    continue
+                node_jump = self._condition_jump(node_start)
+                if node_jump is None:
+                    endpoints.add(offset)
+                    continue
+                if node_start == start and stacked_predicate is not None:
+                    predicate = stacked_predicate
+                else:
+                    try:
+                        predicate = self._predicate(node_start, node_jump)
+                    except Python311ParseError:
+                        endpoints.add(offset)
+                        continue
+                true_offset, false_offset = self._jump_outcomes(node_jump)
+                nodes[offset] = _DecisionNode(
+                    start_index=node_start,
+                    jump_index=node_jump,
+                    predicate=predicate,
+                    true_offset=true_offset,
+                    false_offset=false_offset,
+                )
+                for successor, sibling in (
+                    (true_offset, false_offset),
+                    (false_offset, true_offset),
+                ):
+                    successor_index = self.offset_to_index[successor]
+                    successor_token = self.tokens[successor_index]
+                    block = self.cfg.block_at(successor)
+                    has_single_predecessor = (
+                        len(self.cfg.predecessors(block.index)) == 1
+                    )
+                    successor_jump = self._condition_jump(
+                        successor_index
+                    )
+                    same_condition_line = successor_token.linestart in (
+                        None,
+                        condition_line,
+                    )
+                    rejoins_sibling = False
+                    if successor_jump is not None:
+                        jump_line = self.tokens[
+                            successor_jump
+                        ].linestart
+                        same_condition_line = (
+                            same_condition_line
+                            or jump_line == condition_line
+                        )
+                        successor_outcomes = self._jump_outcomes(
+                            successor_jump
+                        )
+                        rejoins_sibling = sibling in successor_outcomes
+                    if (
+                        has_single_predecessor
+                        and (
+                            same_condition_line
+                            or (allow_multiline and rejoins_sibling)
+                        )
+                        and successor_jump is not None
+                    ):
+                        pending.append(successor_index)
+                    else:
+                        endpoints.add(successor)
+            return nodes, endpoints
+
+        collected = collect(allow_multiline=True)
+        if collected is None:
+            return None
+        nodes, endpoints = collected
+        nodes, endpoints = self._coalesce_condition_endpoints(
+            nodes,
+            endpoints,
+        )
+        if len(endpoints) != 2:
+            collected = collect(allow_multiline=False)
+            if collected is None:
+                return None
+            nodes, endpoints = collected
+            nodes, endpoints = self._coalesce_condition_endpoints(
+                nodes,
+                endpoints,
+            )
+        if len(endpoints) != 2:
+            return None
+
+        def path_to_shared_endpoint(
+            offset: int,
+            stop: int,
+            active: FrozenSet[int],
+        ):
+            if offset == stop:
+                return {}, {stop}
+            if offset in active:
+                return None
+            index = self.offset_to_index.get(offset)
+            if index is None:
+                return None
+            block = self.cfg.block_at(offset)
+            if len(self.cfg.predecessors(block.index)) != 1:
+                return None
+            node_jump = self._condition_jump(index)
             if node_jump is None:
-                endpoints.add(offset)
-                continue
-            predicate = self._predicate(node_start, node_jump)
+                return None
+            try:
+                predicate = self._predicate(index, node_jump)
+            except Python311ParseError:
+                return None
             true_offset, false_offset = self._jump_outcomes(node_jump)
-            nodes[offset] = _DecisionNode(
-                start_index=node_start,
+            node = _DecisionNode(
+                start_index=index,
                 jump_index=node_jump,
                 predicate=predicate,
                 true_offset=true_offset,
                 false_offset=false_offset,
             )
-            for successor in (true_offset, false_offset):
-                successor_index = self.offset_to_index[successor]
-                successor_token = self.tokens[successor_index]
-                block = self.cfg.block_at(successor)
-                same_condition_line = successor_token.linestart in (
-                    None,
-                    first_line,
+            for path_offset, side_offset in (
+                (true_offset, false_offset),
+                (false_offset, true_offset),
+            ):
+                path = path_to_shared_endpoint(
+                    path_offset,
+                    stop,
+                    active | {offset},
                 )
-                has_single_predecessor = len(self.cfg.predecessors(block.index)) == 1
-                if (
-                    same_condition_line
-                    and has_single_predecessor
-                    and self._condition_jump(successor_index) is not None
-                ):
-                    pending.append(successor_index)
-                else:
-                    endpoints.add(successor)
-
-        if len(endpoints) != 2:
+                if path is None:
+                    continue
+                path_nodes, path_endpoints = path
+                return (
+                    {offset: node, **path_nodes},
+                    set(path_endpoints) | {side_offset},
+                )
             return None
+
+        # A parenthesized or backslash-continued boolean condition may span
+        # several source lines.  Extend one fallback branch only when its
+        # decision chain provably rejoins the sibling endpoint; this avoids
+        # absorbing a following independent ``if`` statement.
+        for branch, stop in (
+            tuple(endpoints),
+            tuple(reversed(tuple(endpoints))),
+        ):
+            extension = path_to_shared_endpoint(
+                branch,
+                stop,
+                frozenset(nodes),
+            )
+            if extension is None:
+                continue
+            extra_nodes, extended_endpoints = extension
+            extra_nodes, extended_endpoints = (
+                self._coalesce_condition_endpoints(
+                    extra_nodes,
+                    extended_endpoints,
+                )
+            )
+            if len(extended_endpoints) == 2:
+                nodes.update(extra_nodes)
+                endpoints = extended_endpoints
+                break
         true_endpoint, false_endpoint = sorted(endpoints)
 
         def build(offset: int) -> ast.expr:
@@ -374,7 +790,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
 
         entry_offset = self.tokens[start].offset
-        return _ConditionPlan(
+        plan = _ConditionPlan(
             entry_offset=entry_offset,
             nodes=nodes,
             endpoints=tuple(sorted(endpoints)),
@@ -382,6 +798,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             false_endpoint=false_endpoint,
             expression=build(entry_offset),
         )
+        if stacked_predicate is not None:
+            self.stack.pop()
+        return plan
 
     def _capture_region(
         self,
@@ -443,6 +862,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
         join_offset = instruction_target(self.tokens[jump_index])
         join_index = self.offset_to_index[join_offset]
+        entry_index = self.offset_to_index[plan.entry_offset]
+        try:
+            expression = self._expression_slice(
+                entry_index,
+                join_index,
+            )
+        except Python311ParseError:
+            expression = None
+        if expression is not None:
+            self.stack.append(expression)
+            return join_index
         try:
             body = self._expression_slice(true_index, jump_index)
             orelse = self._expression_slice(false_index, join_index)
@@ -516,7 +946,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             test = build(self.tokens[start].offset)
         except (Python311ParseError, ValueError):
             return None
-        if not saw_failure[0] or not success_offsets:
+        unconditional = failure_index == start
+        if not saw_failure[0] or (not success_offsets and not unconditional):
             return None
 
         message = None
@@ -534,6 +965,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
 
         self.body.append(ast.Assert(test=test, msg=message))
+        if unconditional:
+            return raise_index + 1
         return min(
             self.offset_to_index[offset] for offset in success_offsets
         )
@@ -545,6 +978,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
     ) -> int:
         true_index = self.offset_to_index[plan.true_endpoint]
         false_index = self.offset_to_index[plan.false_endpoint]
+        if true_index > false_index:
+            body = self._capture_region(false_index, true_index, loop)
+            self.body.append(
+                ast.If(
+                    test=_negate(plan.expression),
+                    body=body or [ast.Pass()],
+                    orelse=[],
+                )
+            )
+            return true_index
         excluded = loop.break_target if loop is not None else None
         jump_index = self._last_forward_jump(
             true_index,
@@ -581,6 +1024,27 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             except Python311ParseError:
                 continue
             return candidate
+        # Chained comparisons use an intermediate POP_JUMP to discard their
+        # duplicated middle operand, so the latch is not a single linear
+        # expression slice.  CPython marks the first instruction of the
+        # repeated source condition with its line number; use that boundary
+        # only when the candidate-to-latch range contains the chained jump.
+        line_start = next(
+            (
+                candidate
+                for candidate in range(jump_index - 1, body_start - 1, -1)
+                if self.tokens[candidate].linestart is not None
+            ),
+            None,
+        )
+        if (
+            line_start is not None
+            and any(
+                self.tokens[index].kind in _CONDITIONAL_JUMPS
+                for index in range(line_start, jump_index)
+            )
+        ):
+            return line_start
         return jump_index
 
     def _while_loop(
@@ -1028,6 +1492,96 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return end
         return None
 
+    def _for_iterator_return_cleanup(
+        self,
+        index: int,
+        end: int,
+        loop: Optional[_LoopContext],
+    ) -> Optional[int]:
+        """Skip the physical iterator removal before a loop-body return."""
+        if (
+            loop is None
+            or self.tokens[index].kind != "SWAP_STACK"
+            or len(self.stack) != 1
+            or not isinstance(self.stack[-1], ast.expr)
+        ):
+            return None
+
+        cursor = index
+        while (
+            cursor + 1 < end
+            and self.tokens[cursor].kind == "SWAP_STACK"
+            and self.tokens[cursor].attr == 2
+            and self.tokens[cursor + 1].kind == "POP_TOP"
+        ):
+            cursor += 2
+        if cursor == index:
+            return None
+        if cursor >= end or self.tokens[cursor].kind != "RETURN_VALUE":
+            if not self.exception_region_map.covering(
+                self.tokens[index].offset
+            ):
+                return None
+            # A return from a loop inside try/finally first removes the
+            # physical iterator, then carries the return value across the
+            # normal-path finally copy before RETURN_VALUE.  The source-level
+            # return belongs at the cleanup boundary; the duplicated finally
+            # instructions are structured separately by the exception-table
+            # recovery path.  The current region is the returning control-flow
+            # branch, so consume its remaining physical cleanup instructions.
+            self.body.append(ast.Return(value=self._pop_expr()))
+            return end
+
+        # The active FOR_ITER value exists on CPython's physical operand
+        # stack, but deliberately has no entry on the source-level AST stack.
+        # Each SWAP 2 / POP_TOP pair removes one iterator while preserving the
+        # return value.  Consume only a complete run ending at RETURN_VALUE;
+        # ordinary SWAP operations must continue through the checked logical
+        # stack implementation.
+        return cursor
+
+    def _for_iterator_cleanup_before_return(
+        self,
+        index: int,
+        end: int,
+        loop: Optional[_LoopContext],
+    ) -> Optional[int]:
+        """Skip iterators discarded before computing a constant return."""
+        if (
+            loop is None
+            or self.stack
+            or self.tokens[index].kind != "POP_TOP"
+        ):
+            return None
+
+        cursor = index
+        while cursor < end and self.tokens[cursor].kind == "POP_TOP":
+            cursor += 1
+        return_index = next(
+            (
+                candidate
+                for candidate in range(cursor, end)
+                if self.tokens[candidate].kind == "RETURN_VALUE"
+            ),
+            None,
+        )
+        if return_index is None or cursor == return_index:
+            return None
+
+        from decompyle3.parsers.p311.expressions import recover_expression311
+
+        try:
+            recover_expression311(
+                self.code,
+                self.tokens,
+                start=cursor,
+                end=return_index + 1,
+                terminal_kinds=frozenset({"RETURN_VALUE"}),
+            )
+        except Python311ParseError:
+            return None
+        return cursor
+
     def _try_return_expression(
         self,
         start: int,
@@ -1092,6 +1646,68 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
         self.body.append(ast.Return(value=expression))
         return return_index + 1
+
+    def _try_assignment_expression(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Recover one closed conditional expression before a name store."""
+        if (
+            self.stack
+            or self.pending_assignment_value is not None
+            or self.pending_assignment_targets
+            or self.pending_booleans
+            or self.pending_keywords
+        ):
+            return None
+
+        store_index = next(
+            (
+                index
+                for index in range(start, end)
+                if self.tokens[index].kind
+                in (
+                    "STORE_DEREF",
+                    "STORE_FAST",
+                    "STORE_GLOBAL",
+                    "STORE_NAME",
+                )
+                and not (
+                    index > start
+                    and self.tokens[index - 1].kind == "COPY_STACK"
+                    and self.tokens[index - 1].attr == 1
+                )
+            ),
+            None,
+        )
+        if store_index is None:
+            return None
+        candidate = self.tokens[start:store_index]
+        if not any(
+            token.kind.startswith(("JUMP_IF_", "POP_JUMP_"))
+            for token in candidate
+        ):
+            return None
+        if any(
+            token.kind
+            in (
+                "POP_TOP",
+                "RAISE_VARARGS",
+                "RETURN_VALUE",
+                "STORE_ATTR",
+                "STORE_SUBSCR",
+            )
+            for token in candidate
+        ):
+            return None
+
+        try:
+            expression = self._expression_slice(start, store_index)
+        except Python311ParseError:
+            return None
+        self.stack.append(expression)
+        return store_index
 
     def _parse_region(
         self,
@@ -1232,6 +1848,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = assert_end
                 continue
 
+            expression_end = self._try_assignment_expression(index, end)
+            if expression_end is not None:
+                index = expression_end
+                continue
+
+            return_end = self._try_return_expression(index, end)
+            if return_end is not None:
+                index = return_end
+                continue
+
             condition = self._condition_plan(index)
             if condition is not None:
                 loop_end = self._while_loop(condition, loop)
@@ -1255,10 +1881,29 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     index = controlled
                     continue
 
+            cleanup_end = self._for_iterator_return_cleanup(
+                index,
+                end,
+                loop,
+            )
+            if cleanup_end is not None:
+                index = cleanup_end
+                continue
+
+            cleanup_end = self._for_iterator_cleanup_before_return(
+                index,
+                end,
+                loop,
+            )
+            if cleanup_end is not None:
+                index = cleanup_end
+                continue
+
             if (
                 token.kind == "POP_TOP"
                 and index + 1 < end
                 and loop is not None
+                and not self.stack
                 and self.tokens[index + 1].kind == "JUMP_FORWARD"
                 and instruction_target(self.tokens[index + 1])
                 == loop.break_target

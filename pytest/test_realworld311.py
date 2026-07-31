@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from decompyle3.errors import SemanticGenerationError
 from decompyle3.parsers.p311.base import Python311ParseError
 from support311 import ROOT, compare_behavior311
 
@@ -198,15 +197,15 @@ def test_realworld_recursion_exhaustion_fails_closed():
     assert isinstance(raised.value.code_name, str)
 
 
-def test_suspicious_generated_source_warning_fails_closed():
+def test_suspicious_with_cleanup_fails_closed_before_source_generation():
     source = (
         Path(sysconfig.get_path("stdlib"))
         / "multiprocessing"
         / "spawn.py"
     )
     with pytest.raises(
-        SemanticGenerationError,
-        match="does not recompile cleanly",
+        Python311ParseError,
+        match="With cleanup",
     ) as raised:
         runner._recover(source)
     assert raised.value.version == (3, 11)

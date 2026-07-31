@@ -50,37 +50,13 @@
     "runtime": "3.11.9"
   },
   "failure_classifications": {
-    "realworld_call_and_expression_stack": 219,
-    "realworld_comprehension_and_iterator_protocol": 81,
-    "realworld_function_object_flow": 11,
-    "realworld_match_boundary": 1,
-    "realworld_recursive_structure": 18,
-    "realworld_with_control_transfer": 35
+    "realworld_comprehension_and_iterator_protocol": 124,
+    "realworld_exception_cleanup_control_transfer": 25,
+    "realworld_function_object_flow": 15,
+    "realworld_recursive_structure": 33,
+    "realworld_with_control_transfer": 76
   },
   "failure_samples": {
-    "realworld_call_and_expression_stack": [
-      {
-        "error": "Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE) [version=3.11, code='<dictcomp>', offset=20]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/dominators.py",
-        "opcode": "POP_JUMP_FORWARD_IF_FALSE"
-      },
-      {
-        "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_handler_has_match', offset=64]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/exception_structures.py",
-        "opcode": "POP_TOP"
-      },
-      {
-        "error": "Instruction range 6:31 does not contain 1 expression value(s) (MatchStructureDecompiler311._looks_like_case_start.<locals>.<genexpr>) [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/match_structures.py",
-        "opcode": null
-      }
-    ],
     "realworld_comprehension_and_iterator_protocol": [
       {
         "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='main', offset=608]",
@@ -97,11 +73,34 @@
         "opcode": "FOR_ITER"
       },
       {
-        "error": "Unsupported phase-3 opcode RETURN_GENERATOR (opcode RETURN_GENERATOR) [version=3.11, code='prefixed', offset=2]",
+        "error": "Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE) [version=3.11, code='<dictcomp>', offset=20]",
         "error_type": "Python311ParseError",
         "group": "project",
-        "name": "decompyle3/controlflow/exceptiontable311.py",
-        "opcode": "RETURN_GENERATOR"
+        "name": "decompyle3/controlflow/dominators.py",
+        "opcode": "POP_JUMP_FORWARD_IF_FALSE"
+      }
+    ],
+    "realworld_exception_cleanup_control_transfer": [
+      {
+        "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_connect_sock', offset=234]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "asyncio/base_events.py",
+        "opcode": "POP_TOP"
+      },
+      {
+        "error": "Structured statement region left stack values (opcode LOAD_ATTR) [version=3.11, code='is_running', offset=42]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "asyncio/coroutines.py",
+        "opcode": "LOAD_ATTR"
+      },
+      {
+        "error": "JUMP_FORWARD targets outside the expression [version=3.11, code='wait', offset=584]",
+        "error_type": "Python311ParseError",
+        "group": "stdlib",
+        "name": "asyncio/locks.py",
+        "opcode": null
       }
     ],
     "realworld_function_object_flow": [
@@ -127,59 +126,50 @@
         "opcode": "STORE_ATTR"
       }
     ],
-    "realworld_match_boundary": [
-      {
-        "error": "Match case body has no structural terminator ('<module>', offset 424) [version=3.11, code='<module>', offset=424]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "tarfile.py",
-        "opcode": null
-      }
-    ],
     "realworld_recursive_structure": [
+      {
+        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/controlflow/structures.py",
+        "opcode": null
+      },
+      {
+        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/parsers/p311/base.py",
+        "opcode": null
+      },
       {
         "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
         "error_type": "Python311ParseError",
         "group": "project",
         "name": "decompyle3/parsers/p311/comprehensions.py",
         "opcode": null
-      },
-      {
-        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/parsers/reduce_check/ifelsestmt.py",
-        "opcode": null
-      },
-      {
-        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/parsers/reduce_check/ifstmts_jump.py",
-        "opcode": null
       }
     ],
     "realworld_with_control_transfer": [
       {
-        "error": "Returning with-body is not one expression ('_patch', offset 234) [version=3.11, code='<module>', offset=234]",
+        "error": "With cleanup crosses an enclosing exception region (opcode STORE_FAST) [version=3.11, code='check_output', offset=392]",
         "error_type": "Python311ParseError",
         "group": "stdlib",
-        "name": "_threading_local.py",
-        "opcode": null
+        "name": "_bootsubprocess.py",
+        "opcode": "STORE_FAST"
       },
       {
-        "error": "Returning with-body is not one expression ('__iter__', offset 34) [version=3.11, code='<module>', offset=34]",
+        "error": "With cleanup exit call lost its context-manager callable (opcode CALL) [version=3.11, code='readinto', offset=242]",
         "error_type": "Python311ParseError",
         "group": "stdlib",
-        "name": "_weakrefset.py",
-        "opcode": null
+        "name": "_compression.py",
+        "opcode": "CALL"
       },
       {
-        "error": "Returning with-body is not one expression ('dump_stats', offset 40) [version=3.11, code='<module>', offset=40]",
+        "error": "With cleanup body could not be structured safely: Returning with-body is not one expression ('_read_output', offset 206) (opcode BEFORE_WITH) [version=3.11, code='_read_output', offset=206]",
         "error_type": "Python311ParseError",
         "group": "stdlib",
-        "name": "cProfile.py",
-        "opcode": null
+        "name": "_osx_support.py",
+        "opcode": "BEFORE_WITH"
       }
     ]
   },
@@ -192,34 +182,34 @@
   },
   "groups": {
     "project": {
-      "decompile_success": 63,
-      "fail_closed": 52,
+      "decompile_success": 82,
+      "fail_closed": 33,
       "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 63,
+      "syntax_success": 82,
       "unexpected_crash": 0
     },
     "stdlib": {
-      "decompile_success": 115,
-      "fail_closed": 223,
+      "decompile_success": 159,
+      "fail_closed": 179,
       "input_files": 338,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 115,
+      "syntax_success": 159,
       "unexpected_crash": 0
     },
     "third_party": {
-      "decompile_success": 61,
-      "fail_closed": 90,
+      "decompile_success": 90,
+      "fail_closed": 61,
       "input_files": 151,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 61,
+      "syntax_success": 90,
       "unexpected_crash": 0
     }
   },
-  "input_digest": "74d6170d189ca0daaa4f31a56ccd1e0e3c32d04154ba02ad8320b7d8250381c7",
+  "input_digest": "ab4cac873938ff835d81f1be7598b859dd7ea033c6e30d1ebeb1e44a4fa06312",
   "phase": 8,
   "schema_version": 1,
   "selection": {
@@ -257,12 +247,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 239,
-    "fail_closed": 365,
+    "decompile_success": 331,
+    "fail_closed": 273,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 239,
+    "syntax_success": 331,
     "unexpected_crash": 0
   }
 }

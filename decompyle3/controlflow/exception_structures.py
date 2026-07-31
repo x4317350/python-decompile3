@@ -85,6 +85,37 @@ class ExceptionStructureDecompiler311:
         finally:
             self.owner._suppressed_exception_starts.remove(offset)
 
+    def _capture_protected_return(
+        self,
+        start: int,
+        end: int,
+        loop,
+    ) -> Optional[List[ast.stmt]]:
+        """Recover a return value kept on the VM stack across ``finally``."""
+        expression_start = self.owner._latch_expression_start(start, end)
+        if expression_start >= end:
+            return None
+
+        offset = self.tokens[start].offset
+        self.owner._suppressed_exception_starts.add(offset)
+        try:
+            try:
+                body = self._capture_optional(
+                    start,
+                    expression_start,
+                    loop,
+                )
+                expression = self.owner._expression_slice(
+                    expression_start,
+                    end,
+                )
+            except Python311ParseError:
+                return None
+        finally:
+            self.owner._suppressed_exception_starts.remove(offset)
+        body.append(ast.Return(value=expression))
+        return body
+
     def _capture_suppressed(
         self,
         start: int,
@@ -127,13 +158,65 @@ class ExceptionStructureDecompiler311:
             handler_offset
         )
         try:
-            return self._capture_optional(start, end, loop)
+            try:
+                return self._capture_optional(start, end, loop)
+            except Python311ParseError as error:
+                if not hasattr(error, "shape_hint"):
+                    error.shape_hint = (
+                        "realworld_exception_cleanup_control_transfer"
+                    )
+                raise
         finally:
             self.owner._suppressed_exception_starts.difference_update(added)
             if handler_added:
                 self.owner._suppressed_exception_handler_targets.remove(
                     handler_offset
                 )
+
+    def _capture_deferred_return_finally(
+        self,
+        start: int,
+        end: int,
+        handler_offset: int,
+        loop,
+        protected_statement: ast.stmt,
+    ) -> List[ast.stmt]:
+        """Capture a finally copy that consumes an earlier return value."""
+        has_protected_return = any(
+            isinstance(node, ast.Return)
+            for node in ast.walk(protected_statement)
+        )
+        protocol_offsets = set()
+        if has_protected_return:
+            for index in range(start, end):
+                if self.tokens[index].kind != "RETURN_VALUE":
+                    continue
+                swap_index = index - 2
+                finally_overrides_return = (
+                    swap_index >= start
+                    and self.tokens[swap_index].kind == "SWAP_STACK"
+                    and self.tokens[swap_index].attr == 2
+                    and self.tokens[swap_index + 1].kind == "POP_TOP"
+                )
+                if not finally_overrides_return:
+                    protocol_offsets.add(self.tokens[index].offset)
+
+        added = (
+            protocol_offsets
+            - self.owner._suppressed_exception_protocol_offsets
+        )
+        self.owner._suppressed_exception_protocol_offsets.update(added)
+        try:
+            return self._capture_before_handler(
+                start,
+                end,
+                handler_offset,
+                loop,
+            )
+        finally:
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added
+            )
 
     def _handler_protocol_offsets(
         self,
@@ -531,7 +614,35 @@ class ExceptionStructureDecompiler311:
             and self.tokens[body_end].kind == "RETURN_VALUE"
         ):
             body_end += 1
+        elif body_end < handler_index:
+            cursor = body_end
+            while (
+                cursor + 1 < handler_index
+                and self.tokens[cursor].kind == "SWAP_STACK"
+                and self.tokens[cursor].attr == 2
+                and self.tokens[cursor + 1].kind == "POP_TOP"
+            ):
+                cursor += 2
+            if (
+                cursor > body_end
+                and cursor < handler_index
+                and self.tokens[cursor].kind == "RETURN_VALUE"
+            ):
+                # The protected expression was already structured as the
+                # source return; these physical loop-iterator cleanup pairs
+                # belong to that same normal path, not to ``try`` orelse.
+                body_end = cursor + 1
         body = self._capture_protected(start, body_end, loop)
+        if (
+            0 < body_end < handler_index
+            and self.tokens[body_end - 1].kind
+            in ("BEFORE_WITH", "BEFORE_ASYNC_WITH")
+            and self.tokens[body_end].kind.startswith(("STORE_", "POP_TOP"))
+        ):
+            self.owner.current_token = self.tokens[body_end]
+            self.owner._error(
+                "With cleanup crosses an enclosing exception region"
+            )
 
         normal_jump = (
             handler_index - 1
@@ -634,17 +745,52 @@ class ExceptionStructureDecompiler311:
                 )
                 if not next_index <= protected_end < handler_index:
                     self._error("Finally suite has no normal-path body")
-                continuation = self._capture_before_handler(
-                    next_index,
-                    protected_end,
-                    handler_offset,
-                    loop,
+                has_normal_return = any(
+                    self.tokens[index].kind == "RETURN_VALUE"
+                    for index in range(protected_end, handler_index)
                 )
-                finalbody = self._capture_before_handler(
+                expression_start = (
+                    self.owner._latch_expression_start(
+                        next_index,
+                        protected_end,
+                    )
+                    if has_normal_return
+                    else protected_end
+                )
+                if expression_start < protected_end:
+                    continuation = self._capture_before_handler(
+                        next_index,
+                        expression_start,
+                        handler_offset,
+                        loop,
+                    )
+                    continuation.append(
+                        ast.Return(
+                            value=self.owner._expression_slice(
+                                expression_start,
+                                protected_end,
+                            )
+                        )
+                    )
+                else:
+                    continuation = self._capture_before_handler(
+                        next_index,
+                        protected_end,
+                        handler_offset,
+                        loop,
+                    )
+                protected_statement = ast.Try(
+                    body=[statement] + continuation,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=[],
+                )
+                finalbody = self._capture_deferred_return_finally(
                     protected_end,
                     handler_index,
                     handler_offset,
                     loop,
+                    protected_statement,
                 )
                 statement = ast.Try(
                     body=[statement] + continuation,
@@ -872,7 +1018,27 @@ class ExceptionStructureDecompiler311:
         try_end = self.offset_to_index[entry.end]
         handler_index = self.offset_to_index[entry.target]
         self._remember_exception_state(entry)
-        body = self._capture_protected(start, try_end, loop)
+        normal_return_index = next(
+            (
+                index
+                for index in range(try_end, handler_index)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ),
+            None,
+        )
+        body = (
+            self._capture_protected_return(start, try_end, loop)
+            if normal_return_index is not None
+            else None
+        )
+        protected_return = body is not None
+        if body is None:
+            body = self._capture_protected(start, try_end, loop)
+        protected_return = protected_return or any(
+            isinstance(node, ast.Return)
+            for statement in body
+            for node in ast.walk(statement)
+        )
         cleanup_end = self._handler_cleanup_end(
             handler_index + 1,
             handler_index,
@@ -933,12 +1099,81 @@ class ExceptionStructureDecompiler311:
                 if target > terminal.offset and not is_break:
                     finalbody_end -= 1
                     next_index = self.offset_to_index[target]
-        finalbody = self._capture_before_handler(
-            try_end,
-            finalbody_end,
-            entry.target,
-            loop,
+        finalbody_return = None
+        finalbody_protocol_offsets = set()
+        if (
+            normal_return_index is not None
+            and normal_return_index < finalbody_end
+        ):
+            swap_index = normal_return_index - 2
+            if (
+                swap_index >= try_end
+                and self.tokens[swap_index].kind == "SWAP_STACK"
+                and self.tokens[swap_index].attr == 2
+                and self.tokens[swap_index + 1].kind == "POP_TOP"
+            ):
+                expression_start = self.owner._latch_expression_start(
+                    try_end,
+                    swap_index,
+                )
+                if expression_start < swap_index:
+                    finalbody_return = self.owner._expression_slice(
+                        expression_start,
+                        swap_index,
+                    )
+                    finalbody_end = expression_start
+                else:
+                    finalbody_end = normal_return_index
+            elif protected_return:
+                # RETURN_VALUE consumes the value computed in the protected
+                # region.  That source-level return was already restored to
+                # ``body`` above, so it is not part of the finally suite.  A
+                # conditional finally copy can have one RETURN_VALUE per
+                # physical branch; retain the whole branch shape while hiding
+                # those terminal stack operations.
+                cursor = normal_return_index
+                while (
+                    cursor < finalbody_end
+                    and self.tokens[cursor].kind == "RETURN_VALUE"
+                ):
+                    finalbody_protocol_offsets.add(
+                        self.tokens[cursor].offset
+                    )
+                    cursor += 1
+                finalbody_end = cursor
+            else:
+                expression_start = self.owner._latch_expression_start(
+                    try_end,
+                    normal_return_index,
+                )
+                if expression_start < normal_return_index:
+                    finalbody_return = self.owner._expression_slice(
+                        expression_start,
+                        normal_return_index,
+                    )
+                    finalbody_end = expression_start
+                else:
+                    finalbody_end = normal_return_index
+        added_protocol_offsets = (
+            finalbody_protocol_offsets
+            - self.owner._suppressed_exception_protocol_offsets
         )
+        self.owner._suppressed_exception_protocol_offsets.update(
+            added_protocol_offsets
+        )
+        try:
+            finalbody = self._capture_before_handler(
+                try_end,
+                finalbody_end,
+                entry.target,
+                loop,
+            )
+        finally:
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added_protocol_offsets
+            )
+        if finalbody_return is not None:
+            finalbody.append(ast.Return(value=finalbody_return))
         self._move_normal_return_before_finally(
             body,
             finalbody,
@@ -1022,14 +1257,27 @@ class ExceptionStructureDecompiler311:
 
         # A source ``try: try: ... finally: ... except: ...`` is split into
         # adjacent exception-table protocols.  Once the inner finally cleanup
-        # has been consumed, the enclosing except handler begins immediately.
+        # has been consumed, the enclosing except handler either begins
+        # immediately or follows its normal-path jump-over edge.
+        outer_handler_index = next_index
+        normal_except_join = None
         if (
-            next_index < len(self.tokens)
-            and self.tokens[next_index].kind == "PUSH_EXC_INFO"
-            and self._handler_has_match(next_index)
+            next_index + 1 < len(self.tokens)
+            and self.tokens[next_index].kind == "JUMP_FORWARD"
+            and self.tokens[next_index + 1].kind == "PUSH_EXC_INFO"
+            and self._handler_has_match(next_index + 1)
+        ):
+            outer_handler_index = next_index + 1
+            normal_except_join = instruction_target(
+                self.tokens[next_index]
+            )
+        if (
+            outer_handler_index < len(self.tokens)
+            and self.tokens[outer_handler_index].kind == "PUSH_EXC_INFO"
+            and self._handler_has_match(outer_handler_index)
         ):
             outer_handlers, outer_end, outer_join = self._parse_handlers(
-                next_index,
+                outer_handler_index,
                 loop,
             )
             statement = ast.Try(
@@ -1041,7 +1289,10 @@ class ExceptionStructureDecompiler311:
             next_index = (
                 self.offset_to_index[outer_join]
                 if outer_join is not None
-                else outer_end
+                else self.offset_to_index.get(
+                    normal_except_join,
+                    outer_end,
+                )
             )
 
         return statement, next_index
@@ -1143,7 +1394,16 @@ class ExceptionStructureDecompiler311:
                 token.linestart is not None
                 for token in self.tokens[body_start:nested_before]
             )
-            context = self.owner._expression_slice(body_start, nested_before)
+            try:
+                context = self.owner._expression_slice(
+                    body_start,
+                    nested_before,
+                )
+            except Python311ParseError as error:
+                self.owner._error(
+                    "With cleanup nested context could not be structured "
+                    f"safely: {error.message}"
+                )
             cursor = nested_before
 
         first_handler = min(handler_targets)
@@ -1152,7 +1412,18 @@ class ExceptionStructureDecompiler311:
             self.tokens[index].kind == "RETURN_VALUE"
             for index in range(body_end, first_handler_index)
         )
-        body = self._with_body(body_start, body_end, returning, loop)
+        try:
+            body = self._with_body(
+                body_start,
+                body_end,
+                returning,
+                loop,
+            )
+        except Python311ParseError as error:
+            self.owner._error(
+                "With cleanup body could not be structured safely: "
+                f"{error.message}"
+            )
         suite = body or [ast.Pass()]
         for group_is_async, items in reversed(groups):
             statement_type = ast.AsyncWith if group_is_async else ast.With
@@ -1181,7 +1452,23 @@ class ExceptionStructureDecompiler311:
 
 
 def recover_try_statement311(owner, index: int, loop):
-    return ExceptionStructureDecompiler311(owner).try_statement(index, loop)
+    try:
+        return ExceptionStructureDecompiler311(owner).try_statement(
+            index,
+            loop,
+        )
+    except Python311ParseError as error:
+        # Once an exception-table entry has selected this recovery path, a
+        # failure below it is an exception cleanup/control-transfer shape,
+        # even when the first visible stack symptom is CALL, RETURN_VALUE, or
+        # another ordinary expression opcode.  Preserve the exact parser
+        # diagnostic and attach classification metadata rather than relaxing
+        # the expression parser.
+        if not hasattr(error, "shape_hint"):
+            error.shape_hint = (
+                "realworld_exception_cleanup_control_transfer"
+            )
+        raise
 
 
 def recover_with_statement311(owner, index: int, end: int, loop):

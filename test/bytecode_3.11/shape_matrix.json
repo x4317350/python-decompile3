@@ -394,14 +394,17 @@
     {
       "name": "realworld_call_and_expression_stack",
       "category": "realworld_expression",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/13_call_expression_stack.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
-        "pytest/test_realworld311.py::test_suspicious_generated_source_warning_fails_closed"
+        "pytest/test_call_expression_stack311.py::test_scanner_and_ast_cover_stage4_protocols",
+        "pytest/test_call_expression_stack311.py::test_calls_conditionals_and_comparison_chains_preserve_behavior",
+        "pytest/test_call_expression_stack311.py::test_callback_and_argument_evaluation_order_are_preserved",
+        "pytest/test_call_expression_stack311.py::test_loop_return_and_nested_cleanup_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 8 groups real-world call operands, stack rotations, expression joins, and generated-source validation failures; these inputs fail closed instead of emitting unchecked source."
+      "notes": "Stage 4 recovers CPython 3.11 logical COPY/SWAP stacks, nested and multiline conditional expressions, comparison chains, f-string values, ordinary callback lambdas, CALL/PRECALL/KW_NAMES evaluation order, and return values carried across loop/finally cleanup. The fixed 604-file archive has no remaining call/expression-stack failure classification."
     },
     {
       "name": "realworld_comprehension_and_iterator_protocol",
@@ -417,17 +420,17 @@
     {
       "name": "realworld_exception_cleanup_control_transfer",
       "category": "realworld_exception",
-      "status": "pass",
-      "fixture": "test/simple_source/311/12_exception_cleanup.py",
-      "expected_error": null,
+      "status": "unsupported_fail_closed",
+      "fixture": null,
+      "expected_error": "Decompyle3Error",
       "tests": [
+        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
         "pytest/test_exception_cleanup311.py::test_handler_return_raise_from_and_bare_reraise_preserve_behavior",
         "pytest/test_exception_cleanup311.py::test_nested_handlers_and_finally_side_effect_order_are_preserved",
         "pytest/test_exception_cleanup311.py::test_generator_cleanup_control_transfers_preserve_behavior",
-        "pytest/test_exception_cleanup311.py::test_handler_break_from_while_true_preserves_behavior",
-        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
+        "pytest/test_exception_cleanup311.py::test_handler_break_from_while_true_preserves_behavior"
       ],
-      "notes": "Stage 3 structures CPython 3.11 handler state, RERAISE propagation, POP_EXCEPT cleanup, nested and terminal finally copies, and exception-only SWAP operations before expression fallback. The fixed 604-file archive has no remaining exception-cleanup failure classification."
+      "notes": "Stage 3 verifies the canonical exception-cleanup fixture, but Stage 4 exposes 25 advanced nested return/call/control-transfer layouts in recognized exception-table regions. They retain exact parser diagnostics with an exception-cleanup shape hint and fail closed instead of falling through to ordinary expression recovery."
     },
     {
       "name": "realworld_function_object_flow",
@@ -459,13 +462,14 @@
     {
       "name": "realworld_match_boundary",
       "category": "realworld_match",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/06_match.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_syntax311.py::test_recovered_match_preserves_bindings_guards_and_behavior"
       ],
-      "notes": "Phase 8 records match case/body fallthrough boundaries that cannot be structured without guessing."
+      "notes": "Stage 4 bounds match lookahead at ordinary call, collection builder, function creation, and store operations, preventing expression code from being misclassified as a match statement. The fixed 604-file archive has no remaining match-boundary failure classification."
     },
     {
       "name": "realworld_recursive_structure",

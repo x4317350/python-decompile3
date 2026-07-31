@@ -296,10 +296,10 @@ def test_circular_relative_import_preserves_import_error(tmp_path):
         (ROOT / "decompyle3" / "scanners" / "pypy38.py", None),
         (ROOT / "decompyle3" / "semantics" / "customize311.py", None),
         (ROOT / "decompyle3" / "semantics" / "parser_error.py", None),
-        (
-            ROOT / "decompyle3" / "semantics" / "pysource.py",
-            "Operand stack underflow",
-        ),
+            (
+                ROOT / "decompyle3" / "semantics" / "pysource.py",
+                "Unsupported phase-3 opcode FOR_ITER",
+            ),
         (
             Path(sysconfig.get_path("purelib")) / "_pytest" / "junitxml.py",
             "function definition is stored to a non-name target",

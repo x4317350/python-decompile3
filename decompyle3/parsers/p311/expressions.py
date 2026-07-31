@@ -10,6 +10,7 @@ from decompyle3.controlflow.cfg import instruction_target
 from decompyle3.parsers.p311.base import (
     Python311ParseError,
     _COMPARE_OPERATORS,
+    _IGNORED_INTERNAL,
     _StraightLineDecompiler,
 )
 
@@ -129,6 +130,11 @@ class ExpressionDecompiler311:
             for index, token in enumerate(self.tokens)
             if self.start <= index < self.end
         }
+        self.end_offset = (
+            self.tokens[self.end].offset
+            if self.end < len(self.tokens)
+            else None
+        )
         self.successors = self._build_successors()
         self.reachable = self._reachable_nodes()
         self.post_dominators = self._post_dominator_sets()
@@ -149,6 +155,8 @@ class ExpressionDecompiler311:
 
     def _target_index(self, index: int) -> int:
         target = instruction_target(self.tokens[index])
+        if target == self.end_offset:
+            return _VIRTUAL_EXIT
         if target not in self.offset_to_index:
             self._error(
                 f"{self.tokens[index].kind} targets outside the expression",
@@ -199,7 +207,12 @@ class ExpressionDecompiler311:
         changed = True
         while changed:
             changed = False
-            for node in sorted(nodes):
+            # Expression CFG instruction indices normally flow from lower to
+            # higher values.  Visiting them backwards propagates the virtual
+            # exit through a straight-line region in one pass instead of one
+            # instruction per pass, which otherwise makes large functions
+            # effectively cubic here.
+            for node in sorted(nodes, reverse=True):
                 if node == _VIRTUAL_EXIT:
                     continue
                 outgoing = [
@@ -207,11 +220,12 @@ class ExpressionDecompiler311:
                     for successor in self.successors[node]
                     if successor in nodes
                 ]
-                shared = (
-                    set.intersection(*(set(item) for item in outgoing))
-                    if outgoing
-                    else {_VIRTUAL_EXIT}
-                )
+                if outgoing:
+                    shared = set(outgoing[0])
+                    for members in outgoing[1:]:
+                        shared.intersection_update(members)
+                else:
+                    shared = {_VIRTUAL_EXIT}
                 updated = frozenset({node} | shared)
                 if updated != result[node]:
                     result[node] = updated
@@ -235,6 +249,31 @@ class ExpressionDecompiler311:
         return result
 
     def _dispatch(self, state: _ExpressionState, index: int):
+        token = self.tokens[index]
+        if token.kind in (
+            "STORE_DEREF",
+            "STORE_FAST",
+            "STORE_GLOBAL",
+            "STORE_NAME",
+        ):
+            name = token.attr if isinstance(token.attr, str) else token.pattr
+            if (
+                len(state.stack) < 2
+                or not isinstance(name, str)
+                or not isinstance(state.stack[-1], ast.expr)
+                or not _same_expression(state.stack[-2], state.stack[-1])
+            ):
+                self._error(
+                    "Expression STORE is not paired with COPY_STACK 1",
+                    index,
+                )
+            value = state.stack.pop()
+            state.stack[-1] = ast.NamedExpr(
+                target=ast.Name(id=name, ctx=ast.Store()),
+                value=value,
+            )
+            return
+
         parser = _StraightLineDecompiler(
             self.code,
             (),
@@ -242,8 +281,8 @@ class ExpressionDecompiler311:
         )
         parser.stack = state.stack
         parser.pending_keywords = state.pending_keywords
-        parser.current_token = self.tokens[index]
-        parser._dispatch(self.tokens[index])
+        parser.current_token = token
+        parser._dispatch(token)
         parser._flush_assignment()
         if parser.body or parser.pending_assignment_value is not None:
             self._error("Expression bytecode emitted a statement", index)
@@ -347,6 +386,150 @@ class ExpressionDecompiler311:
             )
             return next_index
         return None
+
+    def _resolve_forward_endpoint(self, index: int) -> int:
+        seen = set()
+        while index not in seen:
+            seen.add(index)
+            while (
+                self.start <= index < self.end
+                and self.tokens[index].kind in _IGNORED_INTERNAL
+            ):
+                index += 1
+            if (
+                index < self.start
+                or index >= self.end
+                or self.tokens[index].kind != "JUMP_FORWARD"
+            ):
+                return index
+            index = self._target_index(index)
+        return index
+
+    def _try_chained_condition(
+        self,
+        state: _ExpressionState,
+        index: int,
+    ) -> Optional[int]:
+        """Collapse POP_JUMP-based chained comparisons inside expressions."""
+        token = self.tokens[index]
+        if (
+            not token.kind.startswith("POP_JUMP_")
+            or len(state.stack) < 2
+            or not isinstance(state.stack[-1], ast.Compare)
+            or len(state.stack[-1].ops) != 1
+            or len(state.stack[-1].comparators) != 1
+            or not isinstance(state.stack[-2], ast.expr)
+            or not _same_expression(
+                state.stack[-2],
+                state.stack[-1].comparators[0],
+            )
+        ):
+            return None
+
+        cleanup_index = self.offset_to_index.get(instruction_target(token))
+        if (
+            cleanup_index is None
+            or cleanup_index + 1 >= self.end
+            or self.tokens[cleanup_index].kind != "POP_TOP"
+        ):
+            return None
+
+        first = state.stack[-1]
+        operators = list(first.ops)
+        comparators = list(first.comparators)
+        cursor = index + 1
+        final_jump = None
+        while cursor < cleanup_index:
+            marker = next(
+                (
+                    candidate
+                    for candidate in range(cursor, cleanup_index)
+                    if self.tokens[candidate].kind in _COMPARE_OPERATORS
+                    or self.tokens[candidate].kind == "SWAP_STACK"
+                ),
+                None,
+            )
+            if marker is None or marker == cursor:
+                return None
+            try:
+                comparator = recover_expression311(
+                    self.code,
+                    self.tokens,
+                    start=cursor,
+                    end=marker,
+                    terminal_kinds=frozenset(),
+                )
+            except Python311ParseError:
+                return None
+
+            if self.tokens[marker].kind == "SWAP_STACK":
+                jump_index = marker + 3
+                while (
+                    jump_index < cleanup_index
+                    and self.tokens[jump_index].kind in _IGNORED_INTERNAL
+                ):
+                    jump_index += 1
+                if (
+                    jump_index >= cleanup_index
+                    or self.tokens[marker].attr != 2
+                    or self.tokens[marker + 1].kind != "COPY_STACK"
+                    or self.tokens[marker + 1].attr != 2
+                    or self.tokens[marker + 2].kind
+                    not in _COMPARE_OPERATORS
+                    or not self.tokens[jump_index].kind.startswith(
+                        "POP_JUMP_"
+                    )
+                    or instruction_target(self.tokens[jump_index])
+                    != instruction_target(token)
+                ):
+                    return None
+                operators.append(
+                    _COMPARE_OPERATORS[self.tokens[marker + 2].kind]()
+                )
+                comparators.append(comparator)
+                cursor = jump_index + 1
+                continue
+
+            jump_index = marker + 1
+            while (
+                jump_index < cleanup_index
+                and self.tokens[jump_index].kind in _IGNORED_INTERNAL
+            ):
+                jump_index += 1
+            if (
+                jump_index >= self.end
+                or not self.tokens[jump_index].kind.startswith("POP_JUMP_")
+            ):
+                return None
+            operators.append(_COMPARE_OPERATORS[self.tokens[marker].kind]())
+            comparators.append(comparator)
+            final_jump = jump_index
+            break
+
+        if final_jump is None:
+            return None
+        final_token = self.tokens[final_jump]
+        target = self._target_index(final_jump)
+        following = final_jump + 1
+        false_index = (
+            target
+            if "IF_FALSE" in final_token.kind
+            else following
+        )
+        cleanup_exit = self._resolve_forward_endpoint(cleanup_index + 1)
+        false_exit = self._resolve_forward_endpoint(false_index)
+        if cleanup_exit != false_exit:
+            return None
+
+        del state.stack[-2:]
+        state.stack.append(
+            ast.Compare(
+                left=first.left,
+                ops=operators,
+                comparators=comparators,
+            )
+        )
+        return final_jump
 
     def _predicate(self, token, value: ast.expr) -> ast.expr:
         if "IF_NOT_NONE" in token.kind:
@@ -473,6 +656,14 @@ class ExpressionDecompiler311:
                     self._error("Expression terminated before its merge point", index)
                 return state
 
+            chained_condition = self._try_chained_condition(
+                state,
+                index,
+            )
+            if chained_condition is not None:
+                index = chained_condition
+                continue
+
             if kind.startswith(_CONDITIONAL_PREFIXES):
                 join = self.immediate_post_dominators.get(index)
                 if join is None:
@@ -585,7 +776,10 @@ class ExpressionDecompiler311:
             self._error(
                 f"Expression produced {len(state.stack)} final stack values"
             )
-        return state.stack[0]
+        value = state.stack[0]
+        if isinstance(value, ast.FormattedValue):
+            return ast.JoinedStr(values=[value])
+        return value
 
 
 def recover_expression311(

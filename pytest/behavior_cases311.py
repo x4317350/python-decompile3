@@ -423,6 +423,74 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/simple_source/311/13_call_expression_stack.py": _probe(
+        """
+        def _register(callback):
+            return callback()
+
+        class _Receiver:
+            def method(self, positional, *, keyword):
+                return positional, keyword
+
+        def _ordered():
+            events = []
+
+            def mark(name, value):
+                events.append(name)
+                return value
+
+            result = ordered_call(_Receiver(), mark)
+            return result, events
+
+        def _cleanup(fail):
+            events = []
+
+            def function():
+                if fail:
+                    raise ValueError("failed")
+                return "value"
+
+            return nested_finally_except(
+                function,
+                lambda: events.append("cleanup"),
+            ), events
+
+        _record(
+            "format_and_choice",
+            lambda: (
+                formatted(1.25),
+                nested_choice(1, 1),
+                nested_choice(2, 1),
+                nested_choice(1, 2),
+            ),
+        )
+        _record(
+            "selected_pattern",
+            lambda: [
+                selected_pattern("cpython", (3, 11, 4), "old", "new"),
+                selected_pattern("pypy", (3, 11, 13), "old", "new"),
+                selected_pattern("other", (3, 10), "old", "new"),
+            ],
+        )
+        _record("callback", lambda: callback_argument(_register, 7))
+        _record("ordered", _ordered)
+        _record(
+            "chain_loop",
+            lambda: chain_loop([1, 2, 0, 4], []),
+        )
+        _record(
+            "cleanup",
+            lambda: [_cleanup(False), _cleanup(True)],
+        )
+        _record(
+            "loop_return",
+            lambda: loop_return_finally(
+                [lambda: None, lambda: "found"],
+                lambda: None,
+            ),
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

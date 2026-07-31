@@ -143,12 +143,16 @@ def collect_inputs(
 def classify_failure(error: BaseException) -> str:
     """Map one fail-closed error to a shape-matrix category."""
     message = str(error)
+    code_name = getattr(error, "code_name", None)
     if "recursion limit reached" in message:
         return "realworld_recursive_structure"
     if "Match case" in message or "match pattern" in message.lower():
         return "realworld_match_boundary"
     if "Returning with-body" in message or "With cleanup" in message:
         return "realworld_with_control_transfer"
+    shape_hint = getattr(error, "shape_hint", None)
+    if shape_hint in REALWORLD_SHAPES:
+        return shape_hint
     if "IMPORT_FROM" in message or "IMPORT_NAME" in message:
         return "realworld_import_protocol"
     if (
@@ -166,16 +170,26 @@ def classify_failure(error: BaseException) -> str:
         marker in message
         for marker in (
             "MAP_ADD",
+            "LIST_APPEND",
             "SET_ADD",
             "FOR_ITER",
             "RETURN_GENERATOR",
             "YIELD_VALUE",
         )
+    ) or code_name in {
+        "<dictcomp>",
+        "<genexpr>",
+        "<listcomp>",
+        "<setcomp>",
+    } or any(
+        marker in message
+        for marker in ("<dictcomp>", "<genexpr>", "<listcomp>", "<setcomp>")
     ):
         return "realworld_comprehension_and_iterator_protocol"
     if any(
         marker in message
         for marker in (
+            "CHECK_EXC_MATCH",
             "Finally suite",
             "POP_EXCEPT",
             "PUSH_EXC_INFO",

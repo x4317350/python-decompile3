@@ -334,6 +334,24 @@ class _StraightLineDecompiler:
 
     def _pop(self):
         if not self.stack:
+            token_index = next(
+                (
+                    index
+                    for index, token in enumerate(self.tokens)
+                    if token is self.current_token
+                ),
+                None,
+            )
+            if (
+                token_index is not None
+                and token_index > 0
+                and self.tokens[token_index - 1].kind
+                in ("BEFORE_WITH", "BEFORE_ASYNC_WITH")
+            ):
+                self._error(
+                    "With cleanup target was parsed outside its "
+                    "context-manager protocol"
+                )
             self._error("Operand stack underflow")
         return self.stack.pop()
 
@@ -344,7 +362,7 @@ class _StraightLineDecompiler:
                 "Expected an expression on the operand stack, found "
                 f"{type(value).__name__}"
             )
-        return value
+        return self._expression_value(value)
 
     def _pop_many(self, count: int) -> List[Any]:
         if count < 0 or len(self.stack) < count:
@@ -360,8 +378,20 @@ class _StraightLineDecompiler:
     def _pop_exprs(self, count: int) -> List[ast.expr]:
         values = self._pop_many(count)
         if not all(isinstance(value, ast.expr) for value in values):
-            self._error("Expected only expressions in a variable-length operand")
-        return values
+            found = ", ".join(
+                sorted(
+                    {
+                        type(value).__name__
+                        for value in values
+                        if not isinstance(value, ast.expr)
+                    }
+                )
+            )
+            self._error(
+                "Expected only expressions in a variable-length operand; "
+                f"found {found}"
+            )
+        return [self._expression_value(value) for value in values]
 
     def _flush_assignment(self):
         if self.pending_assignment_value is None:
@@ -483,6 +513,11 @@ class _StraightLineDecompiler:
 
     def _format_value(self, argument: int):
         format_spec = self._pop_expr() if argument & 0x04 else None
+        if format_spec is not None and not isinstance(
+            format_spec,
+            ast.JoinedStr,
+        ):
+            format_spec = ast.JoinedStr(values=[format_spec])
         value = self._pop_expr()
         conversion = {0: -1, 1: ord("s"), 2: ord("r"), 3: ord("a")}[
             argument & 0x03
@@ -496,7 +531,7 @@ class _StraightLineDecompiler:
         )
 
     def _build_string(self, count: int):
-        values = self._pop_exprs(count)
+        values = self._pop_many(count)
         joined = []
         for value in values:
             if isinstance(value, ast.FormattedValue):
@@ -828,6 +863,7 @@ class _StraightLineDecompiler:
         info = token.attr
         if not isinstance(info, CallInfo):
             self._error("CALL has no normalized CallInfo")
+        decorator_protocol = False
 
         if info.uses_ex:
             kwargs_value = self._pop_expr() if info.has_kwargs else None
@@ -866,11 +902,27 @@ class _StraightLineDecompiler:
             args = values[:positional_count]
             if hidden_argument is not None:
                 args.insert(0, hidden_argument)
+                decorator_protocol = True
             keyword_values = values[positional_count:]
             keywords = [
                 ast.keyword(arg=name, value=value)
                 for name, value in zip(info.keyword_names, keyword_values)
             ]
+
+        if (
+            bytes(getattr(self.code, "co_exceptiontable", b"") or b"")
+            and isinstance(callable_value, ast.Constant)
+            and callable_value.value is None
+            and len(args) == 2
+            and all(
+                isinstance(value, ast.Constant) and value.value is None
+                for value in args
+            )
+            and not keywords
+        ):
+            self._error(
+                "With cleanup exit call lost its context-manager callable"
+            )
 
         if isinstance(callable_value, _BuildClassValue):
             self.stack.append(self._build_class(args, keywords))
@@ -893,7 +945,11 @@ class _StraightLineDecompiler:
                 )
                 return
 
-        decorated = self._decorate(callable_value, args, keywords)
+        decorated = (
+            self._decorate(callable_value, args, keywords)
+            if decorator_protocol
+            else None
+        )
         if decorated is not None:
             self.stack.append(decorated)
             return
@@ -968,6 +1024,10 @@ class _StraightLineDecompiler:
         return ast.Lambda(args=arguments, body=expression)
 
     def _expression_value(self, value):
+        if isinstance(value, ast.FormattedValue):
+            # FORMAT_VALUE is a component of JoinedStr in Python's AST even
+            # when CPython omits BUILD_STRING for a one-component f-string.
+            return ast.JoinedStr(values=[value])
         if isinstance(value, ast.expr):
             return value
         if (
@@ -1033,7 +1093,7 @@ class _StraightLineDecompiler:
             self._error(
                 f"Cannot store parser-only value {type(value).__name__}"
             )
-        self._queue_assignment(target, value)
+        self._queue_assignment(target, self._expression_value(value))
 
     def _queue_assignment(self, target: ast.expr, value: ast.expr):
         if (
@@ -1095,10 +1155,47 @@ class _StraightLineDecompiler:
         if self.compile_mode in ("eval", "expr", "lambda"):
             self.body.append(ast.Return(value=value))
             return
-        if self.is_class_body:
+        if (
+            self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+        ):
             return
         if isinstance(value, ast.Constant) and value.value is None:
-            return
+            token_index = next(
+                (
+                    index
+                    for index, token in enumerate(self.tokens)
+                    if token is self.current_token
+                ),
+                None,
+            )
+            if (
+                token_index is not None
+                and token_index + 1 == len(self.tokens)
+            ):
+                # Falling off a function and an explicit final ``return
+                # None`` are behaviorally identical.  Omitting the terminal
+                # form also keeps direct function-code deparsing valid when
+                # its recovered body is compiled as a module by callers.
+                return
+            if self.code.co_flags & CO_ASYNC_GENERATOR:
+                # CPython assigns the source line of the surrounding loop to
+                # an async generator's implicit terminal LOAD_CONST None, so
+                # line metadata alone cannot distinguish it from ``return``.
+                # Omit the terminal form; for an earlier control-flow return,
+                # emit a bare Return node, never the illegal ``return None``.
+                if token_index is not None:
+                    self.body.append(ast.Return(value=None))
+                return
+            explicit_none = (
+                token_index is not None
+                and token_index > 0
+                and self.tokens[token_index - 1].kind == "LOAD_CONST"
+                and self.tokens[token_index - 1].attr is None
+                and self.tokens[token_index - 1].linestart is not None
+            )
+            if not explicit_none:
+                return
         self.body.append(ast.Return(value=value))
 
     def _raise(self, count: int):

@@ -632,7 +632,7 @@ git status --short
 
 ```text
 阶段：3，修复异常清理控制转移
-提交：本阶段修复提交（等待单独提交）
+提交：58452b95，提交说明为“修复：完善 Python 3.11 异常清理控制转移”
 目标 shape：realworld_exception_cleanup_control_transfer
 阶段前计数：58；原基线 57，另有 multiprocessing/util.py 在阶段 1 后守恒迁入 1 项
 阶段后计数：0
@@ -645,4 +645,23 @@ git status --short
 全量测试：803 passed, 6 skipped；skip 与 legacy 白名单一致
 发布门禁：33 shape pass、7 fail-closed、0 missing；完整门禁和 skip 白名单检查通过
 已知限制：本阶段只消费结构化异常协议；普通表达式 COPY/SWAP、函数调用栈、迭代器、with、递归和 match 残留继续由后续阶段处理
+```
+
+阶段 4：
+
+```text
+阶段：4，修复调用与表达式栈
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_call_and_expression_stack
+阶段前计数：219；原冻结基线 217，另有阶段 2、3 清除前置错误后守恒迁入 2 项
+阶段后计数：0
+已修复签名：SWAP_STACK invalid、Expression final values、Invalid expression range、POP_TOP/CALL/LOAD_ATTR 栈下溢、嵌套和多行条件表达式、比较链、独立 FORMAT_VALUE、普通 callback lambda 与装饰器协议混淆、循环返回值跨 finally 清理；大型表达式 CFG 的后支配计算由近似三次方收敛改为逆序传播
+剩余子 shape：原调用/表达式栈粗分类归零；后续暴露的推导式、函数对象、with 和高级异常清理均通过 code object、协议位置或结构级 shape hint 精确分类；match 边界误判同时归零
+新增 fixture：test/simple_source/311/13_call_expression_stack.py；同步 dis 和 normalized token golden
+行为验证：覆盖 f-string、嵌套三元表达式、多行条件选择、callback lambda、位置/关键字参数求值顺序、比较链循环、循环 return/finally 和嵌套 finally/except
+真实语料：604 个输入重放；331 success、273 fail-closed；0 syntax failure、0 unexpected crash；调用/表达式栈分类归零；6/6 真实语料行为探针一致
+专项测试：调用与表达式栈、矩阵、shape behavior、real-world、release gate、corpus 和 opcode corpus 共 122 passed
+全量测试：808 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：34 shape pass、6 fail-closed、0 missing；调用/表达式栈与 match 边界转为 pass，高级异常清理恢复为精确 fail-closed；完整门禁、报告时效、golden 和 skip 白名单检查通过
+已知限制：25 个高级异常清理布局在阶段 4 暴露后恢复为精确 fail-closed 状态；推导式 124、函数对象 15、递归 33、with 76 继续由后续阶段处理
 ```

@@ -68,7 +68,28 @@ class MatchStructureDecompiler311:
             return True
         if kind.startswith("POP_JUMP_") or kind.startswith("STORE_"):
             return True
-        lookahead = self.tokens[index : index + 12]
+        lookahead = []
+        for token in self.tokens[index : index + 12]:
+            lookahead.append(token)
+            if (
+                token is not self.tokens[index]
+                and token.kind
+                in (
+                    "BUILD_CONST_KEY_MAP",
+                    "BUILD_LIST",
+                    "BUILD_MAP",
+                    "BUILD_SET",
+                    "BUILD_TUPLE",
+                    "CALL",
+                    "MAKE_FUNCTION",
+                    "POP_TOP",
+                    "PRECALL",
+                    "RAISE_VARARGS",
+                    "RETURN_VALUE",
+                )
+                or token.kind.startswith("STORE_")
+            ):
+                break
         if kind == "COPY_STACK":
             return any(
                 token.kind.startswith("MATCH_")

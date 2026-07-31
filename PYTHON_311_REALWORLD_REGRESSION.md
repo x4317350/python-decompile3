@@ -7,7 +7,7 @@
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`74d6170d189ca0daaa4f31a56ccd1e0e3c32d04154ba02ad8320b7d8250381c7`
+- 输入摘要：`ab4cac873938ff835d81f1be7598b859dd7ea033c6e30d1ebeb1e44a4fa06312`
 
 第三方版本：
 
@@ -21,10 +21,10 @@
 ## 汇总
 
 - 输入文件数：604
-- 成功反编译数：239
-- 语法验证成功数：239
+- 成功反编译数：331
+- 语法验证成功数：331
 - 语法失败数：0
-- fail-closed 数：365
+- fail-closed 数：273
 - malformed/unsupported input 数：0
 - 未包装崩溃数：0
 - 行为一致数：6
@@ -37,20 +37,19 @@
 
 | 分组 | 输入 | 反编译成功 | 语法成功 | 语法失败 | fail-closed | 输入不支持 | 未包装崩溃 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| stdlib | 338 | 115 | 115 | 0 | 223 | 0 | 0 |
-| project | 115 | 63 | 63 | 0 | 52 | 0 | 0 |
-| third_party | 151 | 61 | 61 | 0 | 90 | 0 | 0 |
+| stdlib | 338 | 159 | 159 | 0 | 179 | 0 | 0 |
+| project | 115 | 82 | 82 | 0 | 33 | 0 | 0 |
+| third_party | 151 | 90 | 90 | 0 | 61 | 0 | 0 |
 
 ## Fail-closed 分类
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_call_and_expression_stack` | 219 |
-| `realworld_comprehension_and_iterator_protocol` | 81 |
-| `realworld_function_object_flow` | 11 |
-| `realworld_match_boundary` | 1 |
-| `realworld_recursive_structure` | 18 |
-| `realworld_with_control_transfer` | 35 |
+| `realworld_comprehension_and_iterator_protocol` | 124 |
+| `realworld_exception_cleanup_control_transfer` | 25 |
+| `realworld_function_object_flow` | 15 |
+| `realworld_recursive_structure` | 33 |
+| `realworld_with_control_transfer` | 76 |
 
 ## 行为探针
 
