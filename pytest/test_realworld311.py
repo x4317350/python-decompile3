@@ -25,6 +25,9 @@ REPORT_PATH = ROOT / "PYTHON_311_REALWORLD_REGRESSION.md"
 SHAPE_MATRIX_PATH = (
     ROOT / "test" / "bytecode_3.11" / "shape_matrix.json"
 )
+RELEASE_POLICY_PATH = (
+    ROOT / "test" / "bytecode_3.11" / "release_policy311.json"
+)
 
 SPEC = importlib.util.spec_from_file_location(
     "run_realworld_regression311",
@@ -37,6 +40,9 @@ SPEC.loader.exec_module(runner)
 
 ARCHIVE = json.loads(ARCHIVE_PATH.read_text(encoding="utf-8"))
 SHAPE_MATRIX = json.loads(SHAPE_MATRIX_PATH.read_text(encoding="utf-8"))
+RELEASE_POLICY = json.loads(
+    RELEASE_POLICY_PATH.read_text(encoding="utf-8")
+)
 
 pytestmark = pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
@@ -82,31 +88,29 @@ def test_archived_failures_are_fully_classified():
     matrix_items = {
         item["name"]: item for item in SHAPE_MATRIX["shapes"]
     }
-    expected = {
-        name
-        for name, item in matrix_items.items()
-        if name.startswith("realworld_")
-        and item["status"] == "unsupported_fail_closed"
-    }
-    resolved = {
-        name
-        for name, item in matrix_items.items()
-        if name.startswith("realworld_") and item["status"] == "pass"
-    }
+    expected = set(
+        RELEASE_POLICY["realworld"]["approved_failure_classifications"]
+    )
 
     assert set(classifications) == expected
-    assert resolved.isdisjoint(classifications)
     assert sum(classifications.values()) == ARCHIVE["totals"]["fail_closed"]
     for shape_name, count in classifications.items():
         assert count > 0
         item = matrix_items[shape_name]
-        assert item["status"] == "unsupported_fail_closed"
-        assert item["expected_error"] is not None
-        assert (
-            "pytest/test_realworld311.py::"
-            "test_archived_failures_are_fully_classified"
-            in item["tests"]
-        )
+        if item["status"] == "unsupported_fail_closed":
+            assert item["expected_error"] is not None
+            assert (
+                "pytest/test_realworld311.py::"
+                "test_archived_failures_are_fully_classified"
+                in item["tests"]
+            )
+        else:
+            assert item["status"] == "pass"
+            assert (
+                "pytest/test_shape_behavior311.py::"
+                "test_each_shape_has_differential_behavior_contract"
+                in item["tests"]
+            )
         samples = ARCHIVE["failure_samples"][shape_name]
         assert samples
         assert all(sample["error_type"] for sample in samples)

@@ -10,7 +10,6 @@ from decompyle3.parsers.p311.base import (
     Python311ParseError,
     _COMPARE_OPERATORS,
     _IGNORED_INTERNAL,
-    _StraightLineDecompiler,
 )
 
 
@@ -30,6 +29,44 @@ def _negate(expression: ast.expr) -> ast.expr:
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, ast.Not):
         return expression.operand
     return ast.UnaryOp(op=ast.Not(), operand=expression)
+
+
+def _combine_decision(
+    predicate: ast.expr,
+    when_true: ast.expr,
+    when_false: ast.expr,
+) -> ast.expr:
+    true_value = (
+        when_true.value
+        if isinstance(when_true, ast.Constant)
+        and isinstance(when_true.value, bool)
+        else None
+    )
+    false_value = (
+        when_false.value
+        if isinstance(when_false, ast.Constant)
+        and isinstance(when_false.value, bool)
+        else None
+    )
+    if true_value is True and false_value is False:
+        return predicate
+    if true_value is False and false_value is True:
+        return _negate(predicate)
+    if false_value is False:
+        return ast.BoolOp(op=ast.And(), values=[predicate, when_true])
+    if true_value is False:
+        return ast.BoolOp(
+            op=ast.And(),
+            values=[_negate(predicate), when_false],
+        )
+    if true_value is True:
+        return ast.BoolOp(op=ast.Or(), values=[predicate, when_false])
+    if false_value is True:
+        return ast.BoolOp(
+            op=ast.Or(),
+            values=[_negate(predicate), when_true],
+        )
+    return ast.IfExp(test=predicate, body=when_true, orelse=when_false)
 
 
 class ComprehensionDecompiler311:
@@ -52,24 +89,42 @@ class ComprehensionDecompiler311:
             f"{message} ({getattr(self.code, 'co_qualname', self.code.co_name)})"
         )
 
+    def _resolved_target_offset(self, token):
+        target = instruction_target(token)
+        index = self.offset_to_index.get(target)
+        seen = set()
+        while index is not None and index not in seen:
+            seen.add(index)
+            while (
+                index < len(self.tokens)
+                and self.tokens[index].kind in _IGNORED_INTERNAL
+            ):
+                index += 1
+            if index >= len(self.tokens):
+                return target
+            current = self.tokens[index]
+            if current.kind not in (
+                "JUMP_BACKWARD",
+                "JUMP_BACKWARD_NO_INTERRUPT",
+                "JUMP_FORWARD",
+            ):
+                return current.offset
+            index = self.offset_to_index.get(instruction_target(current))
+        return target
+
     def _expressions(self, start: int, end: int, count: int) -> Tuple[ast.expr, ...]:
-        parser = _StraightLineDecompiler(
-            self.code,
-            self.tokens[start:end],
-            compile_mode="expr",
+        from decompyle3.parsers.p311.expressions import (
+            recover_expressions311,
         )
-        for token in parser.tokens:
-            parser.current_token = token
-            parser._resolve_booleans(token.offset)
-            parser._dispatch(token)
-        parser._flush_assignment()
-        if parser.body or parser.pending_booleans or len(parser.stack) != count:
-            self._error(
-                f"Instruction range {start}:{end} does not contain "
-                f"{count} expression value(s)"
-            )
-        result = tuple(parser._expression_value(value) for value in parser.stack)
-        return result
+
+        return recover_expressions311(
+            self.code,
+            self.tokens,
+            count,
+            start=start,
+            end=end,
+            terminal_kinds=frozenset(),
+        )
 
     def _expression(self, start: int, end: int) -> ast.expr:
         return self._expressions(start, end, 1)[0]
@@ -126,6 +181,172 @@ class ComprehensionDecompiler311:
         if "IF_TRUE" in kind:
             return _negate(expression)
         return expression
+
+    def _jump_predicate(self, start: int, jump_index: int) -> ast.expr:
+        expression = self._expression(start, jump_index)
+        kind = self.tokens[jump_index].kind
+        if "IF_NONE" in kind and "IF_NOT_NONE" not in kind:
+            return ast.Compare(
+                left=expression,
+                ops=[ast.Is()],
+                comparators=[ast.Constant(value=None)],
+            )
+        if "IF_NOT_NONE" in kind:
+            return ast.Compare(
+                left=expression,
+                ops=[ast.IsNot()],
+                comparators=[ast.Constant(value=None)],
+            )
+        return expression
+
+    def _boolean_filter(
+        self,
+        start: int,
+        final_jump: int,
+        loop_offset: int,
+    ):
+        success_index = final_jump + 1
+        if success_index >= len(self.tokens):
+            return None
+        success_offset = self.tokens[success_index].offset
+        jump_indices = [
+            index
+            for index in range(start, success_index)
+            if self.tokens[index].kind.startswith("POP_JUMP_")
+        ]
+        if not jump_indices or jump_indices[-1] != final_jump:
+            return None
+
+        leaders = {start}
+        for jump_index in jump_indices:
+            if (
+                jump_index + 1 < success_index
+                and self.tokens[jump_index + 1].kind
+                not in (
+                    "JUMP_BACKWARD",
+                    "JUMP_BACKWARD_NO_INTERRUPT",
+                    "JUMP_FORWARD",
+                )
+            ):
+                leaders.add(jump_index + 1)
+            target_index = self.offset_to_index.get(
+                instruction_target(self.tokens[jump_index])
+            )
+            if (
+                target_index is not None
+                and start <= target_index < success_index
+            ):
+                leaders.add(target_index)
+        ordered_leaders = sorted(leaders)
+        nodes = {}
+        for position, leader in enumerate(ordered_leaders):
+            limit = (
+                ordered_leaders[position + 1]
+                if position + 1 < len(ordered_leaders)
+                else success_index
+            )
+            block_jumps = [
+                index
+                for index in jump_indices
+                if leader <= index < limit
+            ]
+            if len(block_jumps) != 1:
+                return None
+            jump_index = block_jumps[0]
+            if any(
+                self.tokens[index].kind not in _IGNORED_INTERNAL
+                and self.tokens[index].kind
+                not in (
+                    "JUMP_BACKWARD",
+                    "JUMP_BACKWARD_NO_INTERRUPT",
+                    "JUMP_FORWARD",
+                )
+                for index in range(jump_index + 1, limit)
+            ):
+                return None
+            try:
+                predicate = self._jump_predicate(leader, jump_index)
+            except Python311ParseError:
+                return None
+            nodes[leader] = (predicate, jump_index)
+
+        def endpoint(index: int):
+            seen = set()
+            while index is not None and index not in seen:
+                seen.add(index)
+                while (
+                    index < len(self.tokens)
+                    and self.tokens[index].kind in _IGNORED_INTERNAL
+                ):
+                    index += 1
+                if index == success_index:
+                    return True
+                if index >= len(self.tokens):
+                    return None
+                offset = self.tokens[index].offset
+                if offset == success_offset:
+                    return True
+                if offset == loop_offset:
+                    return False
+                if index in nodes:
+                    return index
+                if self.tokens[index].kind in (
+                    "JUMP_BACKWARD",
+                    "JUMP_BACKWARD_NO_INTERRUPT",
+                    "JUMP_FORWARD",
+                ):
+                    index = self.offset_to_index.get(
+                        instruction_target(self.tokens[index])
+                    )
+                    continue
+                return None
+            return None
+
+        def build(reference, active=frozenset()):
+            if isinstance(reference, bool):
+                return ast.Constant(value=reference)
+            if reference is None or reference in active:
+                return None
+            predicate, jump_index = nodes[reference]
+            token = self.tokens[jump_index]
+            target_index = self.offset_to_index.get(instruction_target(token))
+            jump_reference = (
+                endpoint(target_index)
+                if target_index is not None
+                else None
+            )
+            fallthrough_reference = endpoint(jump_index + 1)
+            if "IF_FALSE" in token.kind:
+                true_reference = fallthrough_reference
+                false_reference = jump_reference
+            else:
+                true_reference = jump_reference
+                false_reference = fallthrough_reference
+            when_true = build(true_reference, active | {reference})
+            when_false = build(false_reference, active | {reference})
+            if when_true is None or when_false is None:
+                return None
+            return _combine_decision(predicate, when_true, when_false)
+
+        expression = build(start)
+        if expression is None:
+            return None
+        return expression, success_index
+
+    def _has_pending_conditional_branch(
+        self,
+        start: int,
+        jump_index: int,
+    ) -> bool:
+        for index in range(start, jump_index):
+            if not self.tokens[index].kind.startswith("POP_JUMP_"):
+                continue
+            target_index = self.offset_to_index.get(
+                instruction_target(self.tokens[index])
+            )
+            if target_index is not None and target_index > jump_index + 1:
+                return True
+        return False
 
     def _chained_filter(
         self,
@@ -196,7 +417,8 @@ class ComprehensionDecompiler311:
                 jump_index >= body_limit
                 or continuation_index >= body_limit
                 or not self.tokens[jump_index].kind.startswith("POP_JUMP_")
-                or instruction_target(self.tokens[jump_index]) != loop_offset
+                or self._resolved_target_offset(self.tokens[jump_index])
+                != loop_offset
                 or self.tokens[continuation_index].kind != "JUMP_FORWARD"
             ):
                 return None
@@ -265,14 +487,29 @@ class ComprehensionDecompiler311:
                 expression_start = cursor
                 continue
             current = self.tokens[cursor]
-            target_offset = instruction_target(current)
+            target_offset = self._resolved_target_offset(current)
             if (
                 current.kind.startswith("POP_JUMP_")
                 and target_offset == token.offset
             ):
-                generator.ifs.append(self._filter(expression_start, cursor))
-                expression_start = cursor + 1
-                cursor += 1
+                if self._has_pending_conditional_branch(
+                    expression_start,
+                    cursor,
+                ):
+                    cursor += 1
+                    continue
+                boolean_filter = self._boolean_filter(
+                    expression_start,
+                    cursor,
+                    token.offset,
+                )
+                if boolean_filter is None:
+                    expression = self._filter(expression_start, cursor)
+                    cursor += 1
+                else:
+                    expression, cursor = boolean_filter
+                generator.ifs.append(expression)
+                expression_start = cursor
                 continue
             if (
                 current.kind == "GET_ITER"
@@ -294,7 +531,10 @@ class ComprehensionDecompiler311:
                 cursor = self._async_loop(async_header, nested_iterable)
                 expression_start = cursor
                 continue
-            if current.kind in ("LIST_APPEND", "SET_ADD", "MAP_ADD"):
+            if (
+                current.kind in ("LIST_APPEND", "SET_ADD", "MAP_ADD")
+                and int(current.attr) >= 2
+            ):
                 self._record_output(expression_start, cursor, current.kind)
                 cursor += 1
                 expression_start = cursor
@@ -369,14 +609,29 @@ class ComprehensionDecompiler311:
                 expression_start = cursor
                 continue
             current = self.tokens[cursor]
-            target_offset = instruction_target(current)
+            target_offset = self._resolved_target_offset(current)
             if (
                 current.kind.startswith("POP_JUMP_")
                 and target_offset == self.tokens[header].offset
             ):
-                generator.ifs.append(self._filter(expression_start, cursor))
-                expression_start = cursor + 1
-                cursor += 1
+                if self._has_pending_conditional_branch(
+                    expression_start,
+                    cursor,
+                ):
+                    cursor += 1
+                    continue
+                boolean_filter = self._boolean_filter(
+                    expression_start,
+                    cursor,
+                    self.tokens[header].offset,
+                )
+                if boolean_filter is None:
+                    expression = self._filter(expression_start, cursor)
+                    cursor += 1
+                else:
+                    expression, cursor = boolean_filter
+                generator.ifs.append(expression)
+                expression_start = cursor
                 continue
             if (
                 current.kind == "GET_ITER"
@@ -387,7 +642,10 @@ class ComprehensionDecompiler311:
                 cursor = self._sync_loop(cursor + 1, nested_iterable)
                 expression_start = cursor
                 continue
-            if current.kind in ("LIST_APPEND", "SET_ADD", "MAP_ADD"):
+            if (
+                current.kind in ("LIST_APPEND", "SET_ADD", "MAP_ADD")
+                and int(current.attr) >= 2
+            ):
                 self._record_output(expression_start, cursor, current.kind)
                 cursor += 1
                 expression_start = cursor

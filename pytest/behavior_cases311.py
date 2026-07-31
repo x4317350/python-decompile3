@@ -523,6 +523,61 @@ FIXTURE_PROBES = {
         _record("function_object_flow", _function_object_snapshot)
         """
     ),
+    "test/simple_source/311/15_comprehension_iterator_protocol.py": _probe(
+        """
+        def _incremental_snapshot():
+            sequence, members, mapping = incremental_literals(
+                [1, 2],
+                {"seed": 0},
+                3,
+            )
+            return sequence, sorted(members), mapping
+
+        def _comprehension_snapshot():
+            records = [
+                {"name": "compare", "hash": None, "compare": True},
+                {"name": "skip", "hash": None, "compare": False},
+                {"name": "hash", "hash": True, "compare": False},
+            ]
+            conditional, filtered, selected, valid = (
+                comprehension_shapes(
+                    [-2, -1, 0, 1, 2, 3],
+                    records,
+                    [b"a", b"bc"],
+                )
+            )
+            return (
+                conditional,
+                filtered,
+                [item["name"] for item in selected],
+                valid,
+            )
+
+        def _generator_snapshot():
+            generated = generator_lambda(7)
+            first = next(generated)
+            try:
+                generated.send("finished")
+            except StopIteration as stopped:
+                returned = stopped.value
+            return (
+                list(make_prefixed(1, [2, 3])()),
+                first,
+                returned,
+            )
+
+        _record("incremental_literals", _incremental_snapshot)
+        _record(
+            "extended_and_terminal_loop",
+            lambda: (
+                extended_for(["k0", "k69", "missing"]),
+                first_or_error([5, 6]),
+            ),
+        )
+        _record("comprehension_shapes", _comprehension_snapshot)
+        _record("generator_protocols", _generator_snapshot)
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

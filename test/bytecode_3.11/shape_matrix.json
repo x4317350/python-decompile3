@@ -404,18 +404,21 @@
         "pytest/test_call_expression_stack311.py::test_loop_return_and_nested_cleanup_preserve_behavior",
         "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Stage 4 recovers CPython 3.11 logical COPY/SWAP stacks, nested and multiline conditional expressions, comparison chains, f-string values, ordinary callback lambdas, CALL/PRECALL/KW_NAMES evaluation order, and return values carried across loop/finally cleanup. The fixed 604-file archive has no remaining call/expression-stack failure classification."
+      "notes": "Stage 4 recovers CPython 3.11 logical COPY/SWAP stacks, nested and multiline conditional expressions, comparison chains, f-string values, ordinary callback lambdas, CALL/PRECALL/KW_NAMES evaluation order, and return values carried across loop/finally cleanup. Stage 6 exposes 11 deeper composite statement regions whose generic final failure is tracked explicitly by the real-world release policy without changing this verified core shape contract."
     },
     {
       "name": "realworld_comprehension_and_iterator_protocol",
       "category": "realworld_comprehension",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/15_comprehension_iterator_protocol.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_comprehension_iterator_protocol311.py::test_scanner_and_ast_cover_stage6_protocol_shapes",
+        "pytest/test_comprehension_iterator_protocol311.py::test_incremental_literals_extended_loop_and_terminal_loop_preserve_behavior",
+        "pytest/test_comprehension_iterator_protocol311.py::test_conditional_outputs_filters_and_generators_preserve_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 8 records non-canonical MAP_ADD, SET_ADD, FOR_ITER, RETURN_GENERATOR, and YIELD_VALUE layouts found in standard-library and third-party modules."
+      "notes": "Stage 6 recovers incremental LIST_APPEND, SET_ADD, and MAP_ADD consumers; EXTENDED_ARG-prefixed FOR_ITER loops; terminal loop bodies; conditional comprehension outputs; Boolean and conditional filters; chained comparisons; closure generators; yield from; and generator lambdas. The fixed 604-file archive has no remaining comprehension/iterator-protocol failure classification."
     },
     {
       "name": "realworld_exception_cleanup_control_transfer",

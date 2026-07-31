@@ -763,7 +763,9 @@ class ExpressionDecompiler311:
 
         return state
 
-    def decompile(self) -> ast.expr:
+    def decompile_values(self, count: int) -> Tuple[ast.expr, ...]:
+        if count <= 0:
+            self._error("Expression value count must be positive")
         state = self._execute(
             self.start,
             _VIRTUAL_EXIT,
@@ -772,14 +774,23 @@ class ExpressionDecompiler311:
         )
         if state.pending_keywords:
             self._error("Expression ended with pending keyword-call metadata")
-        if len(state.stack) != 1 or not isinstance(state.stack[0], ast.expr):
+        if len(state.stack) != count or not all(
+            isinstance(value, ast.expr) for value in state.stack
+        ):
             self._error(
                 f"Expression produced {len(state.stack)} final stack values"
             )
-        value = state.stack[0]
-        if isinstance(value, ast.FormattedValue):
-            return ast.JoinedStr(values=[value])
-        return value
+        return tuple(
+            (
+                ast.JoinedStr(values=[value])
+                if isinstance(value, ast.FormattedValue)
+                else value
+            )
+            for value in state.stack
+        )
+
+    def decompile(self) -> ast.expr:
+        return self.decompile_values(1)[0]
 
 
 def recover_expression311(
@@ -800,4 +811,27 @@ def recover_expression311(
     ).decompile()
 
 
-__all__ = ["ExpressionDecompiler311", "recover_expression311"]
+def recover_expressions311(
+    code,
+    tokens,
+    count: int,
+    start: int = 0,
+    end: Optional[int] = None,
+    terminal_kinds: FrozenSet[str] = frozenset(
+        {"PRINT_EXPR", "RETURN_VALUE"}
+    ),
+) -> Tuple[ast.expr, ...]:
+    return ExpressionDecompiler311(
+        code,
+        tokens,
+        start=start,
+        end=end,
+        terminal_kinds=terminal_kinds,
+    ).decompile_values(count)
+
+
+__all__ = [
+    "ExpressionDecompiler311",
+    "recover_expression311",
+    "recover_expressions311",
+]

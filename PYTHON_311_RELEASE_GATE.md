@@ -13,8 +13,8 @@
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 35`
-- `Shape fail-closed: 5`
+- `Shape pass: 36`
+- `Shape fail-closed: 4`
 - `Shape missing: 0`
 
 ## 固定环境
@@ -32,8 +32,8 @@
 ## 真实语料归档
 
 - 输入：604
-- 成功反编译：335
-- fail-closed：269
+- 成功反编译：413
+- fail-closed：191
 - 语法失败：0
 - 未包装崩溃：0
 - 行为一致：6
@@ -42,7 +42,6 @@
 ## 已审批的 fail-closed shape
 
 - `irreducible_control_flow`
-- `realworld_comprehension_and_iterator_protocol`
 - `realworld_exception_cleanup_control_transfer`
 - `realworld_recursive_structure`
 - `realworld_with_control_transfer`

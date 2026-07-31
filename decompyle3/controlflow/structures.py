@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 from decompyle3.controlflow.cfg import (
     UNCONDITIONAL_JUMPS,
@@ -20,6 +20,7 @@ from decompyle3.controlflow.dominators import analyze_control_flow
 from decompyle3.controlflow.exception_regions import build_exception_region_map
 from decompyle3.controlflow.exceptiontable311 import decode_exception_table
 from decompyle3.parsers.p311.base import (
+    CO_GENERATOR,
     Python311ParseError,
     UnsupportedPython311ControlFlow,
     _COMPARE_OPERATORS,
@@ -60,10 +61,7 @@ _STATEMENT_BOUNDARIES = {
     "STORE_SUBSCR",
 }
 
-_LATER_PHASE_OPS = {
-    "MAP_ADD",
-    "SET_ADD",
-}
+_LATER_PHASE_OPS = set()
 
 
 @dataclass
@@ -1221,12 +1219,37 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             targets.append(target)
         return ast.Tuple(elts=targets, ctx=ast.Store()), cursor
 
+    def _next_semantic_index(
+        self,
+        start: int,
+        end: Optional[int] = None,
+    ) -> int:
+        limit = len(self.tokens) if end is None else end
+        while (
+            start < limit
+            and self.tokens[start].kind in _IGNORED_INTERNAL
+        ):
+            start += 1
+        return start
+
+    def _semantic_target_offset(self, token) -> Optional[int]:
+        target = instruction_target(token)
+        if target is None:
+            return None
+        target_index = self.offset_to_index.get(target)
+        if target_index is None:
+            return target
+        semantic_index = self._next_semantic_index(target_index)
+        if semantic_index >= len(self.tokens):
+            return target
+        return self.tokens[semantic_index].offset
+
     def _for_loop(
         self,
         get_iter_index: int,
         loop: Optional[_LoopContext],
     ) -> int:
-        for_iter_index = get_iter_index + 1
+        for_iter_index = self._next_semantic_index(get_iter_index + 1)
         if (
             for_iter_index >= len(self.tokens)
             or self.tokens[for_iter_index].kind != "FOR_ITER"
@@ -1243,7 +1266,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             index
             for index in range(body_start, else_index)
             if self.tokens[index].kind.startswith("JUMP_BACKWARD")
-            and instruction_target(self.tokens[index])
+            and self._semantic_target_offset(self.tokens[index])
             == self.tokens[for_iter_index].offset
         ]
         latch = latch_candidates[-1] if latch_candidates else None
@@ -1255,11 +1278,23 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and instruction_target(self.tokens[index]) >= else_offset
         ]
         if latch is None and not break_targets:
-            self.current_token = self.tokens[for_iter_index]
-            self._error("FOR_ITER has neither a loop-back nor break edge")
+            terminators = {
+                "RAISE_VARARGS",
+                "RERAISE",
+                "RETURN_VALUE",
+            }
+            if not any(
+                self.tokens[index].kind in terminators
+                for index in range(body_start, else_index)
+            ):
+                self.current_token = self.tokens[for_iter_index]
+                self._error("FOR_ITER has neither a loop-back nor break edge")
         loop_end = max(break_targets) if break_targets else else_offset
         loop_end_index = self.offset_to_index[loop_end]
-        continue_targets = {self.tokens[for_iter_index].offset}
+        continue_targets = {
+            self.tokens[for_iter_index].offset,
+            self.tokens[get_iter_index + 1].offset,
+        }
         if latch is not None:
             continue_targets.add(self.tokens[latch].offset)
         body = self._capture_region(
@@ -1813,8 +1848,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
             if (
                 token.kind == "GET_ITER"
-                and index + 1 < end
-                and self.tokens[index + 1].kind == "FOR_ITER"
+                and self._next_semantic_index(index + 1, end) < end
+                and self.tokens[
+                    self._next_semantic_index(index + 1, end)
+                ].kind
+                == "FOR_ITER"
             ):
                 index = self._for_loop(index, loop)
                 continue
@@ -1927,11 +1965,27 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 terminal_kinds=frozenset({"PRINT_EXPR"}),
             )
             return [ast.Expr(value=expression)]
-        start = (
-            2
-            if self.tokens and self.tokens[0].kind == "RETURN_GENERATOR"
-            else 0
-        )
+        start = 0
+        while (
+            start < len(self.tokens)
+            and self.tokens[start].kind
+            in (
+                "COPY_FREE_VARS",
+                "INTERNAL_EXTENDED_ARG",
+                "MAKE_CELL",
+            )
+        ):
+            start += 1
+        if (
+            start < len(self.tokens)
+            and self.tokens[start].kind == "RETURN_GENERATOR"
+        ):
+            start += 1
+            if (
+                start < len(self.tokens)
+                and self.tokens[start].kind == "POP_TOP"
+            ):
+                start += 1
         self.body = self._capture_region(start, len(self.tokens), None)
         if getattr(self.code, "co_name", "<module>") != "<module>" and not self.is_class_body:
             self._inject_function_docstring()
@@ -1939,6 +1993,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         return self.body
 
     def decompile_expression(self) -> ast.expr:
+        if int(getattr(self.code, "co_flags", 0)) & CO_GENERATOR:
+            return super(StructuredDecompiler311, self).decompile_expression()
+
         from decompyle3.parsers.p311.expressions import recover_expression311
 
         return recover_expression311(

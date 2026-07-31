@@ -6,9 +6,9 @@
 ## 汇总
 
 - Shape inventory：40
-- pass：35
+- pass：36
 - internal_consumed：0
-- unsupported_fail_closed：5
+- unsupported_fail_closed：4
 - not_applicable：0
 - missing：0
 
@@ -48,7 +48,7 @@
 | `incremental_mapping_build` | collection | pass | `test/simple_source/311/08_imports_unpacking.py` | `—` | 2 |
 | `scope_deletion` | scope | pass | `test/bytecode_3.11/opcode_fixtures/scope/delete_deref.py` | `—` | 3 |
 | `realworld_call_and_expression_stack` | realworld_expression | pass | `test/simple_source/311/13_call_expression_stack.py` | `—` | 5 |
-| `realworld_comprehension_and_iterator_protocol` | realworld_comprehension | unsupported_fail_closed | `—` | `Decompyle3Error` | 1 |
+| `realworld_comprehension_and_iterator_protocol` | realworld_comprehension | pass | `test/simple_source/311/15_comprehension_iterator_protocol.py` | `—` | 4 |
 | `realworld_exception_cleanup_control_transfer` | realworld_exception | unsupported_fail_closed | `—` | `Decompyle3Error` | 5 |
 | `realworld_function_object_flow` | realworld_function | pass | `test/simple_source/311/14_function_object_flow.py` | `—` | 4 |
 | `realworld_import_protocol` | realworld_import | pass | `test/simple_source/311/11_import_transactions.py` | `—` | 6 |
@@ -65,7 +65,6 @@
 ## Fail-closed
 
 - `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes.
-- `realworld_comprehension_and_iterator_protocol`：`Decompyle3Error`；Phase 8 records non-canonical MAP_ADD, SET_ADD, FOR_ITER, RETURN_GENERATOR, and YIELD_VALUE layouts found in standard-library and third-party modules.
 - `realworld_exception_cleanup_control_transfer`：`Decompyle3Error`；Stage 3 verifies the canonical exception-cleanup fixture, but Stage 4 exposes 25 advanced nested return/call/control-transfer layouts in recognized exception-table regions. They retain exact parser diagnostics with an exception-cleanup shape hint and fail closed instead of falling through to ordinary expression recovery.
 - `realworld_recursive_structure`：`Python311ParseError`；Phase 8 converts internal RecursionError escapes into contextual Python311ParseError failures.
 - `realworld_with_control_transfer`：`Decompyle3Error`；Phase 8 records with-body return, yield, and cleanup control transfers that are not one safely recoverable expression.

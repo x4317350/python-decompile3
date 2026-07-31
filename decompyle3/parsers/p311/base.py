@@ -504,6 +504,31 @@ class _StraightLineDecompiler:
 
         self._error(f"{kind} does not target a compatible literal")
 
+    def _collection_add(self, kind: str, depth: int):
+        if kind == "MAP_ADD":
+            value = self._pop_expr()
+            key = self._pop_expr()
+        else:
+            value = self._pop_expr()
+            key = None
+
+        index = -max(depth, 1)
+        if len(self.stack) < abs(index):
+            self._error(f"{kind} references a missing container")
+        container = self.stack[index]
+
+        if kind == "LIST_APPEND" and isinstance(container, ast.List):
+            container.elts.append(value)
+            return
+        if kind == "SET_ADD" and isinstance(container, ast.Set):
+            container.elts.append(value)
+            return
+        if kind == "MAP_ADD" and isinstance(container, ast.Dict):
+            container.keys.append(key)
+            container.values.append(value)
+            return
+        self._error(f"{kind} does not target a compatible literal")
+
     def _dict_update(self, depth: int):
         incoming = self._pop_expr()
         index = -max(depth, 1)
@@ -1328,6 +1353,8 @@ class _StraightLineDecompiler:
             self._build_const_key_map(argument)
         elif kind in ("LIST_EXTEND", "SET_UPDATE"):
             self._sequence_extend(kind, argument)
+        elif kind in ("LIST_APPEND", "SET_ADD", "MAP_ADD"):
+            self._collection_add(kind, argument)
         elif kind in ("DICT_UPDATE", "DICT_MERGE"):
             self._dict_update(argument)
         elif kind == "LIST_TO_TUPLE":

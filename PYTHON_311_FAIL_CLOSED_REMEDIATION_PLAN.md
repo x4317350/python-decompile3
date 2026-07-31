@@ -547,15 +547,17 @@ git status --short
 - 阶段 2 已完成并提交；
 - 阶段 3 已完成并提交；
 - 阶段 4 已完成并提交；
-- 阶段 5 已完成，等待单独提交；
-- 阶段 6 及后续阶段尚未开始；
+- 阶段 5 已完成并提交；
+- 阶段 6 已完成，等待单独提交；
+- 阶段 7 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
 - 阶段 2 修复提交为 `b41d6cdb`；
 - 阶段 3 修复提交为 `58452b95`；
 - 阶段 4 修复提交为 `ae53e1ae`；
-- 当前 shape 状态为 35 pass、5 fail-closed、0 missing。
+- 阶段 5 修复提交为 `30595e11`；
+- 当前 shape 状态为 36 pass、4 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -674,7 +676,7 @@ git status --short
 
 ```text
 阶段：5，修复函数对象流
-提交：本阶段修复提交（等待单独提交）
+提交：30595e11，提交说明为“修复：完成 Python 3.11 函数对象流恢复”
 目标 shape：realworld_function_object_flow
 阶段前计数：15；原冻结基线 9，另有前置阶段清除 import、调用和表达式栈错误后暴露或迁入 6 项
 阶段后计数：0
@@ -687,4 +689,23 @@ git status --short
 全量测试：813 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：35 shape pass、5 fail-closed、0 missing；函数对象流转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
 已知限制：推导式/迭代协议 130、高级异常清理 27、递归结构 34、with 控制转移 78 继续由后续阶段处理；人工不可约 CFG 保持明确 fail-closed
+```
+
+阶段 6：
+
+```text
+阶段：6，修复推导式与迭代协议
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_comprehension_and_iterator_protocol
+阶段前计数：130；原冻结基线 67，另有前置阶段清除调用、表达式和函数对象错误后暴露或迁入 63 项
+阶段后计数：0
+已修复签名：FOR_ITER 50、MAP_ADD 29、RETURN_GENERATOR 23、POP_JUMP_FORWARD_IF_FALSE 10、LIST_APPEND 5、POP_JUMP_FORWARD_IF_TRUE 5、无 loop-back/break edge 2、生成器表达式范围 4、JUMP_FORWARD 1、SET_ADD 1；覆盖 stack depth=1 的增量容器、EXTENDED_ARG 前缀循环、无回边终止循环、条件输出、布尔/条件过滤、比较链、闭包生成器、yield from 和生成器 lambda
+剩余子 shape：原推导式/迭代协议粗分类归零；阶段修复后新暴露的调用/表达式栈 11、异常清理 45、递归结构 45、with 控制转移 90 均按实际失败边界守恒分类
+新增 fixture：test/simple_source/311/15_comprehension_iterator_protocol.py；同步 dis 和 normalized token golden
+行为验证：覆盖增量 list/set/dict、长循环 EXTENDED_ARG、首项返回/空迭代异常、条件 dictcomp 输出、and/or 与条件过滤、比较链 genexpr、闭包生成器、yield from 和生成器 lambda；真实语料 6/6 行为探针一致
+真实语料：604 个输入重放；413 success、191 fail-closed；0 syntax failure、0 unexpected crash；推导式/迭代协议分类归零
+专项测试：阶段 6 专项、生成器、表达式、解包、shape behavior、语料与 opcode corpus 均通过
+全量测试：817 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：36 shape pass、4 fail-closed、0 missing；推导式/迭代协议转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
+已知限制：真实语料仍有调用/表达式栈 11、高级异常清理 45、递归结构 45、with 控制转移 90；人工不可约 CFG 保持明确 fail-closed
 ```

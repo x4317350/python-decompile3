@@ -7,7 +7,7 @@
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`1e8b85d4f62590976556e0e45172d537bf7f749f0fcad26198fee053a44248f7`
+- 输入摘要：`1f7e6ac726a904850a94ef491c53a8b3a7471e36cd939d48a839ebf0ed8dddce`
 
 第三方版本：
 
@@ -21,34 +21,34 @@
 ## 汇总
 
 - 输入文件数：604
-- 成功反编译数：335
-- 语法验证成功数：335
+- 成功反编译数：413
+- 语法验证成功数：413
 - 语法失败数：0
-- fail-closed 数：269
+- fail-closed 数：191
 - malformed/unsupported input 数：0
 - 未包装崩溃数：0
 - 行为一致数：6
 - 行为不一致数：0
 - 行为输入缺失数：0
-- 首次失败 opcode：`FOR_ITER`
-- 首次失败 shape：`realworld_comprehension_and_iterator_protocol`
+- 首次失败 opcode：`CALL`
+- 首次失败 shape：`realworld_exception_cleanup_control_transfer`
 
 ## 分组
 
 | 分组 | 输入 | 反编译成功 | 语法成功 | 语法失败 | fail-closed | 输入不支持 | 未包装崩溃 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| stdlib | 338 | 162 | 162 | 0 | 176 | 0 | 0 |
-| project | 115 | 82 | 82 | 0 | 33 | 0 | 0 |
-| third_party | 151 | 91 | 91 | 0 | 60 | 0 | 0 |
+| stdlib | 338 | 200 | 200 | 0 | 138 | 0 | 0 |
+| project | 115 | 98 | 98 | 0 | 17 | 0 | 0 |
+| third_party | 151 | 115 | 115 | 0 | 36 | 0 | 0 |
 
 ## Fail-closed 分类
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_comprehension_and_iterator_protocol` | 130 |
-| `realworld_exception_cleanup_control_transfer` | 27 |
-| `realworld_recursive_structure` | 34 |
-| `realworld_with_control_transfer` | 78 |
+| `realworld_call_and_expression_stack` | 11 |
+| `realworld_exception_cleanup_control_transfer` | 45 |
+| `realworld_recursive_structure` | 45 |
+| `realworld_with_control_transfer` | 90 |
 
 ## 行为探针
 
