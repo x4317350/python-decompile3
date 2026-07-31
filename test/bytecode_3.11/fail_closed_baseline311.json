@@ -1,0 +1,859 @@
+{
+  "decompile_success": 203,
+  "environment": {
+    "package_versions": {
+      "attrs": "26.1.0",
+      "click": "8.4.2",
+      "packaging": "26.2",
+      "platformdirs": "4.11.0",
+      "pluggy": "1.6.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "darwin",
+    "runtime": "3.11.9"
+  },
+  "fail_closed": 401,
+  "input_digest": "8b69da10c639757a77c33fe575a95f5c9cd7d4ebd84e3be835e181a024b9ac62",
+  "input_files": 604,
+  "phase": 0,
+  "realworld_shape_count": 9,
+  "safety_boundary_count": 1,
+  "schema_version": 1,
+  "shape_inventory": 10,
+  "shapes": [
+    {
+      "archived_fail_closed": 2,
+      "category": "realworld_assignment",
+      "dependencies": [],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 2
+      },
+      "name": "realworld_unpack_assignment",
+      "objective": "Recover assignment and loop-target routing without allowing parser-only unpack markers to escape.",
+      "opcodes": {
+        "UNPACK_SEQUENCE": 2
+      },
+      "representatives": [
+        {
+          "code_name": "showsyntaxerror",
+          "error": "Expected an expression on the operand stack, found _UnpackItem (opcode UNPACK_SEQUENCE) [version=3.11, code='showsyntaxerror', offset=162]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "code.py",
+          "offset": 162,
+          "opcode": "UNPACK_SEQUENCE",
+          "signature": "Expected an expression on the operand stack, found _UnpackItem (opcode UNPACK_SEQUENCE)"
+        },
+        {
+          "code_name": "_run_after_forkers",
+          "error": "Unpacking loop target contains a non-store opcode (opcode UNPACK_SEQUENCE) [version=3.11, code='_run_after_forkers', offset=128]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "multiprocessing/util.py",
+          "offset": 128,
+          "opcode": "UNPACK_SEQUENCE",
+          "signature": "Unpacking loop target contains a non-store opcode (opcode UNPACK_SEQUENCE)"
+        }
+      ],
+      "risk": "medium",
+      "signatures": [
+        {
+          "count": 1,
+          "signature": "Expected an expression on the operand stack, found _UnpackItem (opcode UNPACK_SEQUENCE)"
+        },
+        {
+          "count": 1,
+          "signature": "Unpacking loop target contains a non-store opcode (opcode UNPACK_SEQUENCE)"
+        }
+      ],
+      "stage": 1,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 6,
+      "category": "realworld_import",
+      "dependencies": [],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 6
+      },
+      "name": "realworld_import_protocol",
+      "objective": "Bind IMPORT_FROM to its owning import transaction across intermediate stack operations.",
+      "opcodes": {
+        "IMPORT_FROM": 6
+      },
+      "representatives": [
+        {
+          "code_name": "<module>",
+          "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/scanners/pypy37.py",
+          "offset": 18,
+          "opcode": "IMPORT_FROM",
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/scanners/pypy38.py",
+          "offset": 18,
+          "opcode": "IMPORT_FROM",
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=26]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/semantics/customize311.py",
+          "offset": 26,
+          "opcode": "IMPORT_FROM",
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=14]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/semantics/parser_error.py",
+          "offset": 14,
+          "opcode": "IMPORT_FROM",
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=94]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/semantics/pysource.py",
+          "offset": 94,
+          "opcode": "IMPORT_FROM",
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        }
+      ],
+      "risk": "medium",
+      "signatures": [
+        {
+          "count": 6,
+          "signature": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM)"
+        }
+      ],
+      "stage": 2,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 57,
+      "category": "realworld_exception",
+      "dependencies": [],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 57
+      },
+      "name": "realworld_exception_cleanup_control_transfer",
+      "objective": "Structure exception-table cleanup and RERAISE/POP_EXCEPT transfers before expression fallback.",
+      "opcodes": {
+        "<none>": 15,
+        "POP_EXCEPT": 8,
+        "PUSH_EXC_INFO": 3,
+        "RERAISE": 29,
+        "SWAP_STACK": 2
+      },
+      "representatives": [
+        {
+          "code_name": "main_bin",
+          "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='main_bin', offset=1580]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/bin/decompile.py",
+          "offset": 1580,
+          "opcode": "RERAISE",
+          "signature": "Unsupported phase-# opcode RERAISE (opcode RERAISE)"
+        },
+        {
+          "code_name": "_parse_varint",
+          "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='_parse_varint', offset=94]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/exceptiontable311.py",
+          "offset": 94,
+          "opcode": "RERAISE",
+          "signature": "Unsupported phase-# opcode RERAISE (opcode RERAISE)"
+        },
+        {
+          "code_name": "verify_source",
+          "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='verify_source', offset=182]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/main.py",
+          "offset": 182,
+          "opcode": "RERAISE",
+          "signature": "Unsupported phase-# opcode RERAISE (opcode RERAISE)"
+        },
+        {
+          "code_name": "get_python_parser",
+          "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='get_python_parser', offset=1250]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/main.py",
+          "offset": 1250,
+          "opcode": "RERAISE",
+          "signature": "Unsupported phase-# opcode RERAISE (opcode RERAISE)"
+        },
+        {
+          "code_name": "tryexcept",
+          "error": "SWAP_STACK depth 2 is invalid (opcode SWAP_STACK) [version=3.11, code='tryexcept', offset=308]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/reduce_check/tryexcept.py",
+          "offset": 308,
+          "opcode": "SWAP_STACK",
+          "signature": "SWAP_STACK depth # is invalid (opcode SWAP_STACK)"
+        }
+      ],
+      "risk": "very_high",
+      "signatures": [
+        {
+          "count": 29,
+          "signature": "Unsupported phase-# opcode RERAISE (opcode RERAISE)"
+        },
+        {
+          "count": 15,
+          "signature": "Finally suite has no normal-path jump ('<value>', offset #)"
+        },
+        {
+          "count": 8,
+          "signature": "Unsupported phase-# opcode POP_EXCEPT (opcode POP_EXCEPT)"
+        },
+        {
+          "count": 3,
+          "signature": "Unsupported phase-# opcode PUSH_EXC_INFO (opcode PUSH_EXC_INFO)"
+        },
+        {
+          "count": 2,
+          "signature": "SWAP_STACK depth # is invalid (opcode SWAP_STACK)"
+        }
+      ],
+      "stage": 3,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 217,
+      "category": "realworld_expression",
+      "dependencies": [],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 214,
+        "SemanticGenerationError": 3
+      },
+      "name": "realworld_call_and_expression_stack",
+      "objective": "Split the umbrella into precise call, stack, jump-expression, and generated-source shapes, then eliminate each residual.",
+      "opcodes": {
+        "<none>": 71,
+        "BINARY_SUBSCR": 1,
+        "BUILD_CONST_KEY_MAP": 1,
+        "BUILD_MAP": 1,
+        "BUILD_TUPLE": 2,
+        "CALL": 17,
+        "COMPARE_EQ": 1,
+        "COMPARE_LT": 1,
+        "CONTAINS": 2,
+        "IS_NOT": 1,
+        "JUMP_FORWARD": 2,
+        "LOAD_ATTR": 11,
+        "LOAD_FAST": 2,
+        "LOAD_GLOBAL": 2,
+        "LOAD_NAME": 1,
+        "POP_JUMP_FORWARD_IF_FALSE": 4,
+        "POP_JUMP_FORWARD_IF_NONE": 1,
+        "POP_JUMP_FORWARD_IF_TRUE": 4,
+        "POP_TOP": 18,
+        "RETURN_VALUE": 1,
+        "STORE_FAST": 5,
+        "SWAP_STACK": 68
+      },
+      "representatives": [
+        {
+          "code_name": "<dictcomp>",
+          "error": "Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE) [version=3.11, code='<dictcomp>', offset=20]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/dominators.py",
+          "offset": 20,
+          "opcode": "POP_JUMP_FORWARD_IF_FALSE",
+          "signature": "Unsupported phase-# opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE)"
+        },
+        {
+          "code_name": "_handler_has_match",
+          "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_handler_has_match', offset=64]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/exception_structures.py",
+          "offset": 64,
+          "opcode": "POP_TOP",
+          "signature": "Operand stack underflow (opcode POP_TOP)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Instruction range 6:31 does not contain 1 expression value(s) (MatchStructureDecompiler311._looks_like_case_start.<locals>.<genexpr>) [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/match_structures.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Instruction range #:# does not contain # expression value(s) (MatchStructureDecompiler311._looks_like_case_start.<locals>.<genexpr>)"
+        },
+        {
+          "code_name": "_combine_decision",
+          "error": "Structured statement region left stack values (opcode LOAD_GLOBAL) [version=3.11, code='_combine_decision', offset=54]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/structures.py",
+          "offset": 54,
+          "opcode": "LOAD_GLOBAL",
+          "signature": "Structured statement region left stack values (opcode LOAD_GLOBAL)"
+        },
+        {
+          "code_name": "add_error_context",
+          "error": "Expression produced 4 final stack values [version=3.11, code='add_error_context', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/errors.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Expression produced # final stack values"
+        }
+      ],
+      "risk": "very_high",
+      "signatures": [
+        {
+          "count": 68,
+          "signature": "SWAP_STACK depth # is invalid (opcode SWAP_STACK)"
+        },
+        {
+          "count": 45,
+          "signature": "Expression produced # final stack values"
+        },
+        {
+          "count": 20,
+          "signature": "Invalid expression instruction range #:#"
+        },
+        {
+          "count": 17,
+          "signature": "Operand stack underflow (opcode POP_TOP)"
+        },
+        {
+          "count": 10,
+          "signature": "Operand stack underflow (opcode CALL)"
+        },
+        {
+          "count": 10,
+          "signature": "Operand stack underflow (opcode LOAD_ATTR)"
+        },
+        {
+          "count": 6,
+          "signature": "Structured statement region left stack values (opcode CALL)"
+        },
+        {
+          "count": 5,
+          "signature": "Operand stack underflow (opcode STORE_FAST)"
+        },
+        {
+          "count": 4,
+          "signature": "Unsupported phase-# opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE)"
+        },
+        {
+          "count": 4,
+          "signature": "Unsupported phase-# opcode POP_JUMP_FORWARD_IF_TRUE (opcode POP_JUMP_FORWARD_IF_TRUE)"
+        },
+        {
+          "count": 3,
+          "signature": "Parser311 generated source that does not recompile cleanly"
+        },
+        {
+          "count": 2,
+          "signature": "Structured statement region left stack values (opcode LOAD_GLOBAL)"
+        },
+        {
+          "count": 2,
+          "signature": "Structured statement region left stack values (opcode JUMP_FORWARD)"
+        },
+        {
+          "count": 2,
+          "signature": "Operand stack underflow (opcode CONTAINS)"
+        },
+        {
+          "count": 2,
+          "signature": "Structured statement region left stack values (opcode LOAD_FAST)"
+        },
+        {
+          "count": 1,
+          "signature": "Instruction range #:# does not contain # expression value(s) (MatchStructureDecompiler311._looks_like_case_start.<locals>.<genexpr>)"
+        },
+        {
+          "count": 1,
+          "signature": "Operand stack underflow (opcode IS_NOT)"
+        },
+        {
+          "count": 1,
+          "signature": "Structured statement region left stack values (opcode LOAD_ATTR)"
+        },
+        {
+          "count": 1,
+          "signature": "Structured statement region left stack values (opcode BUILD_TUPLE)"
+        },
+        {
+          "count": 1,
+          "signature": "Structured statement region left stack values (opcode BINARY_SUBSCR)"
+        },
+        {
+          "count": 1,
+          "signature": "Operand stack underflow (opcode COMPARE_EQ)"
+        },
+        {
+          "count": 1,
+          "signature": "JUMP_FORWARD targets outside the expression"
+        },
+        {
+          "count": 1,
+          "signature": "Expected only expressions in a variable-length operand (opcode BUILD_TUPLE)"
+        },
+        {
+          "count": 1,
+          "signature": "Expected only expressions in a variable-length operand (opcode BUILD_MAP)"
+        },
+        {
+          "count": 1,
+          "signature": "Unsupported phase-# opcode POP_JUMP_FORWARD_IF_NONE (opcode POP_JUMP_FORWARD_IF_NONE)"
+        },
+        {
+          "count": 1,
+          "signature": "Instruction range #:# does not contain # expression value(s) (_ss.<locals>.<genexpr>)"
+        },
+        {
+          "count": 1,
+          "signature": "Operand stack underflow (opcode RETURN_VALUE)"
+        },
+        {
+          "count": 1,
+          "signature": "POP_TOP operand is not an expression (opcode POP_TOP)"
+        },
+        {
+          "count": 1,
+          "signature": "Operand stack needs # values, found # (opcode CALL)"
+        },
+        {
+          "count": 1,
+          "signature": "Operand stack underflow (opcode COMPARE_LT)"
+        },
+        {
+          "count": 1,
+          "signature": "Expected only expressions in a variable-length operand (opcode BUILD_CONST_KEY_MAP)"
+        },
+        {
+          "count": 1,
+          "signature": "Structured statement region left stack values (opcode LOAD_NAME)"
+        }
+      ],
+      "stage": 4,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 9,
+      "category": "realworld_function",
+      "dependencies": [
+        "realworld_call_and_expression_stack"
+      ],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 9
+      },
+      "name": "realworld_function_object_flow",
+      "objective": "Represent function values as expressions until their final name, attribute, subscript, or call consumer is known.",
+      "opcodes": {
+        "CALL": 4,
+        "STORE_ATTR": 5
+      },
+      "representatives": [
+        {
+          "code_name": "<module>",
+          "error": "Expected an expression, found parser-only value _FunctionValue (opcode CALL) [version=3.11, code='<module>', offset=354]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "_pyio.py",
+          "offset": 354,
+          "opcode": "CALL",
+          "signature": "Expected an expression, found parser-only value _FunctionValue (opcode CALL)"
+        },
+        {
+          "code_name": "lru_cache",
+          "error": "A function definition is stored to a non-name target (opcode STORE_ATTR) [version=3.11, code='lru_cache', offset=206]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "functools.py",
+          "offset": 206,
+          "opcode": "STORE_ATTR",
+          "signature": "A function definition is stored to a non-name target (opcode STORE_ATTR)"
+        },
+        {
+          "code_name": "freeze",
+          "error": "A function definition is stored to a non-name target (opcode STORE_ATTR) [version=3.11, code='freeze', offset=14]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "importlib/metadata/_collections.py",
+          "offset": 14,
+          "opcode": "STORE_ATTR",
+          "signature": "A function definition is stored to a non-name target (opcode STORE_ATTR)"
+        },
+        {
+          "code_name": "method_cache",
+          "error": "A function definition is stored to a non-name target (opcode STORE_ATTR) [version=3.11, code='method_cache', offset=66]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "importlib/metadata/_functools.py",
+          "offset": 66,
+          "opcode": "STORE_ATTR",
+          "signature": "A function definition is stored to a non-name target (opcode STORE_ATTR)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Expected an expression, found parser-only value _FunctionValue (opcode CALL) [version=3.11, code='<module>', offset=242]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "importlib/resources/_legacy.py",
+          "offset": 242,
+          "opcode": "CALL",
+          "signature": "Expected an expression, found parser-only value _FunctionValue (opcode CALL)"
+        }
+      ],
+      "risk": "medium",
+      "signatures": [
+        {
+          "count": 5,
+          "signature": "A function definition is stored to a non-name target (opcode STORE_ATTR)"
+        },
+        {
+          "count": 4,
+          "signature": "Expected an expression, found parser-only value _FunctionValue (opcode CALL)"
+        }
+      ],
+      "stage": 5,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 67,
+      "category": "realworld_comprehension",
+      "dependencies": [
+        "realworld_call_and_expression_stack"
+      ],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 38,
+        "UnsupportedPython311ControlFlow": 29
+      },
+      "name": "realworld_comprehension_and_iterator_protocol",
+      "objective": "Recover nested iterator, filter, append/add, generator, and suspension protocols in arbitrary enclosing code objects.",
+      "opcodes": {
+        "FOR_ITER": 26,
+        "MAP_ADD": 28,
+        "RETURN_GENERATOR": 11,
+        "SET_ADD": 1,
+        "YIELD_VALUE": 1
+      },
+      "representatives": [
+        {
+          "code_name": "main",
+          "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='main', offset=608]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/bin/decompile_code_type.py",
+          "offset": 608,
+          "opcode": "FOR_ITER",
+          "signature": "Unsupported phase-# opcode FOR_ITER (opcode FOR_ITER)"
+        },
+        {
+          "code_name": "format",
+          "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='format', offset=22]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/controlflow/cfg.py",
+          "offset": 22,
+          "opcode": "FOR_ITER",
+          "signature": "Unsupported phase-# opcode FOR_ITER (opcode FOR_ITER)"
+        },
+        {
+          "code_name": "customize_grammar_rules37",
+          "error": "This opcode is not supported by the CPython 3.11 structure decompiler (opcode MAP_ADD) [version=3.11, code='customize_grammar_rules37', offset=8638]",
+          "error_type": "UnsupportedPython311ControlFlow",
+          "group": "project",
+          "name": "decompyle3/parsers/p37/base.py",
+          "offset": 8638,
+          "opcode": "MAP_ADD",
+          "signature": "This opcode is not supported by the CPython #.# structure decompiler (opcode MAP_ADD)"
+        },
+        {
+          "code_name": "customize_grammar_rules_lambda37",
+          "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='customize_grammar_rules_lambda37', offset=134]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/p37/lambda_custom.py",
+          "offset": 134,
+          "opcode": "FOR_ITER",
+          "signature": "Unsupported phase-# opcode FOR_ITER (opcode FOR_ITER)"
+        },
+        {
+          "code_name": "customize_grammar_rules_full38",
+          "error": "Unsupported phase-3 opcode FOR_ITER (opcode FOR_ITER) [version=3.11, code='customize_grammar_rules_full38', offset=412]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/p38/full_custom.py",
+          "offset": 412,
+          "opcode": "FOR_ITER",
+          "signature": "Unsupported phase-# opcode FOR_ITER (opcode FOR_ITER)"
+        }
+      ],
+      "risk": "very_high",
+      "signatures": [
+        {
+          "count": 28,
+          "signature": "This opcode is not supported by the CPython #.# structure decompiler (opcode MAP_ADD)"
+        },
+        {
+          "count": 26,
+          "signature": "Unsupported phase-# opcode FOR_ITER (opcode FOR_ITER)"
+        },
+        {
+          "count": 11,
+          "signature": "Unsupported phase-# opcode RETURN_GENERATOR (opcode RETURN_GENERATOR)"
+        },
+        {
+          "count": 1,
+          "signature": "This opcode is not supported by the CPython #.# structure decompiler (opcode SET_ADD)"
+        },
+        {
+          "count": 1,
+          "signature": "Unsupported phase-# opcode YIELD_VALUE (opcode YIELD_VALUE)"
+        }
+      ],
+      "stage": 6,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 29,
+      "category": "realworld_exception",
+      "dependencies": [
+        "realworld_call_and_expression_stack",
+        "realworld_exception_cleanup_control_transfer"
+      ],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 29
+      },
+      "name": "realworld_with_control_transfer",
+      "objective": "Recover return, yield, break, continue, and cleanup transfers inside with/async-with bodies.",
+      "opcodes": {
+        "<none>": 29
+      },
+      "representatives": [
+        {
+          "code_name": "<module>",
+          "error": "Returning with-body is not one expression ('_patch', offset 234) [version=3.11, code='<module>', offset=234]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "_threading_local.py",
+          "offset": 234,
+          "opcode": null,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Returning with-body is not one expression ('__iter__', offset 34) [version=3.11, code='<module>', offset=34]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "_weakrefset.py",
+          "offset": 34,
+          "opcode": null,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Returning with-body is not one expression ('dump_stats', offset 40) [version=3.11, code='<module>', offset=40]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "cProfile.py",
+          "offset": 40,
+          "opcode": null,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Returning with-body is not one expression ('_maybe_compile', offset 174) [version=3.11, code='<module>', offset=174]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "codeop.py",
+          "offset": 174,
+          "opcode": null,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Returning with-body is not one expression ('add_result', offset 16) [version=3.11, code='<module>', offset=16]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "concurrent/futures/_base.py",
+          "offset": 16,
+          "opcode": null,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        }
+      ],
+      "risk": "high",
+      "signatures": [
+        {
+          "count": 29,
+          "signature": "Returning with-body is not one expression ('<value>', offset #)"
+        }
+      ],
+      "stage": 7,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 13,
+      "category": "realworld_control_flow",
+      "dependencies": [
+        "realworld_call_and_expression_stack",
+        "realworld_comprehension_and_iterator_protocol"
+      ],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 13
+      },
+      "name": "realworld_recursive_structure",
+      "objective": "Replace unbounded recursive structure probing with bounded or iterative traversal while preserving cycle detection.",
+      "opcodes": {
+        "<none>": 13
+      },
+      "representatives": [
+        {
+          "code_name": "<module>",
+          "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/reduce_check/ifelsestmt.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/parsers/reduce_check/ifstmts_jump.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/semantics/customize3.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "project",
+          "name": "decompyle3/semantics/gencomp.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        },
+        {
+          "code_name": "<module>",
+          "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "_markupbase.py",
+          "offset": null,
+          "opcode": null,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        }
+      ],
+      "risk": "high",
+      "signatures": [
+        {
+          "count": 13,
+          "signature": "Parser311 recursion limit reached while structuring control flow"
+        }
+      ],
+      "stage": 8,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 1,
+      "category": "realworld_match",
+      "dependencies": [
+        "realworld_call_and_expression_stack",
+        "realworld_exception_cleanup_control_transfer"
+      ],
+      "disposition": "recover_or_split_until_zero",
+      "error_types": {
+        "Python311ParseError": 1
+      },
+      "name": "realworld_match_boundary",
+      "objective": "Recover canonical case fallthrough and body terminators using CFG dominance rather than source-order guessing.",
+      "opcodes": {
+        "<none>": 1
+      },
+      "representatives": [
+        {
+          "code_name": "<module>",
+          "error": "Match case body has no structural terminator ('<module>', offset 424) [version=3.11, code='<module>', offset=424]",
+          "error_type": "Python311ParseError",
+          "group": "stdlib",
+          "name": "tarfile.py",
+          "offset": 424,
+          "opcode": null,
+          "signature": "Match case body has no structural terminator ('<value>', offset #)"
+        }
+      ],
+      "risk": "high",
+      "signatures": [
+        {
+          "count": 1,
+          "signature": "Match case body has no structural terminator ('<value>', offset #)"
+        }
+      ],
+      "stage": 9,
+      "status": "unsupported_fail_closed"
+    },
+    {
+      "archived_fail_closed": 0,
+      "category": "control_flow",
+      "dependencies": [],
+      "disposition": "retain_safety_boundary",
+      "error_types": {},
+      "name": "irreducible_control_flow",
+      "objective": "Keep artificial irreducible graphs fail-closed unless a semantics-preserving structured representation is proven.",
+      "opcodes": {},
+      "representatives": [],
+      "risk": "security_boundary",
+      "signatures": [],
+      "stage": 10,
+      "status": "unsupported_fail_closed"
+    }
+  ],
+  "source_commit": "9f5bb1e4",
+  "target": {
+    "implementation": "CPython",
+    "version": "3.11.9"
+  }
+}
