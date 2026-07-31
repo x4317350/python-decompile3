@@ -345,6 +345,84 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/simple_source/311/12_exception_cleanup.py": _probe(
+        """
+        def _translated(value):
+            events = []
+            try:
+                result = translate_error(value, events)
+            except BaseException as error:
+                cause = error.__cause__
+                result = (
+                    type(error).__name__,
+                    error.args,
+                    None
+                    if cause is None
+                    else (type(cause).__name__, cause.args),
+                )
+            return result, events
+
+        def _reraised():
+            events = []
+            try:
+                reraised_error(events)
+            except BaseException as error:
+                return type(error).__name__, error.args, events
+
+        def _nested_finally(fail):
+            events = []
+            try:
+                result = nested_finally(events, fail)
+            except BaseException as error:
+                result = (type(error).__name__, error.args)
+            return result, events
+
+        def _generator(fail):
+            events = []
+            generator = cleanup_generator(events, fail)
+            try:
+                result = ("yield", next(generator))
+            except BaseException as error:
+                result = ("raise", type(error).__name__, error.args)
+            else:
+                generator.close()
+            return result, events
+
+        _record(
+            "handler_returns",
+            lambda: [
+                return_from_handler(None),
+                return_from_handler(0),
+                return_from_handler("value"),
+            ],
+        )
+        _record(
+            "translated",
+            lambda: [_translated("7"), _translated("bad"), _translated(None)],
+        )
+        _record("reraised", _reraised)
+        _record(
+            "nested",
+            lambda: [
+                nested_handler_return("value"),
+                _nested_finally(False),
+                _nested_finally(True),
+            ],
+        )
+        _record(
+            "generator",
+            lambda: [_generator(False), _generator(True)],
+        )
+        _record(
+            "handler_break",
+            lambda: [
+                handler_break([1]),
+                handler_break([1, 2]),
+                handler_break([1, None, 3]),
+            ],
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

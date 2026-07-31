@@ -417,13 +417,17 @@
     {
       "name": "realworld_exception_cleanup_control_transfer",
       "category": "realworld_exception",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/12_exception_cleanup.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_exception_cleanup311.py::test_handler_return_raise_from_and_bare_reraise_preserve_behavior",
+        "pytest/test_exception_cleanup311.py::test_nested_handlers_and_finally_side_effect_order_are_preserved",
+        "pytest/test_exception_cleanup311.py::test_generator_cleanup_control_transfers_preserve_behavior",
+        "pytest/test_exception_cleanup311.py::test_handler_break_from_while_true_preserves_behavior",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Phase 8 records complex RERAISE, POP_EXCEPT, PUSH_EXC_INFO, and terminal finally cleanup layouts outside the supported canonical exception shapes."
+      "notes": "Stage 3 structures CPython 3.11 handler state, RERAISE propagation, POP_EXCEPT cleanup, nested and terminal finally copies, and exception-only SWAP operations before expression fallback. The fixed 604-file archive has no remaining exception-cleanup failure classification."
     },
     {
       "name": "realworld_function_object_flow",

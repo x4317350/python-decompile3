@@ -180,8 +180,10 @@ def classify_failure(error: BaseException) -> str:
             "POP_EXCEPT",
             "PUSH_EXC_INFO",
             "RERAISE",
-            "except",
+            "Bare exception",
+            "Exception clause",
             "Exception handler",
+            "except*",
         )
     ):
         return "realworld_exception_cleanup_control_transfer"

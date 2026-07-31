@@ -50,13 +50,12 @@
     "runtime": "3.11.9"
   },
   "failure_classifications": {
-    "realworld_call_and_expression_stack": 217,
-    "realworld_comprehension_and_iterator_protocol": 67,
-    "realworld_exception_cleanup_control_transfer": 58,
-    "realworld_function_object_flow": 10,
+    "realworld_call_and_expression_stack": 219,
+    "realworld_comprehension_and_iterator_protocol": 81,
+    "realworld_function_object_flow": 11,
     "realworld_match_boundary": 1,
-    "realworld_recursive_structure": 14,
-    "realworld_with_control_transfer": 29
+    "realworld_recursive_structure": 18,
+    "realworld_with_control_transfer": 35
   },
   "failure_samples": {
     "realworld_call_and_expression_stack": [
@@ -98,34 +97,11 @@
         "opcode": "FOR_ITER"
       },
       {
-        "error": "This opcode is not supported by the CPython 3.11 structure decompiler (opcode MAP_ADD) [version=3.11, code='customize_grammar_rules37', offset=8638]",
-        "error_type": "UnsupportedPython311ControlFlow",
-        "group": "project",
-        "name": "decompyle3/parsers/p37/base.py",
-        "opcode": "MAP_ADD"
-      }
-    ],
-    "realworld_exception_cleanup_control_transfer": [
-      {
-        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='main_bin', offset=1580]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/bin/decompile.py",
-        "opcode": "RERAISE"
-      },
-      {
-        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='_parse_varint', offset=94]",
+        "error": "Unsupported phase-3 opcode RETURN_GENERATOR (opcode RETURN_GENERATOR) [version=3.11, code='prefixed', offset=2]",
         "error_type": "Python311ParseError",
         "group": "project",
         "name": "decompyle3/controlflow/exceptiontable311.py",
-        "opcode": "RERAISE"
-      },
-      {
-        "error": "Unsupported phase-3 opcode RERAISE (opcode RERAISE) [version=3.11, code='verify_source', offset=182]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/main.py",
-        "opcode": "RERAISE"
+        "opcode": "RETURN_GENERATOR"
       }
     ],
     "realworld_function_object_flow": [
@@ -210,40 +186,40 @@
   "first_failure": {
     "error_type": "Python311ParseError",
     "group": "project",
-    "name": "decompyle3/bin/decompile.py",
-    "opcode": "RERAISE",
-    "shape": "realworld_exception_cleanup_control_transfer"
+    "name": "decompyle3/bin/decompile_code_type.py",
+    "opcode": "FOR_ITER",
+    "shape": "realworld_comprehension_and_iterator_protocol"
   },
   "groups": {
     "project": {
-      "decompile_success": 58,
-      "fail_closed": 57,
+      "decompile_success": 63,
+      "fail_closed": 52,
       "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 58,
+      "syntax_success": 63,
       "unexpected_crash": 0
     },
     "stdlib": {
-      "decompile_success": 98,
-      "fail_closed": 240,
+      "decompile_success": 115,
+      "fail_closed": 223,
       "input_files": 338,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 98,
+      "syntax_success": 115,
       "unexpected_crash": 0
     },
     "third_party": {
-      "decompile_success": 52,
-      "fail_closed": 99,
+      "decompile_success": 61,
+      "fail_closed": 90,
       "input_files": 151,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 52,
+      "syntax_success": 61,
       "unexpected_crash": 0
     }
   },
-  "input_digest": "0c98861a1132ced270a83b278260ffb2b96369ea8fb645d591b2cafca3a9b30e",
+  "input_digest": "74d6170d189ca0daaa4f31a56ccd1e0e3c32d04154ba02ad8320b7d8250381c7",
   "phase": 8,
   "schema_version": 1,
   "selection": {
@@ -281,12 +257,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 208,
-    "fail_closed": 396,
+    "decompile_success": 239,
+    "fail_closed": 365,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 208,
+    "syntax_success": 239,
     "unexpected_crash": 0
   }
 }

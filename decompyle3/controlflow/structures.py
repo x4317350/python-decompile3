@@ -173,6 +173,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         self.exception_states = {}
         self._suppressed_exception_starts = set()
+        self._suppressed_exception_handler_targets = set()
+        self._suppressed_exception_protocol_offsets = set()
+        self._suppressed_loop_starts = set()
         self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
 
@@ -649,6 +652,61 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         return loop_end_index
 
+    def _while_true_loop(
+        self,
+        start: int,
+        end: int,
+        loop: Optional[_LoopContext],
+    ) -> Optional[int]:
+        start_offset = self.tokens[start].offset
+        if start_offset in self._suppressed_loop_starts:
+            return None
+        latches = [
+            index
+            for index in range(start + 1, end)
+            if self.tokens[index].kind == "JUMP_BACKWARD"
+            and instruction_target(self.tokens[index]) == start_offset
+        ]
+        if not latches:
+            return None
+        latch = latches[-1]
+        break_targets = [
+            instruction_target(self.tokens[index])
+            for index in range(start, latch)
+            if self.tokens[index].kind == "JUMP_FORWARD"
+            and instruction_target(self.tokens[index])
+            > self.tokens[latch].offset
+        ]
+        if not break_targets:
+            return None
+        loop_end = max(break_targets)
+        loop_end_index = self.offset_to_index.get(loop_end)
+        if loop_end_index is None or loop_end_index <= latch:
+            return None
+
+        self._suppressed_loop_starts.add(start_offset)
+        try:
+            body = self._capture_region(
+                start,
+                latch,
+                _LoopContext(
+                    break_target=loop_end,
+                    continue_targets=frozenset(
+                        {start_offset, self.tokens[latch].offset}
+                    ),
+                ),
+            )
+        finally:
+            self._suppressed_loop_starts.remove(start_offset)
+        self.body.append(
+            ast.While(
+                test=ast.Constant(value=True),
+                body=body or [ast.Pass()],
+                orelse=[],
+            )
+        )
+        return loop_end_index
+
     def _for_target(
         self,
         start: int,
@@ -1058,6 +1116,18 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 self._flush_assignment()
 
             if (
+                token.offset
+                in self._suppressed_exception_protocol_offsets
+            ):
+                index += 1
+                continue
+
+            while_true_end = self._while_true_loop(index, end, loop)
+            if while_true_end is not None:
+                index = while_true_end
+                continue
+
+            if (
                 self.exception_regions
                 and token.offset not in self._suppressed_exception_starts
             ):
@@ -1074,6 +1144,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                         region.start == self.tokens[index + 1].offset
                         for region in self.exception_regions
                     )
+                    and self.tokens[index + 1].offset
+                    not in self._suppressed_exception_starts
                 ):
                     try_index += 1
                 try_end = recover_try_statement311(

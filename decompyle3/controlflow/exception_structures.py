@@ -96,11 +96,180 @@ class ExceptionStructureDecompiler311:
             for entry in self.entries
             if start <= self.offset_to_index[entry.start] < end
         }
-        self.owner._suppressed_exception_starts.update(offsets)
+        added = offsets - self.owner._suppressed_exception_starts
+        self.owner._suppressed_exception_starts.update(added)
         try:
             return self._capture_optional(start, end, loop)
         finally:
-            self.owner._suppressed_exception_starts.difference_update(offsets)
+            self.owner._suppressed_exception_starts.difference_update(added)
+
+    def _capture_before_handler(
+        self,
+        start: int,
+        end: int,
+        handler_offset: int,
+        loop,
+    ) -> List[ast.stmt]:
+        """Capture normal code while hiding an enclosing cleanup region."""
+        offsets = {
+            entry.start
+            for entry in self.entries
+            if start <= self.offset_to_index[entry.start] < end
+            and entry.target > handler_offset
+        }
+        added = offsets - self.owner._suppressed_exception_starts
+        handler_added = (
+            handler_offset
+            not in self.owner._suppressed_exception_handler_targets
+        )
+        self.owner._suppressed_exception_starts.update(added)
+        self.owner._suppressed_exception_handler_targets.add(
+            handler_offset
+        )
+        try:
+            return self._capture_optional(start, end, loop)
+        finally:
+            self.owner._suppressed_exception_starts.difference_update(added)
+            if handler_added:
+                self.owner._suppressed_exception_handler_targets.remove(
+                    handler_offset
+                )
+
+    def _handler_protocol_offsets(
+        self,
+        start: int,
+        end: int,
+        name: Optional[str],
+    ):
+        """Return non-source exception-stack operations in one clause body."""
+        offsets = set()
+        for index in range(start, end):
+            token = self.tokens[index]
+            if token.kind != "POP_EXCEPT":
+                continue
+            offsets.add(token.offset)
+
+            # Returning a value while an exception is active rotates that
+            # value below the saved exception state before POP_EXCEPT.  The
+            # rotation belongs to the handler protocol, not to the source
+            # expression.
+            marker = index - 1
+            if (
+                marker >= start
+                and self.tokens[marker].kind == "SWAP_STACK"
+            ):
+                offsets.add(self.tokens[marker].offset)
+
+            # CPython clears ``except ... as name`` bindings on every normal
+            # exit.  The synthetic None assignment and deletion must not
+            # appear in the recovered handler body.
+            cursor = index + 1
+            if name is None or cursor + 2 >= end:
+                continue
+            load, store, delete = self.tokens[cursor : cursor + 3]
+            stored_name = (
+                store.attr if isinstance(store.attr, str) else store.pattr
+            )
+            deleted_name = (
+                delete.attr
+                if isinstance(delete.attr, str)
+                else delete.pattr
+            )
+            if (
+                load.kind == "LOAD_CONST"
+                and load.attr is None
+                and store.kind.startswith("STORE_")
+                and delete.kind.startswith("DELETE_")
+                and stored_name == name
+                and deleted_name == name
+            ):
+                offsets.update(
+                    (load.offset, store.offset, delete.offset)
+                )
+        return offsets
+
+    def _capture_handler_clause(
+        self,
+        start: int,
+        end: int,
+        name: Optional[str],
+        loop,
+    ) -> List[ast.stmt]:
+        offsets = self._handler_protocol_offsets(start, end, name)
+        added = (
+            offsets
+            - self.owner._suppressed_exception_protocol_offsets
+        )
+        self.owner._suppressed_exception_protocol_offsets.update(added)
+        try:
+            return self._capture_optional(start, end, loop)
+        finally:
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added
+            )
+
+    def _conditional_handler_transfer(
+        self,
+        start: int,
+        end: int,
+        loop,
+    ) -> Optional[List[ast.stmt]]:
+        """Recover ``if condition: break/continue; raise`` in a handler."""
+        if loop is None or start >= end:
+            return None
+        jump_index = next(
+            (
+                index
+                for index in range(start, end)
+                if self.tokens[index].kind
+                in (
+                    "POP_JUMP_FORWARD_IF_FALSE",
+                    "POP_JUMP_FORWARD_IF_TRUE",
+                )
+            ),
+            None,
+        )
+        if jump_index is None:
+            return None
+        false_index = self.offset_to_index[
+            instruction_target(self.tokens[jump_index])
+        ]
+        if (
+            not jump_index < false_index < end
+            or false_index != end - 1
+            or self.tokens[false_index].kind != "RAISE_VARARGS"
+            or self.tokens[false_index].attr != 0
+        ):
+            return None
+        transfer_jumps = [
+            index
+            for index in range(jump_index + 1, false_index)
+            if self.tokens[index].kind
+            in ("JUMP_FORWARD", "JUMP_BACKWARD")
+        ]
+        if len(transfer_jumps) != 1:
+            return None
+        transfer_index = transfer_jumps[0]
+        if any(
+            self.tokens[index].kind
+            not in ("POP_EXCEPT", "JUMP_FORWARD", "JUMP_BACKWARD")
+            for index in range(jump_index + 1, false_index)
+        ):
+            return None
+        target = instruction_target(self.tokens[transfer_index])
+        if target == loop.break_target:
+            transfer = ast.Break()
+        elif target in loop.continue_targets:
+            transfer = ast.Continue()
+        else:
+            return None
+        test = self.owner._expression_slice(start, jump_index)
+        if self.tokens[jump_index].kind.endswith("_IF_TRUE"):
+            test = ast.UnaryOp(op=ast.Not(), operand=test)
+        return [
+            ast.If(test=test, body=[transfer], orelse=[]),
+            ast.Raise(exc=None, cause=None),
+        ]
 
     def _clause_body(
         self,
@@ -109,34 +278,42 @@ class ExceptionStructureDecompiler311:
         name: Optional[str],
         loop,
     ) -> List[ast.stmt]:
-        pop_index = next(
-            (
-                index
-                for index in range(start, end)
-                if self.tokens[index].kind == "POP_EXCEPT"
-            ),
-            None,
-        )
-        if pop_index is None:
-            return self._capture_optional(start, end, loop)
-
-        body = self._capture_optional(start, pop_index, loop)
-        cursor = pop_index + 1
-        if (
-            name is not None
-            and cursor + 2 < end
-            and self.tokens[cursor].kind == "LOAD_CONST"
-            and self.tokens[cursor].attr is None
-            and self.tokens[cursor + 1].kind.startswith("STORE_")
-            and self.tokens[cursor + 2].kind.startswith("DELETE_")
-        ):
-            cursor += 3
-        if cursor < end and self.tokens[end - 1].kind == "JUMP_FORWARD":
+        if start < end and self.tokens[end - 1].kind == "JUMP_FORWARD":
             end -= 1
-        body.extend(self._capture_optional(cursor, end, loop))
-        return body
+        conditional_transfer = self._conditional_handler_transfer(
+            start,
+            end,
+            loop,
+        )
+        if conditional_transfer is not None:
+            return conditional_transfer
+        return self._capture_handler_clause(start, end, name, loop)
 
-    def _handler_cleanup_end(self, start: int) -> int:
+    def _handler_cleanup_end(
+        self,
+        start: int,
+        handler_index: Optional[int] = None,
+    ) -> int:
+        if handler_index is not None:
+            handler_offset = self.tokens[handler_index].offset
+            cleanup_targets = sorted(
+                {
+                    entry.target
+                    for entry in self.entries
+                    if entry.start == handler_offset
+                    and entry.lasti
+                    and entry.target > handler_offset
+                }
+            )
+            for target in cleanup_targets:
+                index = self.offset_to_index[target]
+                if (
+                    index + 2 < len(self.tokens)
+                    and self.tokens[index].kind == "COPY_STACK"
+                    and self.tokens[index + 1].kind == "POP_EXCEPT"
+                    and self.tokens[index + 2].kind == "RERAISE"
+                ):
+                    return index + 3
         for index in range(start, len(self.tokens) - 2):
             if (
                 self.tokens[index].kind == "COPY_STACK"
@@ -145,6 +322,72 @@ class ExceptionStructureDecompiler311:
             ):
                 return index + 3
         self._error("Exception handler has no COPY/POP_EXCEPT/RERAISE cleanup")
+
+    def _move_normal_return_before_finally(
+        self,
+        body: List[ast.stmt],
+        finalbody: List[ast.stmt],
+        handler_index: int,
+        cleanup_end: int,
+    ) -> None:
+        """Restore a return duplicated only on the normal cleanup path."""
+        if (
+            not finalbody
+            or not isinstance(finalbody[-1], ast.Return)
+            or any(
+                self.tokens[index].kind == "RETURN_VALUE"
+                for index in range(handler_index + 1, cleanup_end - 3)
+            )
+        ):
+            return
+        body.append(finalbody.pop())
+
+    def _clause_structural_end(
+        self,
+        body_start: int,
+        false_index: int,
+        name: Optional[str],
+    ) -> int:
+        """Exclude the exceptional name-cleanup copy from one clause."""
+        if name is not None:
+            for index in range(body_start, false_index - 3):
+                load, store, delete, reraise = self.tokens[
+                    index : index + 4
+                ]
+                stored_name = (
+                    store.attr
+                    if isinstance(store.attr, str)
+                    else store.pattr
+                )
+                deleted_name = (
+                    delete.attr
+                    if isinstance(delete.attr, str)
+                    else delete.pattr
+                )
+                if (
+                    load.kind == "LOAD_CONST"
+                    and load.attr is None
+                    and store.kind.startswith("STORE_")
+                    and delete.kind.startswith("DELETE_")
+                    and stored_name == name
+                    and deleted_name == name
+                    and reraise.kind == "RERAISE"
+                ):
+                    return index
+
+        body_offset = self.tokens[body_start].offset
+        candidates = [
+            self.offset_to_index[entry.target]
+            for entry in self.entries
+            if entry.lasti
+            and entry.start <= body_offset < entry.end
+            and body_start
+            < self.offset_to_index[entry.target]
+            <= false_index
+        ]
+        if candidates:
+            return min(candidates)
+        return false_index
 
     def _parse_handlers(
         self,
@@ -173,6 +416,7 @@ class ExceptionStructureDecompiler311:
                 bare, cleanup_end, bare_join = self._parse_bare_handler(
                     cursor,
                     loop,
+                    handler_index,
                 )
                 handlers.append(bare)
                 if bare_join is not None:
@@ -221,16 +465,11 @@ class ExceptionStructureDecompiler311:
             else:
                 self._error("Exception clause has no name or POP_TOP binding")
 
-            normal_end = false_index
-            for index in range(body_start, false_index):
-                token = self.tokens[index]
-                if token.kind == "JUMP_FORWARD":
-                    joins.append(instruction_target(token))
-                    normal_end = index + 1
-                    break
-                if token.kind == "RETURN_VALUE":
-                    normal_end = index + 1
-                    break
+            normal_end = self._clause_structural_end(
+                body_start,
+                false_index,
+                name,
+            )
             body = self._clause_body(body_start, normal_end, name, loop)
             handlers.append(
                 ast.ExceptHandler(
@@ -243,7 +482,10 @@ class ExceptionStructureDecompiler311:
 
         if final_reraise is None:
             self._error("Exception handler has no final RERAISE")
-        cleanup_end = self._handler_cleanup_end(final_reraise + 1)
+        cleanup_end = self._handler_cleanup_end(
+            final_reraise + 1,
+            handler_index,
+        )
         join = min(joins) if joins else None
         return handlers, cleanup_end, join
 
@@ -251,18 +493,27 @@ class ExceptionStructureDecompiler311:
         self,
         cursor: int,
         loop,
+        handler_index: int,
     ) -> Tuple[ast.ExceptHandler, int, Optional[int]]:
         if self.tokens[cursor].kind != "POP_TOP":
             self._error("Bare exception handler has no POP_TOP")
         body_start = cursor + 1
-        cleanup_end = self._handler_cleanup_end(body_start)
+        cleanup_end = self._handler_cleanup_end(
+            body_start,
+            handler_index,
+        )
         body_end = cleanup_end - 3
+        if (
+            body_start < body_end
+            and self.tokens[body_end - 1].kind == "RERAISE"
+        ):
+            body_end -= 1
         join = None
-        for index in range(body_start, body_end):
-            if self.tokens[index].kind == "JUMP_FORWARD":
-                join = instruction_target(self.tokens[index])
-                body_end = index + 1
-                break
+        if (
+            body_start < body_end
+            and self.tokens[body_end - 1].kind == "JUMP_FORWARD"
+        ):
+            join = instruction_target(self.tokens[body_end - 1])
         body = self._clause_body(body_start, body_end, None, loop)
         return (
             ast.ExceptHandler(type=None, name=None, body=body or [ast.Pass()]),
@@ -282,21 +533,25 @@ class ExceptionStructureDecompiler311:
             body_end += 1
         body = self._capture_protected(start, body_end, loop)
 
-        normal_jump = next(
-            (
-                index
-                for index in range(body_end, handler_index)
-                if self.tokens[index].kind == "JUMP_FORWARD"
-            ),
-            None,
+        normal_jump = (
+            handler_index - 1
+            if body_end < handler_index
+            and self.tokens[handler_index - 1].kind == "JUMP_FORWARD"
+            else None
         )
         if normal_jump is None:
-            orelse = []
+            orelse = self._capture_before_handler(
+                body_end,
+                handler_index,
+                entry.target,
+                loop,
+            )
             normal_join = None
         else:
-            orelse = self._capture_suppressed(
+            orelse = self._capture_before_handler(
                 body_end,
                 normal_jump,
+                entry.target,
                 loop,
             )
             normal_join = instruction_target(self.tokens[normal_jump])
@@ -348,6 +603,8 @@ class ExceptionStructureDecompiler311:
                 and region.start < self.tokens[next_index].offset
                 and self.tokens[self.offset_to_index[region.target]].kind
                 == "PUSH_EXC_INFO"
+                and region.target
+                not in self.owner._suppressed_exception_handler_targets
                 and not self._handler_has_match(
                     self.offset_to_index[region.target]
                 )
@@ -356,26 +613,64 @@ class ExceptionStructureDecompiler311:
         if finally_targets:
             handler_offset = finally_targets[0]
             handler_index = self.offset_to_index[handler_offset]
-            jump_index = next(
-                (
-                    index
-                    for index in range(next_index, handler_index)
-                    if self.tokens[index].kind == "JUMP_FORWARD"
-                ),
-                None,
+            jump_index = (
+                handler_index - 1
+                if next_index < handler_index
+                and self.tokens[handler_index - 1].kind
+                == "JUMP_FORWARD"
+                else None
             )
             if jump_index is None:
-                self._error("Finally suite has no normal-path jump")
-            finalbody = self._capture_optional(next_index, jump_index, loop)
-            statement = ast.Try(
-                body=statement.body,
-                handlers=statement.handlers,
-                orelse=statement.orelse,
-                finalbody=finalbody or [ast.Pass()],
-            )
-            next_index = self.offset_to_index[
-                instruction_target(self.tokens[jump_index])
-            ]
+                protected_ends = [
+                    self.offset_to_index[region.end]
+                    for region in self.entries
+                    if region.depth == 0
+                    and region.target == handler_offset
+                ]
+                protected_end = (
+                    max(protected_ends)
+                    if protected_ends
+                    else next_index
+                )
+                if not next_index <= protected_end < handler_index:
+                    self._error("Finally suite has no normal-path body")
+                continuation = self._capture_before_handler(
+                    next_index,
+                    protected_end,
+                    handler_offset,
+                    loop,
+                )
+                finalbody = self._capture_before_handler(
+                    protected_end,
+                    handler_index,
+                    handler_offset,
+                    loop,
+                )
+                statement = ast.Try(
+                    body=[statement] + continuation,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=finalbody or [ast.Pass()],
+                )
+                next_index = self._handler_cleanup_end(
+                    handler_index + 1,
+                    handler_index,
+                )
+            else:
+                finalbody = self._capture_optional(
+                    next_index,
+                    jump_index,
+                    loop,
+                )
+                statement = ast.Try(
+                    body=statement.body,
+                    handlers=statement.handlers,
+                    orelse=statement.orelse,
+                    finalbody=finalbody or [ast.Pass()],
+                )
+                next_index = self.offset_to_index[
+                    instruction_target(self.tokens[jump_index])
+                ]
         return statement, next_index
 
     def _try_except_star(self, entry, loop) -> Tuple[ast.TryStar, int]:
@@ -543,7 +838,8 @@ class ExceptionStructureDecompiler311:
             if finalbody_end <= join_index:
                 self._error("except* finally suite has no normal-path body")
             next_index = self._handler_cleanup_end(
-                final_handler_index + 1
+                final_handler_index + 1,
+                final_handler_index,
             )
             terminal = self.tokens[finalbody_end - 1]
             if terminal.kind == "JUMP_FORWARD":
@@ -577,9 +873,50 @@ class ExceptionStructureDecompiler311:
         handler_index = self.offset_to_index[entry.target]
         self._remember_exception_state(entry)
         body = self._capture_protected(start, try_end, loop)
-        cleanup_end = self._handler_cleanup_end(handler_index + 1)
+        cleanup_end = self._handler_cleanup_end(
+            handler_index + 1,
+            handler_index,
+        )
         finalbody_end = handler_index
         next_index = cleanup_end
+        enclosing_finally_targets = sorted(
+            {
+                region.target
+                for region in self.entries
+                if region.depth == 0
+                and try_end <= self.offset_to_index[region.start]
+                < handler_index
+                and region.target > entry.target
+                and region.target
+                not in self.owner._suppressed_exception_handler_targets
+                and self.tokens[
+                    self.offset_to_index[region.target]
+                ].kind
+                == "PUSH_EXC_INFO"
+                and not self._handler_has_match(
+                    self.offset_to_index[region.target]
+                )
+            }
+        )
+        outer_handler_offset = (
+            enclosing_finally_targets[0]
+            if enclosing_finally_targets
+            else None
+        )
+        normal_outer_boundary = None
+        if outer_handler_offset is not None:
+            normal_outer_boundary = max(
+                self.offset_to_index[region.end]
+                for region in self.entries
+                if region.depth == 0
+                and region.target == outer_handler_offset
+                and self.offset_to_index[region.start] < handler_index
+            )
+            if normal_outer_boundary < handler_index:
+                finalbody_end = min(
+                    finalbody_end,
+                    normal_outer_boundary,
+                )
 
         # CPython duplicates the finally suite: one normal-path copy lies
         # immediately before PUSH_EXC_INFO and a second copy handles an active
@@ -596,20 +933,118 @@ class ExceptionStructureDecompiler311:
                 if target > terminal.offset and not is_break:
                     finalbody_end -= 1
                     next_index = self.offset_to_index[target]
-        finalbody = self._capture_optional(
+        finalbody = self._capture_before_handler(
             try_end,
             finalbody_end,
+            entry.target,
             loop,
         )
-        return (
-            ast.Try(
-                body=body or [ast.Pass()],
-                handlers=[],
-                orelse=[],
-                finalbody=finalbody or [ast.Pass()],
-            ),
-            next_index,
+        self._move_normal_return_before_finally(
+            body,
+            finalbody,
+            handler_index,
+            cleanup_end,
         )
+        statement = ast.Try(
+            body=body or [ast.Pass()],
+            handlers=[],
+            orelse=[],
+            finalbody=finalbody or [ast.Pass()],
+        )
+
+        # Nested cleanup protocols split an enclosing finally-protected body
+        # into several exception-table entries.  Rejoin the remaining normal
+        # body and its source-level finally suite before consuming the outer
+        # exceptional copy.
+        if outer_handler_offset is not None:
+            outer_handler_index = self.offset_to_index[
+                outer_handler_offset
+            ]
+            if normal_outer_boundary < handler_index:
+                outer_finalbody = self._capture_before_handler(
+                    normal_outer_boundary,
+                    handler_index,
+                    outer_handler_offset,
+                    loop,
+                )
+                self._move_normal_return_before_finally(
+                    statement.body,
+                    outer_finalbody,
+                    outer_handler_index,
+                    self._handler_cleanup_end(
+                        outer_handler_index + 1,
+                        outer_handler_index,
+                    ),
+                )
+                statement = ast.Try(
+                    body=[statement],
+                    handlers=[],
+                    orelse=[],
+                    finalbody=outer_finalbody or [ast.Pass()],
+                )
+                next_index = self._handler_cleanup_end(
+                    outer_handler_index + 1,
+                    outer_handler_index,
+                )
+            else:
+                protected_end = max(
+                    self.offset_to_index[region.end]
+                    for region in self.entries
+                    if region.depth == 0
+                    and region.target == outer_handler_offset
+                )
+            if (
+                normal_outer_boundary >= handler_index
+                and next_index <= protected_end < outer_handler_index
+            ):
+                continuation = self._capture_before_handler(
+                    next_index,
+                    protected_end,
+                    outer_handler_offset,
+                    loop,
+                )
+                outer_finalbody = self._capture_before_handler(
+                    protected_end,
+                    outer_handler_index,
+                    outer_handler_offset,
+                    loop,
+                )
+                statement = ast.Try(
+                    body=[statement] + continuation,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=outer_finalbody or [ast.Pass()],
+                )
+                next_index = self._handler_cleanup_end(
+                    outer_handler_index + 1,
+                    outer_handler_index,
+                )
+
+        # A source ``try: try: ... finally: ... except: ...`` is split into
+        # adjacent exception-table protocols.  Once the inner finally cleanup
+        # has been consumed, the enclosing except handler begins immediately.
+        if (
+            next_index < len(self.tokens)
+            and self.tokens[next_index].kind == "PUSH_EXC_INFO"
+            and self._handler_has_match(next_index)
+        ):
+            outer_handlers, outer_end, outer_join = self._parse_handlers(
+                next_index,
+                loop,
+            )
+            statement = ast.Try(
+                body=[statement],
+                handlers=outer_handlers,
+                orelse=[],
+                finalbody=[],
+            )
+            next_index = (
+                self.offset_to_index[outer_join]
+                if outer_join is not None
+                else outer_end
+            )
+
+        return statement, next_index
 
     def try_statement(self, index: int, loop):
         offset = self.tokens[index].offset

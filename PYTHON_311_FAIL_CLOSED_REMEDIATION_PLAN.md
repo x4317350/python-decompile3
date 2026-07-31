@@ -544,12 +544,14 @@ git status --short
 
 - 阶段 0 已完成并提交；
 - 阶段 1 已完成并提交；
-- 阶段 2 已完成，等待单独提交；
-- 阶段 3 及后续阶段尚未开始；
+- 阶段 2 已完成并提交；
+- 阶段 3 已完成，等待单独提交；
+- 阶段 4 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
-- 当前 shape 状态为 32 pass、8 fail-closed、0 missing。
+- 阶段 2 修复提交为 `b41d6cdb`；
+- 当前 shape 状态为 33 pass、7 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -624,4 +626,23 @@ git status --short
 全量测试：797 passed, 6 skipped；skip 与 legacy 白名单一致
 发布门禁：32 shape pass、8 fail-closed、0 missing；完整门禁通过
 已知限制：pysource.py 和 _pytest/junitxml.py 越过导入后分别暴露 CALL 栈与 STORE_ATTR 函数对象失败，已守恒迁移到阶段 4、5；其余 4 个归档文件完整恢复并重新编译
+```
+
+阶段 3：
+
+```text
+阶段：3，修复异常清理控制转移
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_exception_cleanup_control_transfer
+阶段前计数：58；原基线 57，另有 multiprocessing/util.py 在阶段 1 后守恒迁入 1 项
+阶段后计数：0
+已修复签名：RERAISE 29、finally normal-path jump 15、POP_EXCEPT 8、PUSH_EXC_INFO 4，以及异常清理 SWAP；同时处理 handler 返回值、异常名清除、last-i cleanup、嵌套 finally、handler 内 raise/bare raise 和 while-true handler break
+剩余子 shape：固定 604 文件中无异常清理残留；普通返回表达式 SWAP 和函数名含 exception 的 CALL 栈错误按错误本质迁移到阶段 4
+新增 fixture：test/simple_source/311/12_exception_cleanup.py；同步 dis 和 normalized token golden
+行为验证：覆盖返回变量、raise from 的 cause、bare raise、嵌套 handler、正常与异常 finally 副作用顺序、生成器 yield/close/异常退出；既有 finally return/break/continue 回归继续通过
+真实语料：604 个输入重放；239 success、365 fail-closed；0 syntax failure、0 unexpected crash；异常清理分类归零
+专项测试：exception cleanup、exception table、baseline、real-world、shape behavior、release gate、corpus 共 92 passed
+全量测试：803 passed, 6 skipped；skip 与 legacy 白名单一致
+发布门禁：33 shape pass、7 fail-closed、0 missing；完整门禁和 skip 白名单检查通过
+已知限制：本阶段只消费结构化异常协议；普通表达式 COPY/SWAP、函数调用栈、迭代器、with、递归和 match 残留继续由后续阶段处理
 ```
