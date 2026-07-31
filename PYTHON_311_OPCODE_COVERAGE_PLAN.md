@@ -1061,7 +1061,7 @@ golden/报告：真实语料 JSON/Markdown --check 通过；opcode/shape 报告�
 
 ```text
 阶段：9，CI 和发布门禁
-提交：待本阶段单独提交，建议提交说明为“持续集成：建立 Python 3.11 发布门禁”
+提交：635ec164，提交说明为“持续集成：建立 Python 3.11 发布门禁”
 新增语料：0；复用 23 个 corpus、604 个真实源码归档和 6 个行为探针
 新增 opcode 覆盖：0；矩阵阶段更新为 9，110 项四层状态保持完整
 新增 shape 覆盖：0；维持 30 pass、10 fail-closed、0 missing
