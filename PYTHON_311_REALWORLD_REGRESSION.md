@@ -7,7 +7,7 @@
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`1f7e6ac726a904850a94ef491c53a8b3a7471e36cd939d48a839ebf0ed8dddce`
+- 输入摘要：`9a87b4651deafd6c5705c07b279ab9ea6127a33270f85b6d795f6906113b7d70`
 
 第三方版本：
 
@@ -21,10 +21,10 @@
 ## 汇总
 
 - 输入文件数：604
-- 成功反编译数：413
-- 语法验证成功数：413
+- 成功反编译数：469
+- 语法验证成功数：469
 - 语法失败数：0
-- fail-closed 数：191
+- fail-closed 数：135
 - malformed/unsupported input 数：0
 - 未包装崩溃数：0
 - 行为一致数：6
@@ -37,18 +37,17 @@
 
 | 分组 | 输入 | 反编译成功 | 语法成功 | 语法失败 | fail-closed | 输入不支持 | 未包装崩溃 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| stdlib | 338 | 200 | 200 | 0 | 138 | 0 | 0 |
+| stdlib | 338 | 246 | 246 | 0 | 92 | 0 | 0 |
 | project | 115 | 98 | 98 | 0 | 17 | 0 | 0 |
-| third_party | 151 | 115 | 115 | 0 | 36 | 0 | 0 |
+| third_party | 151 | 125 | 125 | 0 | 26 | 0 | 0 |
 
 ## Fail-closed 分类
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_call_and_expression_stack` | 11 |
-| `realworld_exception_cleanup_control_transfer` | 45 |
-| `realworld_recursive_structure` | 45 |
-| `realworld_with_control_transfer` | 90 |
+| `realworld_call_and_expression_stack` | 12 |
+| `realworld_exception_cleanup_control_transfer` | 72 |
+| `realworld_recursive_structure` | 51 |
 
 ## 行为探针
 

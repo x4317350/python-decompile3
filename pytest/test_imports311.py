@@ -299,7 +299,7 @@ def test_circular_relative_import_preserves_import_error(tmp_path):
         (ROOT / "decompyle3" / "semantics" / "pysource.py", None),
         (
             Path(sysconfig.get_path("purelib")) / "_pytest" / "junitxml.py",
-            "Returning with-body is not one expression",
+            None,
         ),
     ),
 )

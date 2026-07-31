@@ -148,11 +148,13 @@ def classify_failure(error: BaseException) -> str:
         return "realworld_recursive_structure"
     if "Match case" in message or "match pattern" in message.lower():
         return "realworld_match_boundary"
-    if "Returning with-body" in message or "With cleanup" in message:
-        return "realworld_with_control_transfer"
     shape_hint = getattr(error, "shape_hint", None)
     if shape_hint in REALWORLD_SHAPES:
         return shape_hint
+    if "With cleanup exit call lost its context-manager callable" in message:
+        return "realworld_call_and_expression_stack"
+    if "Returning with-body" in message or "With cleanup" in message:
+        return "realworld_with_control_transfer"
     if "IMPORT_FROM" in message or "IMPORT_NAME" in message:
         return "realworld_import_protocol"
     if (

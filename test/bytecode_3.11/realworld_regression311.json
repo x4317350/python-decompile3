@@ -50,10 +50,9 @@
     "runtime": "3.11.9"
   },
   "failure_classifications": {
-    "realworld_call_and_expression_stack": 11,
-    "realworld_exception_cleanup_control_transfer": 45,
-    "realworld_recursive_structure": 45,
-    "realworld_with_control_transfer": 90
+    "realworld_call_and_expression_stack": 12,
+    "realworld_exception_cleanup_control_transfer": 72,
+    "realworld_recursive_structure": 51
   },
   "failure_samples": {
     "realworld_call_and_expression_stack": [
@@ -88,11 +87,11 @@
         "opcode": "CALL"
       },
       {
-        "error": "Structured statement region left stack values (opcode RETURN_VALUE) [version=3.11, code='open', offset=1490]",
+        "error": "Unsupported phase-3 opcode PUSH_EXC_INFO (opcode PUSH_EXC_INFO) [version=3.11, code='_read_args_from_files', offset=428]",
         "error_type": "Python311ParseError",
         "group": "stdlib",
-        "name": "_pyio.py",
-        "opcode": "RETURN_VALUE"
+        "name": "argparse.py",
+        "opcode": "PUSH_EXC_INFO"
       },
       {
         "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_connect_sock', offset=234]",
@@ -124,29 +123,6 @@
         "name": "decompyle3/parsers/p311/base.py",
         "opcode": null
       }
-    ],
-    "realworld_with_control_transfer": [
-      {
-        "error": "With cleanup crosses an enclosing exception region (opcode STORE_FAST) [version=3.11, code='check_output', offset=392]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "_bootsubprocess.py",
-        "opcode": "STORE_FAST"
-      },
-      {
-        "error": "With cleanup exit call lost its context-manager callable (opcode CALL) [version=3.11, code='readinto', offset=242]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "_compression.py",
-        "opcode": "CALL"
-      },
-      {
-        "error": "With cleanup body could not be structured safely: Returning with-body is not one expression ('_read_output', offset 206) (opcode BEFORE_WITH) [version=3.11, code='_read_output', offset=206]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "_osx_support.py",
-        "opcode": "BEFORE_WITH"
-      }
     ]
   },
   "first_failure": {
@@ -167,25 +143,25 @@
       "unexpected_crash": 0
     },
     "stdlib": {
-      "decompile_success": 200,
-      "fail_closed": 138,
+      "decompile_success": 246,
+      "fail_closed": 92,
       "input_files": 338,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 200,
+      "syntax_success": 246,
       "unexpected_crash": 0
     },
     "third_party": {
-      "decompile_success": 115,
-      "fail_closed": 36,
+      "decompile_success": 125,
+      "fail_closed": 26,
       "input_files": 151,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 115,
+      "syntax_success": 125,
       "unexpected_crash": 0
     }
   },
-  "input_digest": "1f7e6ac726a904850a94ef491c53a8b3a7471e36cd939d48a839ebf0ed8dddce",
+  "input_digest": "9a87b4651deafd6c5705c07b279ab9ea6127a33270f85b6d795f6906113b7d70",
   "phase": 8,
   "schema_version": 1,
   "selection": {
@@ -223,12 +199,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 413,
-    "fail_closed": 191,
+    "decompile_success": 469,
+    "fail_closed": 135,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 413,
+    "syntax_success": 469,
     "unexpected_crash": 0
   }
 }

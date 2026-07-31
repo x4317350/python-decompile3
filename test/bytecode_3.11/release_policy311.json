@@ -72,8 +72,7 @@
     "unsupported_fail_closed": [
       "irreducible_control_flow",
       "realworld_exception_cleanup_control_transfer",
-      "realworld_recursive_structure",
-      "realworld_with_control_transfer"
+      "realworld_recursive_structure"
     ],
     "missing": []
   },
@@ -86,8 +85,7 @@
     "approved_failure_classifications": [
       "realworld_call_and_expression_stack",
       "realworld_exception_cleanup_control_transfer",
-      "realworld_recursive_structure",
-      "realworld_with_control_transfer"
+      "realworld_recursive_structure"
     ]
   },
   "pytest": {

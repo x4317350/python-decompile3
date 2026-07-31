@@ -548,8 +548,9 @@ git status --short
 - 阶段 3 已完成并提交；
 - 阶段 4 已完成并提交；
 - 阶段 5 已完成并提交；
-- 阶段 6 已完成，等待单独提交；
-- 阶段 7 及后续阶段尚未开始；
+- 阶段 6 已完成并提交；
+- 阶段 7 已完成，等待单独提交；
+- 阶段 8 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
@@ -557,7 +558,8 @@ git status --short
 - 阶段 3 修复提交为 `58452b95`；
 - 阶段 4 修复提交为 `ae53e1ae`；
 - 阶段 5 修复提交为 `30595e11`；
-- 当前 shape 状态为 36 pass、4 fail-closed、0 missing。
+- 阶段 6 修复提交为 `45c77535`；
+- 当前 shape 状态为 37 pass、3 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -695,7 +697,7 @@ git status --short
 
 ```text
 阶段：6，修复推导式与迭代协议
-提交：本阶段修复提交（等待单独提交）
+提交：45c77535，提交说明为“修复：完成 Python 3.11 推导式与迭代协议恢复”
 目标 shape：realworld_comprehension_and_iterator_protocol
 阶段前计数：130；原冻结基线 67，另有前置阶段清除调用、表达式和函数对象错误后暴露或迁入 63 项
 阶段后计数：0
@@ -708,4 +710,23 @@ git status --short
 全量测试：817 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：36 shape pass、4 fail-closed、0 missing；推导式/迭代协议转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
 已知限制：真实语料仍有调用/表达式栈 11、高级异常清理 45、递归结构 45、with 控制转移 90；人工不可约 CFG 保持明确 fail-closed
+```
+
+阶段 7：
+
+```text
+阶段：7，修复 with 控制转移
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_with_control_transfer
+阶段前计数：90；原冻结基线 29，另有前置阶段清除调用、函数对象和推导式错误后暴露或迁入 61 项
+阶段后计数：0
+已修复签名：返回型 with-body 非单表达式 59、context-manager callable 丢失 11、跨外层异常区间 10、target 脱离协议 6，以及嵌套条件、嵌套清理调用和栈边界 4；支持 statement region、物理 __exit__/__aexit__ 协议剥离、return/yield/break/continue、多 context、嵌套 context、异常抑制、普通外层 try 和裸 except 区分
+剩余子 shape：原 with 控制转移粗分类归零；90 个代表文件中 56 个完整恢复，其余 34 个按实际根因守恒迁移到高级异常清理 27、递归结构 6 和调用/表达式复合结构 1
+新增 fixture：test/simple_source/311/16_with_control_transfer.py；同步 dis 和 normalized token golden
+行为验证：覆盖同步和异步 enter/exit 次序、正常与异常参数、抑制结果、多语句 return、yield/send、break、continue、多 context、嵌套 context 和 try/finally 副作用；真实语料 6/6 行为探针一致
+真实语料：604 个输入重放；469 success、135 fail-closed；0 syntax failure、0 unexpected crash；with 控制转移分类归零
+专项测试：阶段 7、异常表、异常清理、控制流、生成器、表达式、推导式、调用、函数对象、导入、解包与 corpus 回归均通过
+全量测试：822 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：37 shape pass、3 fail-closed、0 missing；with 控制转移转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
+已知限制：真实语料仍有调用/表达式栈 12、高级异常清理 72、递归结构 51；人工不可约 CFG 保持明确 fail-closed
 ```

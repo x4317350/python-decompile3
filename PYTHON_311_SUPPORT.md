@@ -51,10 +51,10 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 36`
-- `Shape fail-closed: 4`
+- `Shape pass: 37`
+- `Shape fail-closed: 3`
 - `Shape missing: 0`
-- 真实语料：413/604 成功反编译，191 项明确 fail-closed；
+- 真实语料：469/604 成功反编译，135 项明确 fail-closed；
 - 差分行为探针：6 项一致，0 项不一致；
 - 全量测试允许的已解释 legacy skip：6 项。
 
@@ -124,13 +124,12 @@ physical bytecode offset when an offset is available.
   rotations, and incrementally built mappings are covered by the current
   behavior corpus. This does not imply support for unrelated combinations of
   those instructions.
-- The real-world audit retains explicit fail-closed boundaries for four broad
-  families: call/expression-stack combinations exposed by the Stage 6
-  recovery, advanced exception-cleanup transfers, recursive structures, and
-  `with` control transfers.
+- The real-world audit retains explicit fail-closed boundaries for three broad
+  families: call/expression-stack combinations exposed by later recovery,
+  advanced exception-cleanup transfers, and recursive structures.
 - Artificial irreducible control-flow graphs are also rejected explicitly.
-  Together with three of the real-world families represented as shape
-  boundaries, this accounts for the four
+  Together with two of the real-world families represented as shape
+  boundaries, this accounts for the three
   fail-closed entries in the current shape matrix.
 - The `match` recovery path targets canonical CPython 3.11 compiler output.
   Artificial or ambiguous case/body boundaries are rejected.

@@ -508,13 +508,17 @@
     {
       "name": "realworld_with_control_transfer",
       "category": "realworld_exception",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/16_with_control_transfer.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_with_control_transfer311.py::test_stage7_ast_keeps_control_transfers_inside_with_suites",
+        "pytest/test_with_control_transfer311.py::test_sync_with_control_transfers_preserve_behavior",
+        "pytest/test_with_control_transfer311.py::test_multiple_nested_suppressed_and_try_with_preserve_behavior",
+        "pytest/test_with_control_transfer311.py::test_generator_and_async_with_transfers_preserve_behavior"
       ],
-      "notes": "Phase 8 records with-body return, yield, and cleanup control transfers that are not one safely recoverable expression."
+      "notes": "Stage 7 structures with/async-with suites as statement regions, removes physical exit-call protocols, and preserves return, yield, break, continue, suppression, multiple context managers, nested contexts, and ordinary enclosing try regions. The fixed 604-file archive has no remaining with-control-transfer failure classification."
     }
   ]
 }

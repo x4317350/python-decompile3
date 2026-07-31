@@ -51,6 +51,24 @@ class ExceptionStructureDecompiler311:
                 return False
         return False
 
+    def _handler_is_bare(self, handler_index: int) -> bool:
+        if not (
+            handler_index + 1 < len(self.tokens)
+            and self.tokens[handler_index].kind == "PUSH_EXC_INFO"
+            and self.tokens[handler_index + 1].kind == "POP_TOP"
+        ):
+            return False
+        return not (
+            handler_index + 3 < len(self.tokens)
+            and self.tokens[handler_index + 2].kind == "POP_EXCEPT"
+            and (
+                self.tokens[handler_index + 3].kind == "POP_TOP"
+                or self.tokens[handler_index + 3].kind.startswith(
+                    "JUMP_BACKWARD"
+                )
+            )
+        )
+
     def _remember_exception_state(self, entry) -> ExceptionState311:
         state = ExceptionState311(
             handler_offset=entry.target,
@@ -609,6 +627,7 @@ class ExceptionStructureDecompiler311:
         try_end = self.offset_to_index[entry.end]
         handler_index = self.offset_to_index[entry.target]
         body_end = try_end
+        crosses_with = False
         if (
             body_end < handler_index
             and self.tokens[body_end].kind == "RETURN_VALUE"
@@ -632,17 +651,60 @@ class ExceptionStructureDecompiler311:
                 # source return; these physical loop-iterator cleanup pairs
                 # belong to that same normal path, not to ``try`` orelse.
                 body_end = cursor + 1
-        body = self._capture_protected(start, body_end, loop)
         if (
             0 < body_end < handler_index
             and self.tokens[body_end - 1].kind
             in ("BEFORE_WITH", "BEFORE_ASYNC_WITH")
             and self.tokens[body_end].kind.startswith(("STORE_", "POP_TOP"))
         ):
-            self.owner.current_token = self.tokens[body_end]
-            self.owner._error(
-                "With cleanup crosses an enclosing exception region"
+            nested_protected = next(
+                (
+                    candidate
+                    for candidate in self.entries
+                    if candidate.start == self.tokens[body_end].offset
+                    and candidate.lasti
+                ),
+                None,
             )
+            if nested_protected is None:
+                self.owner.current_token = self.tokens[body_end]
+                self.owner._error(
+                    "With cleanup crosses an enclosing exception region"
+                )
+            nested_handler_index = self.offset_to_index[
+                nested_protected.target
+            ]
+            outer_fragments = [
+                candidate
+                for candidate in self.entries
+                if candidate.target == entry.target
+                and candidate.depth == entry.depth
+                and candidate.lasti == entry.lasti
+                and start <= self.offset_to_index[candidate.start]
+                < nested_handler_index
+            ]
+            if not outer_fragments:
+                self.owner.current_token = self.tokens[body_end]
+                self.owner._error(
+                    "With cleanup crosses an enclosing exception region"
+                )
+            body_end = max(
+                self.offset_to_index[candidate.end]
+                for candidate in outer_fragments
+            )
+            crosses_with = True
+        body = self._capture_protected(start, body_end, loop)
+        if crosses_with:
+            enclosing_jump = next(
+                (
+                    index
+                    for index in range(handler_index - 1, body_end - 1, -1)
+                    if self.tokens[index].kind == "JUMP_FORWARD"
+                ),
+                None,
+            )
+            if enclosing_jump is not None:
+                body_end = enclosing_jump
 
         normal_jump = (
             handler_index - 1
@@ -1313,21 +1375,177 @@ class ExceptionStructureDecompiler311:
         handler_index = self.offset_to_index[entry.target]
         if self._handler_has_group_match(handler_index):
             statement, next_index = self._try_except_star(entry, loop)
-        elif self._handler_has_match(handler_index):
+        elif (
+            self._handler_has_match(handler_index)
+            or self._handler_is_bare(handler_index)
+        ):
             statement, next_index = self._try_except(entry, loop)
         else:
             statement, next_index = self._try_finally(entry, loop)
         self.owner.body.append(statement)
         return next_index
 
-    def _with_body(self, start: int, end: int, returning: bool, loop):
-        if not returning:
-            return self._capture_optional(start, end, loop)
+    def _with_cleanup_protocol_offsets(self, start: int, end: int):
+        """Find normal-path ``__exit__``/``__aexit__`` call instructions."""
+        offsets = set()
+        cursor = start
+        while cursor + 4 < end:
+            constants = self.tokens[cursor : cursor + 3]
+            if not all(
+                token.kind == "LOAD_CONST"
+                and token.attr is None
+                for token in constants
+            ):
+                cursor += 1
+                continue
+            precall = cursor + 3
+            call = cursor + 4
+            if (
+                self.tokens[precall].kind != "PRECALL"
+                or self.tokens[call].kind != "CALL"
+            ):
+                cursor += 1
+                continue
+
+            protocol_start = cursor
+            if (
+                cursor > start
+                and self.tokens[cursor - 1].kind == "SWAP_STACK"
+                and self.tokens[cursor - 1].attr == 2
+            ):
+                protocol_start -= 1
+
+            protocol_end = call + 1
+            if (
+                protocol_end < end
+                and self.tokens[protocol_end].kind == "GET_AWAITABLE"
+            ):
+                pop_top = next(
+                    (
+                        index
+                        for index in range(protocol_end + 1, end)
+                        if self.tokens[index].kind == "POP_TOP"
+                    ),
+                    None,
+                )
+                if pop_top is None:
+                    cursor += 1
+                    continue
+                protocol_end = pop_top + 1
+            elif (
+                protocol_end < end
+                and self.tokens[protocol_end].kind == "POP_TOP"
+            ):
+                protocol_end += 1
+            else:
+                cursor += 1
+                continue
+
+            offsets.update(
+                self.tokens[index].offset
+                for index in range(protocol_start, protocol_end)
+            )
+            cursor = protocol_end
+        return offsets
+
+    def _with_fragments(self, protected, limit_index: int):
+        """Return source-body fragments sharing one with-handler target."""
+        start_index = self.offset_to_index[protected.start]
+        fragments = [
+            entry
+            for entry in self.entries
+            if entry.target == protected.target
+            and entry.depth == protected.depth
+            and entry.lasti == protected.lasti
+            and start_index <= self.offset_to_index[entry.start] < limit_index
+        ]
+        return sorted(
+            fragments,
+            key=lambda entry: self.offset_to_index[entry.start],
+        )
+
+    def _with_suppressed_continuation(self, handler_index: int):
+        """Return the continuation after a truthy ``__exit__`` result."""
+        conditional = next(
+            (
+                index
+                for index in range(
+                    handler_index,
+                    min(handler_index + 8, len(self.tokens)),
+                )
+                if self.tokens[index].kind.startswith(
+                    "POP_JUMP_FORWARD_IF_TRUE"
+                )
+            ),
+            None,
+        )
+        if conditional is None:
+            return None
+        suppressed = self.offset_to_index.get(
+            instruction_target(self.tokens[conditional])
+        )
+        if suppressed is None:
+            return None
+        expected = ("POP_TOP", "POP_EXCEPT", "POP_TOP", "POP_TOP")
+        if tuple(
+            token.kind
+            for token in self.tokens[suppressed : suppressed + 4]
+        ) != expected:
+            return None
+        return suppressed + 4
+
+    def _with_body(
+        self,
+        start: int,
+        end: int,
+        loop,
+        fragments,
+    ):
+        fragment_ranges = [
+            (
+                self.offset_to_index[entry.start],
+                self.offset_to_index[entry.end],
+            )
+            for entry in fragments
+        ]
+        gaps = []
+        for (_, left_end), (right_start, _) in zip(
+            fragment_ranges,
+            fragment_ranges[1:],
+        ):
+            if left_end < right_start:
+                gaps.append((left_end, right_start))
+        if fragment_ranges and fragment_ranges[-1][1] < end:
+            gaps.append((fragment_ranges[-1][1], end))
+
+        protocol_offsets = set()
+        for gap_start, gap_end in gaps:
+            protocol_offsets.update(
+                self._with_cleanup_protocol_offsets(gap_start, gap_end)
+            )
+        fragment_starts = {
+            entry.start for entry in fragments
+        }
+        added_starts = (
+            fragment_starts - self.owner._suppressed_exception_starts
+        )
+        added_protocol = (
+            protocol_offsets
+            - self.owner._suppressed_exception_protocol_offsets
+        )
+        self.owner._suppressed_exception_starts.update(added_starts)
+        self.owner._suppressed_exception_protocol_offsets.update(
+            added_protocol
+        )
         try:
-            expression = self.owner._expression_slice(start, end)
-        except Python311ParseError:
-            self._error("Returning with-body is not one expression")
-        return [ast.Return(value=expression)]
+            return self._capture_optional(start, end, loop)
+        finally:
+            self.owner._suppressed_exception_starts.difference_update(
+                added_starts
+            )
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added_protocol
+            )
 
     def with_statement(self, before_index: int, end: int, loop):
         before = self.tokens[before_index]
@@ -1335,8 +1553,10 @@ class ExceptionStructureDecompiler311:
             return None
         context = self.owner._pop_expr()
         groups = []
+        contexts = []
         cursor = before_index
         starts_nested_suite = True
+        fragment_limit = None
 
         while True:
             is_async = self.tokens[cursor].kind == "BEFORE_ASYNC_WITH"
@@ -1376,6 +1596,7 @@ class ExceptionStructureDecompiler311:
             if protected is None:
                 self._error("With statement has no protected exception region")
             self._remember_exception_state(protected)
+            contexts.append(protected)
             protected_end = self.offset_to_index[protected.end]
             nested_before = next(
                 (
@@ -1387,39 +1608,86 @@ class ExceptionStructureDecompiler311:
                 None,
             )
             if nested_before is None:
-                body_end = protected_end
-                handler_targets = [protected.target]
                 break
             starts_nested_suite = any(
                 token.linestart is not None
                 for token in self.tokens[body_start:nested_before]
             )
+            nested_is_async = (
+                self.tokens[nested_before].kind == "BEFORE_ASYNC_WITH"
+            )
+            if nested_is_async:
+                nested_send = next(
+                    index
+                    for index in range(nested_before + 1, end)
+                    if self.tokens[index].kind == "SEND"
+                )
+                nested_store = self.offset_to_index[
+                    instruction_target(self.tokens[nested_send])
+                ]
+            else:
+                nested_store = nested_before + 1
+            nested_protected = next(
+                (
+                    entry
+                    for entry in self.entries
+                    if entry.start == self.tokens[nested_store].offset
+                    and entry.lasti
+                ),
+                None,
+            )
+            if nested_protected is None:
+                self._error(
+                    "Nested with statement has no protected exception region"
+                )
+            if starts_nested_suite:
+                fragment_limit = self.offset_to_index[
+                    nested_protected.target
+                ]
+                break
             try:
                 context = self.owner._expression_slice(
                     body_start,
                     nested_before,
                 )
             except Python311ParseError as error:
+                if hasattr(error, "shape_hint"):
+                    raise
                 self.owner._error(
                     "With cleanup nested context could not be structured "
                     f"safely: {error.message}"
                 )
             cursor = nested_before
 
-        first_handler = min(handler_targets)
-        first_handler_index = self.offset_to_index[first_handler]
-        returning = any(
-            self.tokens[index].kind == "RETURN_VALUE"
-            for index in range(body_end, first_handler_index)
+        handler_index = self.offset_to_index[protected.target]
+        fragments = self._with_fragments(
+            protected,
+            fragment_limit if fragment_limit is not None else handler_index,
         )
+        if not fragments:
+            self._error("With statement has no source-body fragments")
+        body_end = max(
+            self.offset_to_index[entry.end] for entry in fragments
+        )
+        return_indexes = [
+            index
+            for index in range(body_start, handler_index)
+            if self.tokens[index].kind == "RETURN_VALUE"
+        ]
+        capture_end = body_end
+        if return_indexes and return_indexes[-1] >= body_end:
+            capture_end = return_indexes[-1] + 1
+        returning = bool(return_indexes)
         try:
             body = self._with_body(
                 body_start,
-                body_end,
-                returning,
+                capture_end,
                 loop,
+                fragments,
             )
         except Python311ParseError as error:
+            if hasattr(error, "shape_hint"):
+                raise
             self.owner._error(
                 "With cleanup body could not be structured safely: "
                 f"{error.message}"
@@ -1436,18 +1704,46 @@ class ExceptionStructureDecompiler311:
             ]
         self.owner.body.append(suite[0])
 
-        jump = next(
-            (
-                instruction_target(self.tokens[index])
-                for index in range(body_end, first_handler_index)
-                if self.tokens[index].kind == "JUMP_FORWARD"
-            ),
-            None,
-        )
-        if jump is not None:
-            return self.offset_to_index[jump]
+        outer_handler_index = self.offset_to_index[contexts[0].target]
+        jumps = [
+            instruction_target(self.tokens[index])
+            for index in range(body_end, outer_handler_index)
+            if self.tokens[index].kind == "JUMP_FORWARD"
+        ]
+        if jumps:
+            continuation = self.offset_to_index[jumps[-1]]
+            trailing_protocol = self._with_cleanup_protocol_offsets(
+                continuation,
+                outer_handler_index,
+            )
+            if trailing_protocol:
+                continuation = max(
+                    self.offset_to_index[offset]
+                    for offset in trailing_protocol
+                ) + 1
+                if (
+                    continuation < outer_handler_index
+                    and self.tokens[continuation].kind == "JUMP_FORWARD"
+                ):
+                    continuation = self.offset_to_index[
+                        instruction_target(self.tokens[continuation])
+                    ]
+                elif (
+                    continuation + 1 < outer_handler_index
+                    and self.tokens[continuation].kind == "LOAD_CONST"
+                    and self.tokens[continuation].attr is None
+                    and self.tokens[continuation + 1].kind
+                    == "RETURN_VALUE"
+                ):
+                    return end
+            return continuation
         if returning:
             return end
+        suppressed_continuation = self._with_suppressed_continuation(
+            handler_index
+        )
+        if suppressed_continuation is not None:
+            return suppressed_continuation
         self._error("With cleanup has neither continuation nor return")
 
 

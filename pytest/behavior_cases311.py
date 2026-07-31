@@ -578,6 +578,58 @@ FIXTURE_PROBES = {
         _record("generator_protocols", _generator_snapshot)
         """
     ),
+    "test/simple_source/311/16_with_control_transfer.py": _probe(
+        """
+        def _return_snapshot():
+            events = []
+            manager = TraceContext(events, "return", value=3)
+            return multi_statement_return(manager, 4), events
+
+        def _loop_snapshot():
+            events = []
+
+            def factory(value):
+                return TraceContext(events, str(value))
+
+            return loop_transfers(factory, [1, -1, 2, 0, 3]), events
+
+        def _context_snapshot():
+            events = []
+            multiple = multiple_contexts(
+                TraceContext(events, "left", value=2),
+                TraceContext(events, "right", value=5),
+            )
+            nested = nested_contexts(
+                TraceContext(events, "outer", value=3),
+                TraceContext(events, "inner", value=4),
+            )
+            suppressed = suppressed_exception(
+                TraceContext(events, "suppress", suppress=True)
+            )
+            return multiple, nested, suppressed, events
+
+        async def _async_snapshot():
+            events = []
+            returned = await async_return(
+                AsyncTraceContext(events, "async", value=6),
+                4,
+            )
+
+            def factory(value):
+                return AsyncTraceContext(events, str(value))
+
+            looped = await async_loop_transfers(
+                factory,
+                [1, -1, 2, 0, 3],
+            )
+            return returned, looped, events
+
+        _record("with_return", _return_snapshot)
+        _record("with_loop", _loop_snapshot)
+        _record("with_contexts", _context_snapshot)
+        _record_async("async_with", _async_snapshot)
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),
