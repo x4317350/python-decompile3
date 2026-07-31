@@ -6,9 +6,9 @@
 ## 汇总
 
 - Shape inventory：40
-- pass：37
+- pass：38
 - internal_consumed：0
-- unsupported_fail_closed：3
+- unsupported_fail_closed：2
 - not_applicable：0
 - missing：0
 
@@ -53,7 +53,7 @@
 | `realworld_function_object_flow` | realworld_function | pass | `test/simple_source/311/14_function_object_flow.py` | `—` | 4 |
 | `realworld_import_protocol` | realworld_import | pass | `test/simple_source/311/11_import_transactions.py` | `—` | 6 |
 | `realworld_match_boundary` | realworld_match | pass | `test/simple_source/311/06_match.py` | `—` | 2 |
-| `realworld_recursive_structure` | realworld_control_flow | unsupported_fail_closed | `—` | `Python311ParseError` | 2 |
+| `realworld_recursive_structure` | realworld_control_flow | pass | `test/simple_source/311/17_recursive_structure.py` | `—` | 6 |
 | `realworld_unpack_assignment` | realworld_assignment | pass | `test/simple_source/311/10_nested_unpacking.py` | `—` | 6 |
 | `realworld_with_control_transfer` | realworld_exception | pass | `test/simple_source/311/16_with_control_transfer.py` | `—` | 5 |
 
@@ -66,4 +66,3 @@
 
 - `irreducible_control_flow`：`IrreducibleControlFlowError`；Artificial irreducible graphs are rejected instead of guessed. Phase 7 retains the explicit IrreducibleControlFlowError boundary after auditing all known unsupported shapes.
 - `realworld_exception_cleanup_control_transfer`：`Decompyle3Error`；Stage 3 verifies the canonical exception-cleanup fixture, but Stage 4 exposes 25 advanced nested return/call/control-transfer layouts in recognized exception-table regions. They retain exact parser diagnostics with an exception-cleanup shape hint and fail closed instead of falling through to ordinary expression recovery.
-- `realworld_recursive_structure`：`Python311ParseError`；Phase 8 converts internal RecursionError escapes into contextual Python311ParseError failures.

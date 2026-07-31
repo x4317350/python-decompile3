@@ -71,8 +71,7 @@
     "inventory": 40,
     "unsupported_fail_closed": [
       "irreducible_control_flow",
-      "realworld_exception_cleanup_control_transfer",
-      "realworld_recursive_structure"
+      "realworld_exception_cleanup_control_transfer"
     ],
     "missing": []
   },
@@ -84,8 +83,8 @@
     "maximum_behavior_mismatch": 0,
     "approved_failure_classifications": [
       "realworld_call_and_expression_stack",
-      "realworld_exception_cleanup_control_transfer",
-      "realworld_recursive_structure"
+      "realworld_comprehension_and_iterator_protocol",
+      "realworld_exception_cleanup_control_transfer"
     ]
   },
   "pytest": {

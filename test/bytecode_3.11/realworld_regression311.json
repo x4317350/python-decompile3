@@ -50,12 +50,19 @@
     "runtime": "3.11.9"
   },
   "failure_classifications": {
-    "realworld_call_and_expression_stack": 12,
-    "realworld_exception_cleanup_control_transfer": 72,
-    "realworld_recursive_structure": 51
+    "realworld_call_and_expression_stack": 14,
+    "realworld_comprehension_and_iterator_protocol": 1,
+    "realworld_exception_cleanup_control_transfer": 97
   },
   "failure_samples": {
     "realworld_call_and_expression_stack": [
+      {
+        "error": "Operand stack underflow (opcode COMPARE_LT) [version=3.11, code='_boolean_filter', offset=454]",
+        "error_type": "Python311ParseError",
+        "group": "project",
+        "name": "decompyle3/parsers/p311/comprehensions.py",
+        "opcode": "COMPARE_LT"
+      },
       {
         "error": "Operand stack underflow (opcode COMPARE_LT) [version=3.11, code='analyze_stack', offset=1204]",
         "error_type": "Python311ParseError",
@@ -69,13 +76,15 @@
         "group": "project",
         "name": "decompyle3/scanners/scanner37base.py",
         "opcode": "POP_JUMP_FORWARD_IF_FALSE"
-      },
+      }
+    ],
+    "realworld_comprehension_and_iterator_protocol": [
       {
-        "error": "Structured statement region left stack values (opcode NOP) [version=3.11, code='ingest', offset=526]",
+        "error": "POP_JUMP_FORWARD_IF_NONE targets outside the expression [version=3.11, code='<genexpr>', offset=74]",
         "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/scanners/scanner38.py",
-        "opcode": "NOP"
+        "group": "third_party",
+        "name": "packaging/specifiers.py",
+        "opcode": null
       }
     ],
     "realworld_exception_cleanup_control_transfer": [
@@ -87,41 +96,18 @@
         "opcode": "CALL"
       },
       {
+        "error": "Structured region cycle detected (opcode LOAD_GLOBAL) [version=3.11, code='open', offset=1692]",
+        "error_type": "UnsupportedPython311ControlFlow",
+        "group": "stdlib",
+        "name": "_pyio.py",
+        "opcode": "LOAD_GLOBAL"
+      },
+      {
         "error": "Unsupported phase-3 opcode PUSH_EXC_INFO (opcode PUSH_EXC_INFO) [version=3.11, code='_read_args_from_files', offset=428]",
         "error_type": "Python311ParseError",
         "group": "stdlib",
         "name": "argparse.py",
         "opcode": "PUSH_EXC_INFO"
-      },
-      {
-        "error": "Operand stack underflow (opcode POP_TOP) [version=3.11, code='_connect_sock', offset=234]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "asyncio/base_events.py",
-        "opcode": "POP_TOP"
-      }
-    ],
-    "realworld_recursive_structure": [
-      {
-        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/match_structures.py",
-        "opcode": null
-      },
-      {
-        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/structures.py",
-        "opcode": null
-      },
-      {
-        "error": "Parser311 recursion limit reached while structuring control flow [version=3.11, code='<module>', offset=?]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/parsers/p311/base.py",
-        "opcode": null
       }
     ]
   },
@@ -134,34 +120,34 @@
   },
   "groups": {
     "project": {
-      "decompile_success": 98,
-      "fail_closed": 17,
+      "decompile_success": 110,
+      "fail_closed": 5,
       "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 98,
+      "syntax_success": 110,
       "unexpected_crash": 0
     },
     "stdlib": {
-      "decompile_success": 246,
-      "fail_closed": 92,
+      "decompile_success": 258,
+      "fail_closed": 80,
       "input_files": 338,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 246,
+      "syntax_success": 258,
       "unexpected_crash": 0
     },
     "third_party": {
-      "decompile_success": 125,
-      "fail_closed": 26,
+      "decompile_success": 124,
+      "fail_closed": 27,
       "input_files": 151,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 125,
+      "syntax_success": 124,
       "unexpected_crash": 0
     }
   },
-  "input_digest": "9a87b4651deafd6c5705c07b279ab9ea6127a33270f85b6d795f6906113b7d70",
+  "input_digest": "e6abbfbdfc304893d01b1582b4655029709cab5a48340afb1d63e60bd4c803c5",
   "phase": 8,
   "schema_version": 1,
   "selection": {
@@ -199,12 +185,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 469,
-    "fail_closed": 135,
+    "decompile_success": 492,
+    "fail_closed": 112,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 469,
+    "syntax_success": 492,
     "unexpected_crash": 0
   }
 }

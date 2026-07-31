@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from decompyle3.parsers.p311.base import Python311ParseError
 from support311 import ROOT, compare_behavior311
 
 
@@ -190,15 +189,11 @@ def test_realworld_differential_behavior(case, tmp_path):
     assert comparison.recovered.exitcode == 0
 
 
-def test_realworld_recursion_exhaustion_fails_closed():
+def test_previous_recursion_sample_recovers_and_recompiles():
     source = Path(sysconfig.get_path("stdlib")) / "fnmatch.py"
-    with pytest.raises(
-        Python311ParseError,
-        match="recursion limit reached",
-    ) as raised:
-        runner._recover(source)
-    assert raised.value.version == (3, 11)
-    assert isinstance(raised.value.code_name, str)
+    recovered = runner._recover(source)
+    tree = ast.parse(recovered, filename="<recovered-fnmatch>")
+    compile(tree, "<recovered-fnmatch>", "exec", dont_inherit=True)
 
 
 def test_previous_with_cleanup_sample_recovers_and_recompiles():

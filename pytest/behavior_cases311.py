@@ -630,6 +630,32 @@ FIXTURE_PROBES = {
         _record_async("async_with", _async_snapshot)
         """
     ),
+    "test/simple_source/311/17_recursive_structure.py": _probe(
+        """
+        _record(
+            "scan",
+            lambda: (
+                scan_until("abc]tail", 0, "]"),
+                scan_until("plain", 1, "]"),
+            ),
+        )
+        _record(
+            "prefix",
+            lambda: collect_prefix([2, None, 4, "stop", 6], "stop"),
+        )
+        _record(
+            "nested",
+            lambda: nested_compound(["ab]", "xyz", "]"], "]"),
+        )
+        _record(
+            "chained",
+            lambda: (
+                chained_guard([2, 4, 6, 3, 8]),
+                chained_guard([2, -2, 4]),
+            ),
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

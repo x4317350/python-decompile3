@@ -89,6 +89,14 @@ class _LoopContext:
     continue_targets: frozenset
 
 
+@dataclass(frozen=True)
+class _RegionKey:
+    start: int
+    end: int
+    break_target: Optional[int]
+    continue_targets: FrozenSet[int]
+
+
 def _negate(expression: ast.expr) -> ast.expr:
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, ast.Not):
         return expression.operand
@@ -115,6 +123,18 @@ def _negate(expression: ast.expr) -> ast.expr:
     return ast.UnaryOp(op=ast.Not(), operand=expression)
 
 
+def _boolean_operation(operator, *expressions: ast.expr) -> ast.BoolOp:
+    values = []
+    for expression in expressions:
+        if isinstance(expression, ast.BoolOp) and isinstance(
+            expression.op, operator
+        ):
+            values.extend(expression.values)
+        else:
+            values.append(expression)
+    return ast.BoolOp(op=operator(), values=values)
+
+
 def _combine_decision(
     predicate: ast.expr, when_true: ast.expr, when_false: ast.expr
 ) -> ast.expr:
@@ -135,17 +155,13 @@ def _combine_decision(
     if true_constant is False and false_constant is True:
         return _negate(predicate)
     if false_constant is False:
-        return ast.BoolOp(op=ast.And(), values=[predicate, when_true])
+        return _boolean_operation(ast.And, predicate, when_true)
     if true_constant is False:
-        return ast.BoolOp(
-            op=ast.And(), values=[_negate(predicate), when_false]
-        )
+        return _boolean_operation(ast.And, _negate(predicate), when_false)
     if true_constant is True:
-        return ast.BoolOp(op=ast.Or(), values=[predicate, when_false])
+        return _boolean_operation(ast.Or, predicate, when_false)
     if false_constant is True:
-        return ast.BoolOp(
-            op=ast.Or(), values=[_negate(predicate), when_true]
-        )
+        return _boolean_operation(ast.Or, _negate(predicate), when_true)
     return ast.IfExp(test=predicate, body=when_true, orelse=when_false)
 
 
@@ -174,6 +190,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self._suppressed_exception_handler_targets = set()
         self._suppressed_exception_protocol_offsets = set()
         self._suppressed_loop_starts = set()
+        self._active_regions: Set[_RegionKey] = set()
+        self._region_work_count = 0
+        self._region_work_limit = max(1024, len(self.tokens) * 64)
+        self._latch_expression_memo: Dict[Tuple[int, int], int] = {}
         self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
 
@@ -262,8 +282,19 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             terminal_kinds=frozenset(),
         )
 
-    def _condition_jump(self, start: int) -> Optional[int]:
-        for index in range(start, len(self.tokens)):
+    def _condition_jump(
+        self,
+        start: int,
+        end: Optional[int] = None,
+        stop_offsets: FrozenSet[int] = frozenset(),
+    ) -> Optional[int]:
+        limit = len(self.tokens) if end is None else min(end, len(self.tokens))
+        for index in range(start, limit):
+            if (
+                index > start
+                and self.tokens[index].offset in stop_offsets
+            ):
+                return None
             kind = self.tokens[index].kind
             if kind in _CONDITIONAL_JUMPS:
                 return index
@@ -567,10 +598,18 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
 
     def _condition_plan(self, start: int) -> Optional[_ConditionPlan]:
+        return self._bounded_condition_plan(start, len(self.tokens))
+
+    def _bounded_condition_plan(
+        self,
+        start: int,
+        end: int,
+        stop_offsets: FrozenSet[int] = frozenset(),
+    ) -> Optional[_ConditionPlan]:
         chained = self._chained_condition_plan(start)
         if chained is not None:
             return chained
-        jump_index = self._condition_jump(start)
+        jump_index = self._condition_jump(start, end, stop_offsets)
         if jump_index is None:
             return None
         stacked_predicate = None
@@ -618,7 +657,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 offset = self.tokens[node_start].offset
                 if offset in nodes:
                     continue
-                node_jump = self._condition_jump(node_start)
+                node_jump = self._condition_jump(
+                    node_start,
+                    end,
+                    stop_offsets,
+                )
                 if node_jump is None:
                     endpoints.add(offset)
                     continue
@@ -643,13 +686,18 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     (false_offset, true_offset),
                 ):
                     successor_index = self.offset_to_index[successor]
+                    if successor_index >= end:
+                        endpoints.add(successor)
+                        continue
                     successor_token = self.tokens[successor_index]
                     block = self.cfg.block_at(successor)
                     has_single_predecessor = (
                         len(self.cfg.predecessors(block.index)) == 1
                     )
                     successor_jump = self._condition_jump(
-                        successor_index
+                        successor_index,
+                        end,
+                        stop_offsets,
                     )
                     same_condition_line = successor_token.linestart in (
                         None,
@@ -716,7 +764,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             block = self.cfg.block_at(offset)
             if len(self.cfg.predecessors(block.index)) != 1:
                 return None
-            node_jump = self._condition_jump(index)
+            if index >= end:
+                return None
+            node_jump = self._condition_jump(index, end, stop_offsets)
             if node_jump is None:
                 return None
             try:
@@ -777,24 +827,55 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 break
         true_endpoint, false_endpoint = sorted(endpoints)
 
-        def build(offset: int) -> ast.expr:
-            if offset not in nodes:
-                return ast.Constant(value=offset == true_endpoint)
-            node = nodes[offset]
-            return _combine_decision(
-                node.predicate,
-                build(node.true_offset),
-                build(node.false_offset),
-            )
-
         entry_offset = self.tokens[start].offset
+        expressions = {}
+        active_offsets = set()
+        pending = [(entry_offset, False)]
+        work_count = 0
+        work_limit = max(64, len(nodes) * 6 + 16)
+        try:
+            while pending:
+                work_count += 1
+                if work_count > work_limit:
+                    raise ValueError("condition work limit exceeded")
+                offset, expanded = pending.pop()
+                if offset in expressions:
+                    continue
+                node = nodes.get(offset)
+                if node is None:
+                    expressions[offset] = ast.Constant(
+                        value=offset == true_endpoint
+                    )
+                    continue
+                if expanded:
+                    if (
+                        node.true_offset not in expressions
+                        or node.false_offset not in expressions
+                    ):
+                        raise ValueError("condition dependency was not resolved")
+                    expressions[offset] = _combine_decision(
+                        node.predicate,
+                        expressions[node.true_offset],
+                        expressions[node.false_offset],
+                    )
+                    active_offsets.remove(offset)
+                    continue
+                if offset in active_offsets:
+                    raise ValueError("condition decision graph contains a cycle")
+                active_offsets.add(offset)
+                pending.append((offset, True))
+                pending.append((node.false_offset, False))
+                pending.append((node.true_offset, False))
+        except ValueError:
+            return None
+
         plan = _ConditionPlan(
             entry_offset=entry_offset,
             nodes=nodes,
             endpoints=tuple(sorted(endpoints)),
             true_endpoint=true_endpoint,
             false_endpoint=false_endpoint,
-            expression=build(entry_offset),
+            expression=expressions[entry_offset],
         )
         if stacked_predicate is not None:
             self.stack.pop()
@@ -806,6 +887,30 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         end: int,
         loop: Optional[_LoopContext],
     ) -> List[ast.stmt]:
+        key = _RegionKey(
+            start=start,
+            end=end,
+            break_target=loop.break_target if loop is not None else None,
+            continue_targets=(
+                loop.continue_targets if loop is not None else frozenset()
+            ),
+        )
+        if key in self._active_regions:
+            if 0 <= start < len(self.tokens):
+                self.current_token = self.tokens[start]
+            self._error(
+                "Structured region cycle detected",
+                UnsupportedPython311ControlFlow,
+            )
+        if self._region_work_count >= self._region_work_limit:
+            if 0 <= start < len(self.tokens):
+                self.current_token = self.tokens[start]
+            self._error(
+                "Structured region work limit exceeded",
+                UnsupportedPython311ControlFlow,
+            )
+        self._region_work_count += 1
+        self._active_regions.add(key)
         old_body = self.body
         old_stack = self.stack
         old_assignment = self.pending_assignment_value
@@ -822,6 +927,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 self._error("Structured statement region left stack values")
             return result
         finally:
+            self._active_regions.remove(key)
             self.body = old_body
             self.stack = old_stack
             self.pending_assignment_value = old_assignment
@@ -1016,11 +1122,72 @@ class StructuredDecompiler311(_StraightLineDecompiler):
     def _latch_expression_start(
         self, body_start: int, jump_index: int
     ) -> int:
-        for candidate in range(body_start, jump_index):
+        key = (body_start, jump_index)
+        cached = self._latch_expression_memo.get(key)
+        if cached is not None:
+            return cached
+
+        header_line = next(
+            (
+                self.tokens[index].linestart
+                for index in range(body_start - 1, -1, -1)
+                if self.tokens[index].linestart is not None
+            ),
+            None,
+        )
+        saw_body_line = False
+        if header_line is not None:
+            for index in range(body_start, jump_index):
+                line = self.tokens[index].linestart
+                if line is None:
+                    continue
+                if line > header_line:
+                    saw_body_line = True
+                elif saw_body_line and line <= header_line:
+                    self._latch_expression_memo[key] = index
+                    return index
+
+        candidate_start = body_start
+        saw_statement_boundary = False
+        for index in range(body_start, jump_index):
+            kind = self.tokens[index].kind
+            target = instruction_target(self.tokens[index])
+            is_condition_store = (
+                kind
+                in (
+                    "STORE_DEREF",
+                    "STORE_FAST",
+                    "STORE_GLOBAL",
+                    "STORE_NAME",
+                )
+                and index > body_start
+                and self.tokens[index - 1].kind == "COPY_STACK"
+                and self.tokens[index - 1].attr == 1
+            )
+            is_body_control_transfer = (
+                kind in UNCONDITIONAL_JUMPS
+                and target is not None
+                and (
+                    target <= self.tokens[body_start].offset
+                    or target > self.tokens[jump_index].offset
+                )
+            )
+            if (
+                kind in _STATEMENT_BOUNDARIES and not is_condition_store
+            ) or is_body_control_transfer:
+                candidate_start = index + 1
+                saw_statement_boundary = True
+
+        if saw_statement_boundary and candidate_start < jump_index:
+            self._latch_expression_memo[key] = candidate_start
+            return candidate_start
+
+        for candidate in range(candidate_start, jump_index):
             try:
                 self._expression_slice(candidate, jump_index)
             except Python311ParseError:
                 continue
+            self._latch_expression_memo[key] = candidate
             return candidate
         # Chained comparisons use an intermediate POP_JUMP to discard their
         # duplicated middle operand, so the latch is not a single linear
@@ -1042,18 +1209,21 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 for index in range(line_start, jump_index)
             )
         ):
+            self._latch_expression_memo[key] = line_start
             return line_start
+        self._latch_expression_memo[key] = jump_index
         return jump_index
 
     def _while_loop(
         self,
         plan: _ConditionPlan,
         loop: Optional[_LoopContext],
+        region_end: int,
     ) -> Optional[int]:
         body_start = self.offset_to_index[plan.true_endpoint]
         false_index = self.offset_to_index[plan.false_endpoint]
         back_jumps = []
-        for index in range(body_start, false_index):
+        for index in range(body_start, min(false_index, region_end)):
             token = self.tokens[index]
             target = instruction_target(token)
             if (
@@ -1896,9 +2066,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = return_end
                 continue
 
-            condition = self._condition_plan(index)
+            condition = self._bounded_condition_plan(
+                index,
+                len(self.tokens),
+                (
+                    loop.continue_targets
+                    if loop is not None
+                    else frozenset()
+                ),
+            )
             if condition is not None:
-                loop_end = self._while_loop(condition, loop)
+                loop_end = self._while_loop(condition, loop, end)
                 if loop_end is not None:
                     index = loop_end
                     continue

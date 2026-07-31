@@ -30,6 +30,7 @@ EXPECTED_SOURCES = {
     "14_function_object_flow.py",
     "15_comprehension_iterator_protocol.py",
     "16_with_control_transfer.py",
+    "17_recursive_structure.py",
 }
 
 pytestmark = pytest.mark.skipif(

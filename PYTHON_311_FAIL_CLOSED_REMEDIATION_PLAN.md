@@ -549,8 +549,9 @@ git status --short
 - 阶段 4 已完成并提交；
 - 阶段 5 已完成并提交；
 - 阶段 6 已完成并提交；
-- 阶段 7 已完成，等待单独提交；
-- 阶段 8 及后续阶段尚未开始；
+- 阶段 7 已完成并提交；
+- 阶段 8 已完成，等待单独提交；
+- 阶段 9 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
@@ -559,7 +560,8 @@ git status --short
 - 阶段 4 修复提交为 `ae53e1ae`；
 - 阶段 5 修复提交为 `30595e11`；
 - 阶段 6 修复提交为 `45c77535`；
-- 当前 shape 状态为 37 pass、3 fail-closed、0 missing。
+- 阶段 7 修复提交为 `4291bda5`；
+- 当前 shape 状态为 38 pass、2 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -716,7 +718,7 @@ git status --short
 
 ```text
 阶段：7，修复 with 控制转移
-提交：本阶段修复提交（等待单独提交）
+提交：4291bda5，提交说明为“修复：完成 Python 3.11 with 控制转移恢复”
 目标 shape：realworld_with_control_transfer
 阶段前计数：90；原冻结基线 29，另有前置阶段清除调用、函数对象和推导式错误后暴露或迁入 61 项
 阶段后计数：0
@@ -729,4 +731,23 @@ git status --short
 全量测试：822 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：37 shape pass、3 fail-closed、0 missing；with 控制转移转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
 已知限制：真实语料仍有调用/表达式栈 12、高级异常清理 72、递归结构 51；人工不可约 CFG 保持明确 fail-closed
+```
+
+阶段 8：
+
+```text
+阶段：8，修复递归结构
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_recursive_structure
+阶段前计数：51；原冻结基线 13，另有前置阶段清除调用、推导式和 with 错误后暴露或迁入 38 项
+阶段后计数：0
+已修复签名：复合 while 的 header/body/latch 边界重复吸收、结构区域相同区间反复重入、深层条件树递归构造和嵌套 BoolOp 输出；按 start/end/loop context 建立活动区间键，增加工作量上限和 latch memo，并用迭代 worklist 构造及压平条件 AST
+剩余子 shape：原递归结构粗分类归零；51 个代表文件中 37 个完整恢复，其余 14 个按实际根因守恒迁移到高级异常清理 11、调用/表达式栈 2 和生成器过滤协议 1；修正循环边界后另有 14 个原成功文件因暴露高级异常清理缺口改为明确 fail-closed
+新增 fixture：test/simple_source/311/17_recursive_structure.py；同步 dis 和 normalized token golden
+行为验证：覆盖双条件和三条件 while、continue、嵌套 compound loop、600 项深层线性条件、重复区间快速 fail-closed，以及 fnmatch.py 恢复并重新编译；真实语料 6/6 行为探针一致
+真实语料：604 个输入重放；492 success、112 fail-closed；0 syntax failure、0 unexpected crash；递归结构分类归零
+专项测试：阶段 8、控制流、表达式、shape behavior、真实语料、corpus 和发布门禁回归共 164 passed
+全量测试：827 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：38 shape pass、2 fail-closed、0 missing；递归结构转为 pass；报告时效、golden、真实语料归档和完整门禁均通过
+已知限制：真实语料仍有调用/表达式栈 14、推导式/迭代协议 1、高级异常清理 97；人工不可约 CFG 保持明确 fail-closed
 ```

@@ -480,14 +480,18 @@
     {
       "name": "realworld_recursive_structure",
       "category": "realworld_control_flow",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Python311ParseError",
+      "status": "pass",
+      "fixture": "test/simple_source/311/17_recursive_structure.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
-        "pytest/test_realworld311.py::test_realworld_recursion_exhaustion_fails_closed"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_recursive_structure311.py::test_compound_while_latch_excludes_the_repeated_condition",
+        "pytest/test_recursive_structure311.py::test_nested_and_chained_compound_loops_preserve_behavior",
+        "pytest/test_recursive_structure311.py::test_deep_linear_condition_uses_bounded_structure_work",
+        "pytest/test_recursive_structure311.py::test_repeated_structure_region_fails_closed_before_python_recursion",
+        "pytest/test_realworld311.py::test_previous_recursion_sample_recovers_and_recompiles"
       ],
-      "notes": "Phase 8 converts internal RecursionError escapes into contextual Python311ParseError failures."
+      "notes": "Stage 8 fixes compound while latch boundaries, memoizes interval probes, constructs deep condition trees with an iterative worklist, and rejects repeated regions or excessive structure work before Python recursion is exhausted. The fixed 604-file archive has no remaining recursive-structure failure classification."
     },
     {
       "name": "realworld_unpack_assignment",
