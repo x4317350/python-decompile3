@@ -543,11 +543,13 @@ git status --short
 当前状态：
 
 - 阶段 0 已完成并提交；
-- 阶段 1 已完成，等待单独提交；
-- 阶段 2 及后续阶段尚未开始；
+- 阶段 1 已完成并提交；
+- 阶段 2 已完成，等待单独提交；
+- 阶段 3 及后续阶段尚未开始；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
-- 当前 shape 状态为 31 pass、9 fail-closed、0 missing。
+- 阶段 1 修复提交为 `748aafb9`；
+- 当前 shape 状态为 32 pass、8 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -603,4 +605,23 @@ git status --short
 全量测试：786 passed, 6 skipped；skip 与 legacy 白名单一致
 发布门禁：31 shape pass、9 fail-closed、0 missing；完整门禁通过
 已知限制：multiprocessing/util.py 在解包修复后继续暴露 PUSH_EXC_INFO 异常清理失败，已守恒迁移到阶段 3 家族，不属于解包残留
+```
+
+阶段 2：
+
+```text
+阶段：2，修复显式 import transaction 和 dotted alias owner 路由
+提交：本阶段修复提交（见 Git 历史）
+目标 shape：realworld_import_protocol
+阶段前计数：6
+阶段后计数：0
+已修复签名：IMPORT_FROM has no owning IMPORT_NAME；覆盖 IMPORT_FROM → SWAP_STACK → POP_TOP → IMPORT_FROM 中间链
+剩余子 shape：无；该粗分类已从 unsupported_fail_closed 转为 pass
+新增 fixture：test/simple_source/311/11_import_transactions.py；同步 dis 和 normalized token golden
+行为验证：覆盖 dotted import、括号多名称、别名、相对导入、transaction 隔离、缺失模块和循环导入异常
+真实语料：604 个输入重放；208 success、396 fail-closed；6 个归档输入均清除 import protocol
+专项测试：imports、unpack、baseline、real-world、shape behavior、release gate、corpus 共 134 passed
+全量测试：797 passed, 6 skipped；skip 与 legacy 白名单一致
+发布门禁：32 shape pass、8 fail-closed、0 missing；完整门禁通过
+已知限制：pysource.py 和 _pytest/junitxml.py 越过导入后分别暴露 CALL 栈与 STORE_ATTR 函数对象失败，已守恒迁移到阶段 4、5；其余 4 个归档文件完整恢复并重新编译
 ```

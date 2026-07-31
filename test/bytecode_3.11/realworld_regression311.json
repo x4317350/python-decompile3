@@ -50,11 +50,10 @@
     "runtime": "3.11.9"
   },
   "failure_classifications": {
-    "realworld_call_and_expression_stack": 216,
+    "realworld_call_and_expression_stack": 217,
     "realworld_comprehension_and_iterator_protocol": 67,
     "realworld_exception_cleanup_control_transfer": 58,
-    "realworld_function_object_flow": 9,
-    "realworld_import_protocol": 6,
+    "realworld_function_object_flow": 10,
     "realworld_match_boundary": 1,
     "realworld_recursive_structure": 14,
     "realworld_with_control_transfer": 29
@@ -152,29 +151,6 @@
         "opcode": "STORE_ATTR"
       }
     ],
-    "realworld_import_protocol": [
-      {
-        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/scanners/pypy37.py",
-        "opcode": "IMPORT_FROM"
-      },
-      {
-        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=18]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/scanners/pypy38.py",
-        "opcode": "IMPORT_FROM"
-      },
-      {
-        "error": "IMPORT_FROM has no owning IMPORT_NAME (opcode IMPORT_FROM) [version=3.11, code='<module>', offset=26]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/semantics/customize311.py",
-        "opcode": "IMPORT_FROM"
-      }
-    ],
     "realworld_match_boundary": [
       {
         "error": "Match case body has no structural terminator ('<module>', offset 424) [version=3.11, code='<module>', offset=424]",
@@ -240,12 +216,12 @@
   },
   "groups": {
     "project": {
-      "decompile_success": 54,
-      "fail_closed": 61,
+      "decompile_success": 58,
+      "fail_closed": 57,
       "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 54,
+      "syntax_success": 58,
       "unexpected_crash": 0
     },
     "stdlib": {
@@ -267,7 +243,7 @@
       "unexpected_crash": 0
     }
   },
-  "input_digest": "67f20edf76bfd23dda979b741d05d11f85d5c5bd5988e5a8d04c879c451d1848",
+  "input_digest": "0c98861a1132ced270a83b278260ffb2b96369ea8fb645d591b2cafca3a9b30e",
   "phase": 8,
   "schema_version": 1,
   "selection": {
@@ -305,12 +281,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 204,
-    "fail_closed": 400,
+    "decompile_success": 208,
+    "fail_closed": 396,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 204,
+    "syntax_success": 208,
     "unexpected_crash": 0
   }
 }

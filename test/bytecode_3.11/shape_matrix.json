@@ -439,13 +439,18 @@
     {
       "name": "realworld_import_protocol",
       "category": "realworld_import",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/11_import_transactions.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified"
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_imports311.py::test_normalized_dotted_alias_keeps_one_import_transaction",
+        "pytest/test_imports311.py::test_dotted_multi_name_and_alias_imports_preserve_behavior",
+        "pytest/test_imports311.py::test_relative_imports_preserve_level_binding_and_missing_error",
+        "pytest/test_imports311.py::test_circular_relative_import_preserves_import_error",
+        "pytest/test_imports311.py::test_stage2_archived_inputs_clear_the_import_protocol"
       ],
-      "notes": "Phase 8 records IMPORT_FROM sequences whose owning IMPORT_NAME cannot be proven by the current stack model."
+      "notes": "Remediation stage 2 keeps dotted and from-import references in an explicit transaction across SWAP/POP operations, with binding and exception behavior coverage for aliases, multiple names, relative imports, missing modules, and circular imports."
     },
     {
       "name": "realworld_match_boundary",

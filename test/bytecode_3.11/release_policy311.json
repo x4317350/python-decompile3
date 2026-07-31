@@ -75,7 +75,6 @@
       "realworld_comprehension_and_iterator_protocol",
       "realworld_exception_cleanup_control_transfer",
       "realworld_function_object_flow",
-      "realworld_import_protocol",
       "realworld_match_boundary",
       "realworld_recursive_structure",
       "realworld_with_control_transfer"
@@ -93,7 +92,6 @@
       "realworld_comprehension_and_iterator_protocol",
       "realworld_exception_cleanup_control_transfer",
       "realworld_function_object_flow",
-      "realworld_import_protocol",
       "realworld_match_boundary",
       "realworld_recursive_structure",
       "realworld_with_control_transfer"

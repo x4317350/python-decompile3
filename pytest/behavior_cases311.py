@@ -337,6 +337,14 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/simple_source/311/11_import_transactions.py": _probe(
+        """
+        _record(
+            "import_transactions",
+            imported_values,
+        )
+        """
+    ),
     "test/bytecode_3.11/opcode_fixtures/collections/list_to_tuple.py": (
         '_record("starred_tuple", lambda: starred_tuple([1, 2, 3]))\n'
     ),

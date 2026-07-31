@@ -7,7 +7,7 @@
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`67f20edf76bfd23dda979b741d05d11f85d5c5bd5988e5a8d04c879c451d1848`
+- 输入摘要：`0c98861a1132ced270a83b278260ffb2b96369ea8fb645d591b2cafca3a9b30e`
 
 第三方版本：
 
@@ -21,10 +21,10 @@
 ## 汇总
 
 - 输入文件数：604
-- 成功反编译数：204
-- 语法验证成功数：204
+- 成功反编译数：208
+- 语法验证成功数：208
 - 语法失败数：0
-- fail-closed 数：400
+- fail-closed 数：396
 - malformed/unsupported input 数：0
 - 未包装崩溃数：0
 - 行为一致数：6
@@ -38,18 +38,17 @@
 | 分组 | 输入 | 反编译成功 | 语法成功 | 语法失败 | fail-closed | 输入不支持 | 未包装崩溃 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | stdlib | 338 | 98 | 98 | 0 | 240 | 0 | 0 |
-| project | 115 | 54 | 54 | 0 | 61 | 0 | 0 |
+| project | 115 | 58 | 58 | 0 | 57 | 0 | 0 |
 | third_party | 151 | 52 | 52 | 0 | 99 | 0 | 0 |
 
 ## Fail-closed 分类
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_call_and_expression_stack` | 216 |
+| `realworld_call_and_expression_stack` | 217 |
 | `realworld_comprehension_and_iterator_protocol` | 67 |
 | `realworld_exception_cleanup_control_transfer` | 58 |
-| `realworld_function_object_flow` | 9 |
-| `realworld_import_protocol` | 6 |
+| `realworld_function_object_flow` | 10 |
 | `realworld_match_boundary` | 1 |
 | `realworld_recursive_structure` | 14 |
 | `realworld_with_control_transfer` | 29 |

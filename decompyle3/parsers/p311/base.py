@@ -97,17 +97,17 @@ class _NullValue:
     pass
 
 
-@dataclass
-class _ImportValue:
+@dataclass(frozen=True)
+class _ImportTransaction:
     module: str
     level: int
     fromlist: Tuple[str, ...]
 
 
-@dataclass
-class _ImportedName:
-    owner: _ImportValue
-    name: str
+@dataclass(frozen=True)
+class _ImportValue:
+    transaction: _ImportTransaction
+    path: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -609,26 +609,51 @@ class _StraightLineDecompiler:
     def _store_import(self, value, target: ast.expr):
         if not isinstance(target, ast.Name):
             self._error("An import target is not a name")
-        if isinstance(value, _ImportValue):
+        if not isinstance(value, _ImportValue):
+            self._error("Unknown import value")
+
+        transaction = value.transaction
+        if not value.path:
+            if transaction.fromlist:
+                self._error("A from-import transaction has no imported name")
             asname = target.id
-            default_name = value.module.split(".")[0]
-            if asname == default_name or asname == value.module:
+            default_name = transaction.module.split(".")[0]
+            if asname == default_name or asname == transaction.module:
                 asname = None
             self.body.append(
-                ast.Import(names=[ast.alias(name=value.module, asname=asname)])
-            )
-            return
-        if isinstance(value, _ImportedName):
-            asname = None if target.id == value.name else target.id
-            self.body.append(
-                ast.ImportFrom(
-                    module=value.owner.module or None,
-                    names=[ast.alias(name=value.name, asname=asname)],
-                    level=value.owner.level,
+                ast.Import(
+                    names=[
+                        ast.alias(
+                            name=transaction.module,
+                            asname=asname,
+                        )
+                    ]
                 )
             )
             return
-        self._error("Unknown import value")
+
+        if transaction.fromlist:
+            name = value.path[-1]
+            asname = None if target.id == name else target.id
+            self.body.append(
+                ast.ImportFrom(
+                    module=transaction.module or None,
+                    names=[ast.alias(name=name, asname=asname)],
+                    level=transaction.level,
+                )
+            )
+            return
+
+        self.body.append(
+            ast.Import(
+                names=[
+                    ast.alias(
+                        name=transaction.module,
+                        asname=target.id,
+                    )
+                ]
+            )
+        )
 
     def _store_annotation(
         self,
@@ -683,15 +708,16 @@ class _StraightLineDecompiler:
 
     def _import_star(self):
         value = self._pop()
-        if not isinstance(value, _ImportValue):
+        if not isinstance(value, _ImportValue) or value.path:
             self._error("IMPORT_STAR has no owning IMPORT_NAME")
-        if value.fromlist != ("*",):
+        transaction = value.transaction
+        if transaction.fromlist != ("*",):
             self._error("IMPORT_STAR owner does not request the '*' name")
         self.body.append(
             ast.ImportFrom(
-                module=value.module or None,
+                module=transaction.module or None,
                 names=[ast.alias(name="*", asname=None)],
-                level=value.level,
+                level=transaction.level,
             )
         )
 
@@ -977,7 +1003,7 @@ class _StraightLineDecompiler:
         if isinstance(value, _UnpackItem):
             self._store_unpack(value, target)
             return
-        if isinstance(value, (_ImportValue, _ImportedName)):
+        if isinstance(value, _ImportValue):
             self._store_import(value, target)
             return
         if isinstance(value, _FunctionValue):
@@ -1099,8 +1125,16 @@ class _StraightLineDecompiler:
         if not isinstance(level, int):
             self._error("IMPORT_NAME level is not an integer")
         module = token.attr if isinstance(token.attr, str) else token.pattr
+        if not isinstance(module, str):
+            self._error("IMPORT_NAME module is not a string")
         self.stack.append(
-            _ImportValue(module=module, level=level, fromlist=fromlist)
+            _ImportValue(
+                transaction=_ImportTransaction(
+                    module=module,
+                    level=level,
+                    fromlist=fromlist,
+                )
+            )
         )
 
     def _dispatch(self, token):
@@ -1248,7 +1282,32 @@ class _StraightLineDecompiler:
             if not self.stack or not isinstance(self.stack[-1], _ImportValue):
                 self._error("IMPORT_FROM has no owning IMPORT_NAME")
             name = token.attr if isinstance(token.attr, str) else token.pattr
-            self.stack.append(_ImportedName(self.stack[-1], name))
+            if not isinstance(name, str):
+                self._error("IMPORT_FROM name is not a string")
+            owner = self.stack[-1]
+            transaction = owner.transaction
+            if transaction.fromlist:
+                if owner.path:
+                    self._error(
+                        "IMPORT_FROM cannot continue from an imported name"
+                    )
+                if name not in transaction.fromlist:
+                    self._error(
+                        "IMPORT_FROM name is absent from its transaction"
+                    )
+            else:
+                expected = tuple(transaction.module.split(".")[1:])
+                path = owner.path + (name,)
+                if path != expected[: len(path)]:
+                    self._error(
+                        "IMPORT_FROM dotted path does not match IMPORT_NAME"
+                    )
+            self.stack.append(
+                _ImportValue(
+                    transaction=transaction,
+                    path=owner.path + (name,),
+                )
+            )
         elif kind == "IMPORT_STAR":
             self._import_star()
         elif kind == "SETUP_ANNOTATIONS":
