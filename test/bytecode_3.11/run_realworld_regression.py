@@ -551,7 +551,7 @@ def run_regression(
     first_failure = failures[0] if failures else None
     return {
         "schema_version": 1,
-        "phase": 8,
+        "phase": 11,
         "target": {
             "implementation": "CPython",
             "version": "3.11",
@@ -607,7 +607,7 @@ def render_report(result: dict) -> str:
         "",
         "> 本文件由 "
         "`test/bytecode_3.11/run_realworld_regression.py` 自动生成，",
-        "> 记录阶段 8 的固定环境宽度审计，不等同于全量支持声明。",
+        "> 记录阶段 11 的固定环境宽度审计，不等同于全量支持声明。",
         "",
         "## 环境",
         "",

@@ -915,6 +915,34 @@ class _StraightLineDecompiler:
                 self._error("CALL has no argument count")
             values = self._pop_many(argc)
             hidden_argument = None
+            precall_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(self.tokens)
+                    if candidate.offset == info.precall_offset
+                ),
+                None,
+            )
+            iterator_index = (
+                precall_index - 1
+                if precall_index is not None
+                else None
+            )
+            while (
+                iterator_index is not None
+                and iterator_index >= 0
+                and self.tokens[iterator_index].kind in _IGNORED_INTERNAL
+            ):
+                iterator_index -= 1
+            hidden_iterator_protocol = (
+                not self.tokens
+                or (
+                    iterator_index is not None
+                    and iterator_index >= 0
+                    and self.tokens[iterator_index].kind
+                    in ("GET_ITER", "GET_AITER")
+                )
+            )
             if (
                 not info.has_null
                 and not info.is_method
@@ -926,8 +954,10 @@ class _StraightLineDecompiler:
                 ):
                     hidden_argument = self._pop()
                 elif (
-                    isinstance(self.stack[-1], ast.expr)
+                    argc == 0
+                    and isinstance(self.stack[-1], ast.expr)
                     and isinstance(self.stack[-2], _FunctionValue)
+                    and hidden_iterator_protocol
                 ):
                     hidden_argument = self._pop()
             callable_value = self._callable()

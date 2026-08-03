@@ -113,26 +113,44 @@ class MatchStructureDecompiler311:
                 or token.kind.startswith("STORE_")
             ):
                 break
+
+        def has_pattern_comparison():
+            """A value pattern compares and then branches on the result."""
+            comparison_seen = False
+            for token in lookahead[1:]:
+                if token.kind.startswith("MATCH_"):
+                    return True
+                if token.kind.startswith("COMPARE_") or token.kind == "IS":
+                    comparison_seen = True
+                    continue
+                if token.kind.startswith("POP_JUMP_"):
+                    return comparison_seen or (
+                        kind == "COPY_STACK"
+                        and (
+                            "IF_NONE" in token.kind
+                            or "IF_NOT_NONE" in token.kind
+                        )
+                    )
+            return False
+
         if kind == "COPY_STACK":
             return any(
                 token.kind.startswith("MATCH_")
-                or token.kind.startswith("COMPARE_")
-                or token.kind == "IS"
-                or token.kind.startswith("POP_JUMP_")
                 for token in lookahead[1:]
-            )
+            ) or has_pattern_comparison()
         if kind == "LOAD_CONST":
-            return any(
-                token.kind.startswith("COMPARE_") or token.kind == "IS"
-                for token in lookahead[1:4]
-            )
-        if kind in ("LOAD_GLOBAL", "LOAD_NAME"):
+            return has_pattern_comparison()
+        if kind in (
+            "LOAD_CLASSDEREF",
+            "LOAD_DEREF",
+            "LOAD_FAST",
+            "LOAD_GLOBAL",
+            "LOAD_NAME",
+        ):
             return any(
                 token.kind == "MATCH_CLASS"
-                or token.kind.startswith("COMPARE_")
-                or token.kind == "IS"
                 for token in lookahead[1:]
-            )
+            ) or has_pattern_comparison()
         return False
 
     def _first_case(self, start: int, end: int) -> Optional[int]:
@@ -573,6 +591,62 @@ class MatchStructureDecompiler311:
             line = self.tokens[index].linestart
             if line is not None:
                 if line > case_line:
+                    next_line = next(
+                        (
+                            candidate
+                            for candidate in range(index + 1, end)
+                            if self.tokens[candidate].linestart is not None
+                            and self.tokens[candidate].linestart > line
+                        ),
+                        end,
+                    )
+                    if any(
+                        token.kind.startswith("MATCH_")
+                        for token in self.tokens[index:next_line]
+                    ):
+                        continue
+                    candidate_line = line
+                    pattern_failures = []
+                    for token in self.tokens[case_start:index]:
+                        if not token.kind.startswith("POP_JUMP_"):
+                            continue
+                        target = instruction_target(token)
+                        target_index = self.offset_to_index.get(target)
+                        if (
+                            target_index is not None
+                            and target_index > index
+                        ):
+                            pattern_failures.append(target_index)
+                    for guard_jump in range(index, end):
+                        guard_line = self.tokens[guard_jump].linestart
+                        if (
+                            guard_jump > index
+                            and guard_line is not None
+                            and guard_line > candidate_line
+                        ):
+                            break
+                        if (
+                            self.tokens[guard_jump].kind
+                            .startswith("POP_JUMP_")
+                            and guard_jump + 1 < end
+                            and (
+                                self.tokens[guard_jump + 1].kind
+                                == "POP_TOP"
+                                or (
+                                    pattern_failures
+                                    and self.offset_to_index[
+                                        instruction_target(
+                                            self.tokens[guard_jump]
+                                        )
+                                    ]
+                                    >= min(pattern_failures)
+                                )
+                            )
+                        ):
+                            body_start = guard_jump + 1
+                            if self.tokens[body_start].kind == "POP_TOP":
+                                body_start += 1
+                            return body_start
                     return index
                 if line < case_line:
                     return None
@@ -758,6 +832,12 @@ class MatchStructureDecompiler311:
         first_case = self._first_case(subject_start, end)
         if first_case is None:
             return None
+        if any(
+            token.offset
+            in self.owner._suppressed_exception_protocol_offsets
+            for token in self.tokens[subject_start + 1 : first_case + 1]
+        ):
+            return None
         try:
             subject = self.owner._expression_slice(
                 subject_start,
@@ -773,6 +853,25 @@ class MatchStructureDecompiler311:
             case_line = self.tokens[cursor].linestart
             body_start = self._body_start(cursor, end)
             if body_start is None:
+                return None
+            if any(
+                token.offset
+                in self.owner._suppressed_exception_protocol_offsets
+                for token in self.tokens[cursor:body_start]
+            ):
+                return None
+            if (
+                self.tokens[cursor].kind != "NOP"
+                and not self.tokens[cursor].kind.startswith("STORE_")
+                and not any(
+                    token.kind.startswith(("MATCH_", "POP_JUMP_"))
+                    for token in self.tokens[cursor:body_start]
+                )
+            ):
+                # A multiline call can otherwise look like ``match`` when a
+                # later argument contains a comparison.  A real refutable
+                # case completes at least one pattern-test branch on the case
+                # source line before its body starts.
                 return None
             pattern, guard = self._pattern_and_guard(cursor, body_start)
             failure_index = self._case_failure_index(
@@ -791,7 +890,30 @@ class MatchStructureDecompiler311:
                 failure_index=failure_index,
                 known_join_index=known_join_index,
             )
-            body = self.owner._capture_region(body_start, body_end, loop)
+            irrefutable = (
+                isinstance(pattern, ast.MatchAs)
+                and pattern.pattern is None
+            )
+            capture_start = body_start
+            if (
+                capture_start < body_end
+                and self.tokens[capture_start].kind == "POP_TOP"
+            ):
+                capture_start += 1
+            body = self.owner._capture_region(
+                capture_start,
+                body_end,
+                loop,
+            )
+            exits_loop = (
+                irrefutable
+                and loop is not None
+                and join == loop.break_target
+                and body_end < end
+                and self.tokens[body_end].kind == "JUMP_FORWARD"
+            )
+            if exits_loop:
+                body.append(ast.Break())
             if (
                 not body
                 and body_end - body_start >= 2
@@ -808,20 +930,23 @@ class MatchStructureDecompiler311:
                 )
             )
             if join is not None:
-                if join_offsets and join not in join_offsets:
+                if (
+                    not exits_loop
+                    and join_offsets
+                    and join not in join_offsets
+                ):
                     self._error(
                         "Match cases have ambiguous join targets",
                         body_start,
                     )
-                join_offsets.append(join)
-            irrefutable = (
-                isinstance(pattern, ast.MatchAs)
-                and pattern.pattern is None
-            )
+                if not exits_loop:
+                    join_offsets.append(join)
             if irrefutable:
                 cursor = None
                 final_index = (
-                    self.offset_to_index[max(join_offsets)]
+                    self.offset_to_index[join]
+                    if exits_loop
+                    else self.offset_to_index[max(join_offsets)]
                     if join_offsets
                     else body_end
                 )
@@ -831,7 +956,19 @@ class MatchStructureDecompiler311:
                 if failure_index is not None
                 else body_end
             )
-            cursor = self._next_case(next_search, case_line, end)
+            case_search_end = (
+                min(
+                    end,
+                    self.offset_to_index[min(join_offsets)],
+                )
+                if join_offsets
+                else end
+            )
+            cursor = self._next_case(
+                next_search,
+                case_line,
+                case_search_end,
+            )
             final_index = body_end
             if cursor is None:
                 if join_offsets:
@@ -841,6 +978,17 @@ class MatchStructureDecompiler311:
         if not cases:
             return None
         self.owner.body.append(ast.Match(subject=subject, cases=cases))
+        # A refutable final case leaves the shared match subject on the
+        # physical operand stack.  CPython discards it on the no-match path
+        # before continuing with the following source statement (or the
+        # implicit ``return None``).  The subject has already been consumed
+        # into ``ast.Match`` above, so this POP_TOP is protocol rather than a
+        # source expression statement.
+        if (
+            final_index < end
+            and self.tokens[final_index].kind == "POP_TOP"
+        ):
+            final_index += 1
         return final_index
 
 

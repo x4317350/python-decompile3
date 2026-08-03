@@ -148,12 +148,12 @@ def validate_release_policy(
         ),
         "release policy",
     )
-    if policy["schema_version"] != 1 or policy["phase"] != 9:
-        raise ReleaseGateError("release policy 必须使用 schema 1、阶段 9")
+    if policy["schema_version"] != 1 or policy["phase"] != 11:
+        raise ReleaseGateError("release policy 必须使用 schema 1、阶段 11")
     if sys.version_info[:2] != (3, 11):
         raise ReleaseGateError("发布门禁必须使用 CPython 3.11")
-    if opcode_matrix.get("phase") != 9 or shape_matrix.get("phase") != 9:
-        raise ReleaseGateError("opcode/shape 矩阵必须标记为阶段 9")
+    if opcode_matrix.get("phase") != 11 or shape_matrix.get("phase") != 11:
+        raise ReleaseGateError("opcode/shape 矩阵必须标记为阶段 11")
 
     target = policy["target"]
     if target != {"implementation": "CPython", "version": "3.11.9"}:
@@ -392,7 +392,7 @@ def render_release_report(
         "# CPython 3.11 发布门禁",
         "",
         "> 本文件由 `test/bytecode_3.11/run_release_gate.py` 生成，",
-        "> 与阶段 9 发布策略、覆盖矩阵和真实语料归档同步。",
+        "> 与阶段 11 发布策略、覆盖矩阵和真实语料归档同步。",
         "",
         "## 四层覆盖",
         "",

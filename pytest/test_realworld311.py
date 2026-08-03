@@ -1,4 +1,4 @@
-"""Phase 8 standard-library and real-world regression contracts."""
+"""Stage 11 standard-library and real-world regression contracts."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def test_archived_realworld_report_has_required_metrics():
     totals = ARCHIVE["totals"]
     behavior = ARCHIVE["behavior"]
 
-    assert ARCHIVE["phase"] == 8
+    assert ARCHIVE["phase"] == 11
     assert ARCHIVE["target"] == {
         "implementation": "CPython",
         "version": "3.11",
@@ -114,7 +114,10 @@ def test_archived_failures_are_fully_classified():
         samples = ARCHIVE["failure_samples"][shape_name]
         assert samples
         assert all(sample["error_type"] for sample in samples)
-    assert ARCHIVE["first_failure"]["shape"] in classifications
+    if classifications:
+        assert ARCHIVE["first_failure"]["shape"] in classifications
+    else:
+        assert ARCHIVE["first_failure"] is None
 
 
 def test_irreducible_failure_has_a_dedicated_zero_count_classification():

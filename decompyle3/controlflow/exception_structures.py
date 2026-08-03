@@ -36,7 +36,14 @@ class ExceptionStructureDecompiler311:
         )
 
     def _handler_has_match(self, handler_index: int) -> bool:
-        for token in self.tokens[handler_index + 1 :]:
+        handler_offset = self.tokens[handler_index].offset
+        protected_ends = [
+            self.offset_to_index[entry.end]
+            for entry in self.entries
+            if entry.start == handler_offset and entry.lasti
+        ]
+        probe_end = min(protected_ends) if protected_ends else len(self.tokens)
+        for token in self.tokens[handler_index + 1 : probe_end]:
             if token.kind == "CHECK_EXC_MATCH":
                 return True
             if token.kind in ("RERAISE", "RETURN_VALUE"):
@@ -44,7 +51,14 @@ class ExceptionStructureDecompiler311:
         return False
 
     def _handler_has_group_match(self, handler_index: int) -> bool:
-        for token in self.tokens[handler_index + 1 :]:
+        handler_offset = self.tokens[handler_index].offset
+        protected_ends = [
+            self.offset_to_index[entry.end]
+            for entry in self.entries
+            if entry.start == handler_offset and entry.lasti
+        ]
+        probe_end = min(protected_ends) if protected_ends else len(self.tokens)
+        for token in self.tokens[handler_index + 1 : probe_end]:
             if token.kind == "CHECK_EG_MATCH":
                 return True
             if token.kind in ("RERAISE", "RETURN_VALUE"):
@@ -85,10 +99,21 @@ class ExceptionStructureDecompiler311:
             )
         return state
 
-    def _capture_optional(self, start: int, end: int, loop) -> List[ast.stmt]:
+    def _capture_optional(
+        self,
+        start: int,
+        end: int,
+        loop,
+        trailing_return: bool = False,
+    ) -> List[ast.stmt]:
         if start >= end:
             return []
-        return self.owner._capture_region(start, end, loop)
+        return self.owner._capture_region(
+            start,
+            end,
+            loop,
+            trailing_return=trailing_return,
+        )
 
     def _capture_protected(
         self,
@@ -103,6 +128,28 @@ class ExceptionStructureDecompiler311:
         finally:
             self.owner._suppressed_exception_starts.remove(offset)
 
+    def _capture_protected_fragments(
+        self,
+        start: int,
+        end: int,
+        loop,
+        fragments,
+        trailing_return: bool = False,
+    ) -> List[ast.stmt]:
+        """Capture one logical try suite split into table fragments."""
+        offsets = {entry.start for entry in fragments}
+        added = offsets - self.owner._suppressed_exception_starts
+        self.owner._suppressed_exception_starts.update(added)
+        try:
+            return self._capture_optional(
+                start,
+                end,
+                loop,
+                trailing_return=trailing_return,
+            )
+        finally:
+            self.owner._suppressed_exception_starts.difference_update(added)
+
     def _capture_protected_return(
         self,
         start: int,
@@ -112,22 +159,112 @@ class ExceptionStructureDecompiler311:
         """Recover a return value kept on the VM stack across ``finally``."""
         expression_start = self.owner._latch_expression_start(start, end)
         if expression_start >= end:
-            return None
+            await_index = next(
+                (
+                    index
+                    for index in range(end - 1, start - 1, -1)
+                    if self.tokens[index].kind == "GET_AWAITABLE"
+                ),
+                None,
+            )
+            if await_index is not None:
+                operand_start = self.owner._latch_expression_start(
+                    start,
+                    await_index,
+                )
+                if operand_start < await_index:
+                    offset = self.tokens[start].offset
+                    self.owner._suppressed_exception_starts.add(offset)
+                    try:
+                        try:
+                            body = self._capture_optional(
+                                start,
+                                operand_start,
+                                loop,
+                            )
+                            value = self.owner._expression_slice(
+                                operand_start,
+                                await_index,
+                            )
+                        except Python311ParseError:
+                            body = None
+                    finally:
+                        self.owner._suppressed_exception_starts.remove(
+                            offset
+                        )
+                    if body is not None:
+                        body.append(
+                            ast.Return(value=ast.Await(value=value))
+                        )
+                        return body
+            yield_index = next(
+                (
+                    index
+                    for index in range(end - 1, start - 1, -1)
+                    if self.tokens[index].kind == "YIELD_VALUE"
+                ),
+                None,
+            )
+            if yield_index is None:
+                return None
+            cursor = yield_index + 1
+            if (
+                cursor < end
+                and self.tokens[cursor].kind == "INTERNAL_RESUME"
+            ):
+                cursor += 1
+            if cursor != end:
+                return None
+            expression_start = self.owner._latch_expression_start(
+                start,
+                yield_index,
+            )
+            if expression_start >= yield_index:
+                return None
+            offset = self.tokens[start].offset
+            self.owner._suppressed_exception_starts.add(offset)
+            try:
+                try:
+                    body = self._capture_optional(
+                        start,
+                        expression_start,
+                        loop,
+                    )
+                    value = self.owner._expression_slice(
+                        expression_start,
+                        yield_index,
+                    )
+                except Python311ParseError:
+                    return None
+            finally:
+                self.owner._suppressed_exception_starts.remove(offset)
+            body.append(
+                ast.Return(value=ast.Yield(value=value))
+            )
+            return body
 
         offset = self.tokens[start].offset
         self.owner._suppressed_exception_starts.add(offset)
         try:
-            try:
-                body = self._capture_optional(
-                    start,
-                    expression_start,
-                    loop,
-                )
-                expression = self.owner._expression_slice(
-                    expression_start,
-                    end,
-                )
-            except Python311ParseError:
+            body = None
+            expression = None
+            for candidate in range(expression_start, end):
+                try:
+                    candidate_expression = self.owner._expression_slice(
+                        candidate,
+                        end,
+                    )
+                    candidate_body = self._capture_optional(
+                        start,
+                        candidate,
+                        loop,
+                    )
+                except Python311ParseError:
+                    continue
+                expression = candidate_expression
+                body = candidate_body
+                break
+            if body is None or expression is None:
                 return None
         finally:
             self.owner._suppressed_exception_starts.remove(offset)
@@ -218,6 +355,14 @@ class ExceptionStructureDecompiler311:
                 )
                 if not finally_overrides_return:
                     protocol_offsets.add(self.tokens[index].offset)
+                    if (
+                        index > start
+                        and self.tokens[index - 1].kind == "LOAD_CONST"
+                        and self.tokens[index - 1].attr is None
+                    ):
+                        protocol_offsets.add(
+                            self.tokens[index - 1].offset
+                        )
 
         added = (
             protocol_offsets
@@ -289,6 +434,165 @@ class ExceptionStructureDecompiler311:
                 )
         return offsets
 
+    @staticmethod
+    def _protocol_token_shape(token):
+        if instruction_target(token) is not None:
+            return (token.kind,)
+        if token.kind == "INTERNAL_EXTENDED_ARG":
+            return (token.kind,)
+        if token.kind in ("CALL", "CALL_FUNCTION_EX"):
+            call = token.attr
+            return (
+                token.kind,
+                getattr(call, "argc", None),
+                getattr(call, "positional_count", None),
+                getattr(call, "keyword_names", None),
+                getattr(call, "is_method", None),
+                getattr(call, "has_null", None),
+                getattr(call, "has_self", None),
+                getattr(call, "receiver_mode", None),
+                getattr(call, "uses_ex", None),
+                getattr(call, "has_starargs", None),
+                getattr(call, "has_kwargs", None),
+            )
+        return token.kind, token.attr, token.pattr
+
+    def _exceptional_finally_body(self, handler_offset: int):
+        """Return the simple source suite in an exceptional finally copy."""
+        handler_index = self.offset_to_index[handler_offset]
+        if self.tokens[handler_index].kind != "PUSH_EXC_INFO":
+            return None
+        reraise_index = next(
+            (
+                index
+                for index in range(handler_index + 1, len(self.tokens))
+                if self.tokens[index].kind == "RERAISE"
+            ),
+            None,
+        )
+        if (
+            reraise_index is None
+            or reraise_index == handler_index + 1
+            or any(
+                self.tokens[index].kind == "PUSH_EXC_INFO"
+                for index in range(handler_index + 1, reraise_index)
+            )
+            or any(
+                self.tokens[handler_index + 1].offset
+                <= entry.start
+                < self.tokens[reraise_index].offset
+                for entry in self.entries
+            )
+        ):
+            return None
+        return handler_index + 1, reraise_index
+
+    def _duplicated_finally_offsets(
+        self,
+        start: int,
+        end: int,
+        handler_offset: int,
+    ):
+        """Find normal-path copies of one simple exceptional finally suite."""
+        exceptional = self._exceptional_finally_body(handler_offset)
+        if exceptional is None:
+            return set()
+        body_start, body_end = exceptional
+        signature = []
+        for token in self.tokens[body_start:body_end]:
+            signature.append(self._protocol_token_shape(token))
+        width = len(signature)
+        offsets = set()
+        for index in range(start, end - width + 1):
+            candidate = []
+            for token in self.tokens[index : index + width]:
+                candidate.append(self._protocol_token_shape(token))
+            if candidate == signature:
+                offsets.update(
+                    token.offset
+                    for token in self.tokens[index : index + width]
+                )
+                cursor = index + width
+                saw_return = False
+                while (
+                    cursor < end
+                    and self.tokens[cursor].kind
+                    in ("INTERNAL_EXTENDED_ARG", "NOP", "RETURN_VALUE")
+                ):
+                    if self.tokens[cursor].kind == "RETURN_VALUE":
+                        if saw_return:
+                            offsets.add(self.tokens[cursor].offset)
+                        saw_return = True
+                    cursor += 1
+        return offsets
+
+    def _capture_exceptional_finally(
+        self,
+        handler_offset: int,
+        loop,
+    ) -> List[ast.stmt]:
+        """Capture a simple exceptional copy without its re-raise exits."""
+        handler_index = self.offset_to_index[handler_offset]
+        cleanup_end = self._handler_cleanup_end(
+            handler_index + 1,
+            handler_index,
+        )
+        body_end = cleanup_end - 3
+        protocol_offsets = {
+            self.tokens[index].offset
+            for index in range(handler_index + 1, body_end)
+            if self.tokens[index].kind == "RERAISE"
+        }
+        added = (
+            protocol_offsets
+            - self.owner._suppressed_exception_protocol_offsets
+        )
+        self.owner._suppressed_exception_protocol_offsets.update(added)
+        try:
+            return self._capture_suppressed(
+                handler_index + 1,
+                body_end,
+                loop,
+            )
+        finally:
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added
+            )
+
+    @staticmethod
+    def _extract_handler_return_finally(statement: ast.Try):
+        """Move a physical return-path finally copy around its try/except."""
+        extracted = []
+        for handler in statement.handlers:
+            for index, node in enumerate(handler.body):
+                if (
+                    isinstance(node, ast.Try)
+                    and not node.handlers
+                    and not node.orelse
+                    and len(node.body) == 1
+                    and isinstance(node.body[0], ast.Return)
+                    and node.finalbody
+                ):
+                    extracted.append((handler, index, node))
+        if not extracted:
+            return None
+        signature = ast.dump(
+            ast.Module(body=extracted[0][2].finalbody, type_ignores=[]),
+            include_attributes=False,
+        )
+        if any(
+            ast.dump(
+                ast.Module(body=node.finalbody, type_ignores=[]),
+                include_attributes=False,
+            )
+            != signature
+            for _, _, node in extracted[1:]
+        ):
+            return None
+        for handler, index, node in extracted:
+            handler.body[index] = node.body[0]
+        return extracted[0][2].finalbody
+
     def _capture_handler_clause(
         self,
         start: int,
@@ -297,27 +601,117 @@ class ExceptionStructureDecompiler311:
         loop,
     ) -> List[ast.stmt]:
         offsets = self._handler_protocol_offsets(start, end, name)
+        # A return/break/continue in an except clause can make CPython start
+        # the enclosing finally protection at the clause's POP_EXCEPT.  Any
+        # nested try recovered while capturing the clause must not consume
+        # that outer finally; the containing _try_except call owns it after
+        # all handler cleanup has been decoded.
+        clause_offset = self.tokens[start].offset
+        enclosing_cleanup_targets = {
+            entry.target
+            for entry in self.entries
+            if entry.start == clause_offset
+            and not entry.lasti
+            and self.offset_to_index[entry.target] >= end
+            and self.tokens[self.offset_to_index[entry.target]].kind
+            == "PUSH_EXC_INFO"
+            and not self._handler_has_match(
+                self.offset_to_index[entry.target]
+            )
+        }
+        frontier = [clause_offset]
+        visited_offsets = set()
+        while frontier:
+            protected_offset = frontier.pop()
+            if protected_offset in visited_offsets:
+                continue
+            visited_offsets.add(protected_offset)
+            for entry in self.entries:
+                if not (
+                    entry.start <= protected_offset < entry.end
+                    or entry.start == protected_offset
+                ):
+                    continue
+                target_index = self.offset_to_index[entry.target]
+                target = self.tokens[target_index]
+                if (
+                    target_index >= end
+                    and target.kind == "PUSH_EXC_INFO"
+                    and not self._handler_has_match(target_index)
+                ):
+                    enclosing_cleanup_targets.add(entry.target)
+                elif target_index >= end:
+                    frontier.append(entry.target)
+        for target in enclosing_cleanup_targets:
+            offsets.update(
+                self._duplicated_finally_offsets(start, end, target)
+            )
         added = (
             offsets
             - self.owner._suppressed_exception_protocol_offsets
         )
+        added_handlers = (
+            enclosing_cleanup_targets
+            - self.owner._suppressed_exception_handler_targets
+        )
         self.owner._suppressed_exception_protocol_offsets.update(added)
+        self.owner._suppressed_exception_handler_targets.update(
+            added_handlers
+        )
         try:
             return self._capture_optional(start, end, loop)
         finally:
             self.owner._suppressed_exception_protocol_offsets.difference_update(
                 added
             )
+            self.owner._suppressed_exception_handler_targets.difference_update(
+                added_handlers
+            )
 
     def _conditional_handler_transfer(
         self,
         start: int,
         end: int,
+        name: Optional[str],
         loop,
     ) -> Optional[List[ast.stmt]]:
-        """Recover ``if condition: break/continue; raise`` in a handler."""
-        if loop is None or start >= end:
+        """Recover conditional break/continue paths in a handler."""
+        if start >= end:
             return None
+
+        def transfer_statement(index: int):
+            token = self.tokens[index]
+            target = instruction_target(token)
+            if loop is not None:
+                if target == loop.break_target:
+                    return ast.Break()
+                if target in loop.continue_targets:
+                    return ast.Continue()
+            if token.kind == "JUMP_BACKWARD":
+                if target <= self.tokens[start].offset:
+                    return ast.Continue()
+                return None
+            if token.kind != "JUMP_FORWARD":
+                return None
+            target_index = self.offset_to_index.get(target)
+            if target_index is None or target_index == 0:
+                return None
+            latch_index = target_index - 1
+            while (
+                latch_index >= end
+                and self.tokens[latch_index].kind
+                in ("INTERNAL_EXTENDED_ARG", "NOP")
+            ):
+                latch_index -= 1
+            if (
+                latch_index >= end
+                and self.tokens[latch_index].kind == "JUMP_BACKWARD"
+                and instruction_target(self.tokens[latch_index])
+                <= self.tokens[start].offset
+            ):
+                return ast.Break()
+            return None
+
         jump_index = next(
             (
                 index
@@ -335,6 +729,47 @@ class ExceptionStructureDecompiler311:
         false_index = self.offset_to_index[
             instruction_target(self.tokens[jump_index])
         ]
+        transfer_jumps = [
+            index
+            for index in range(jump_index + 1, min(false_index, end))
+            if self.tokens[index].kind
+            in ("JUMP_FORWARD", "JUMP_BACKWARD")
+        ]
+        if len(transfer_jumps) == 1 and false_index < end:
+            transfer_index = transfer_jumps[0]
+            if all(
+                self.tokens[index].kind
+                in ("POP_EXCEPT", "JUMP_FORWARD", "JUMP_BACKWARD")
+                for index in range(jump_index + 1, false_index)
+            ):
+                transfer = transfer_statement(transfer_index)
+                if transfer is not None:
+                    try:
+                        test = self.owner._expression_slice(
+                            start,
+                            jump_index,
+                        )
+                    except Python311ParseError:
+                        return None
+                    alternate = self._capture_handler_clause(
+                        false_index,
+                        end,
+                        name,
+                        loop,
+                    )
+                    if self.tokens[jump_index].kind.endswith("_IF_TRUE"):
+                        body = alternate
+                        orelse = [transfer]
+                    else:
+                        body = [transfer]
+                        orelse = alternate
+                    return [
+                        ast.If(
+                            test=test,
+                            body=body or [ast.Pass()],
+                            orelse=orelse,
+                        )
+                    ]
         if (
             not jump_index < false_index < end
             or false_index != end - 1
@@ -357,12 +792,8 @@ class ExceptionStructureDecompiler311:
             for index in range(jump_index + 1, false_index)
         ):
             return None
-        target = instruction_target(self.tokens[transfer_index])
-        if target == loop.break_target:
-            transfer = ast.Break()
-        elif target in loop.continue_targets:
-            transfer = ast.Continue()
-        else:
+        transfer = transfer_statement(transfer_index)
+        if transfer is None:
             return None
         test = self.owner._expression_slice(start, jump_index)
         if self.tokens[jump_index].kind.endswith("_IF_TRUE"):
@@ -380,10 +811,29 @@ class ExceptionStructureDecompiler311:
         loop,
     ) -> List[ast.stmt]:
         if start < end and self.tokens[end - 1].kind == "JUMP_FORWARD":
+            target = instruction_target(self.tokens[end - 1])
+            transfer = None
+            if loop is not None and target == loop.break_target:
+                transfer = ast.Break()
+            elif (
+                loop is not None
+                and target in loop.continue_targets
+            ):
+                transfer = ast.Continue()
+            if transfer is not None:
+                body = self._capture_handler_clause(
+                    start,
+                    end - 1,
+                    name,
+                    loop,
+                )
+                body.append(transfer)
+                return body
             end -= 1
         conditional_transfer = self._conditional_handler_transfer(
             start,
             end,
+            name,
             loop,
         )
         if conditional_transfer is not None:
@@ -477,15 +927,15 @@ class ExceptionStructureDecompiler311:
                     return index
 
         body_offset = self.tokens[body_start].offset
-        candidates = [
-            self.offset_to_index[entry.target]
-            for entry in self.entries
-            if entry.lasti
-            and entry.start <= body_offset < entry.end
-            and body_start
-            < self.offset_to_index[entry.target]
-            <= false_index
-        ]
+        candidates = []
+        for entry in self.entries:
+            target_index = self.offset_to_index[entry.target]
+            if (
+                entry.lasti
+                and entry.start <= body_offset < entry.end
+                and body_start < target_index <= false_index
+            ):
+                candidates.append(target_index)
         if candidates:
             return min(candidates)
         return false_index
@@ -545,13 +995,19 @@ class ExceptionStructureDecompiler311:
                 final_reraise = check_index
                 break
             exception_type = self.owner._expression_slice(cursor, check_index)
-            jump_index = check_index + 1
+            jump_index = self.owner._next_semantic_index(
+                check_index + 1,
+                len(self.tokens),
+            )
             if not self.tokens[jump_index].kind.startswith("POP_JUMP_"):
                 self._error("CHECK_EXC_MATCH has no conditional jump")
             false_index = self.offset_to_index[
                 instruction_target(self.tokens[jump_index])
             ]
-            binding_index = jump_index + 1
+            binding_index = self.owner._next_semantic_index(
+                jump_index + 1,
+                len(self.tokens),
+            )
             binding = self.tokens[binding_index]
             if binding.kind.startswith("STORE_"):
                 name = (
@@ -614,7 +1070,45 @@ class ExceptionStructureDecompiler311:
             body_start < body_end
             and self.tokens[body_end - 1].kind == "JUMP_FORWARD"
         ):
-            join = instruction_target(self.tokens[body_end - 1])
+            target = instruction_target(self.tokens[body_end - 1])
+            if loop is not None and target == loop.break_target:
+                body = self._capture_handler_clause(
+                    body_start,
+                    body_end - 1,
+                    None,
+                    loop,
+                )
+                body.append(ast.Break())
+                return (
+                    ast.ExceptHandler(
+                        type=None,
+                        name=None,
+                        body=body,
+                    ),
+                    cleanup_end,
+                    None,
+                )
+            if (
+                loop is not None
+                and target in loop.continue_targets
+            ):
+                body = self._capture_handler_clause(
+                    body_start,
+                    body_end - 1,
+                    None,
+                    loop,
+                )
+                body.append(ast.Continue())
+                return (
+                    ast.ExceptHandler(
+                        type=None,
+                        name=None,
+                        body=body,
+                    ),
+                    cleanup_end,
+                    None,
+                )
+            join = target
         body = self._clause_body(body_start, body_end, None, loop)
         return (
             ast.ExceptHandler(type=None, name=None, body=body or [ast.Pass()]),
@@ -626,13 +1120,34 @@ class ExceptionStructureDecompiler311:
         start = self.offset_to_index[entry.start]
         try_end = self.offset_to_index[entry.end]
         handler_index = self.offset_to_index[entry.target]
-        body_end = try_end
+        except_handler_index = handler_index
+        fragments = []
+        for candidate in self.entries:
+            candidate_start = self.offset_to_index[candidate.start]
+            if (
+                candidate.target == entry.target
+                and candidate.depth == entry.depth
+                and candidate.lasti == entry.lasti
+                and start <= candidate_start < handler_index
+            ):
+                fragments.append(candidate)
+        body_end = max(
+            (self.offset_to_index[candidate.end] for candidate in fragments),
+            default=try_end,
+        )
         crosses_with = False
+        held_return_through_handler = False
         if (
             body_end < handler_index
             and self.tokens[body_end].kind == "RETURN_VALUE"
         ):
-            body_end += 1
+            held_return_through_handler = (
+                body_end > start
+                and self.tokens[body_end - 1].kind
+                in ("POP_TOP", "POP_EXCEPT")
+            )
+            if not held_return_through_handler:
+                body_end += 1
         elif body_end < handler_index:
             cursor = body_end
             while (
@@ -642,6 +1157,12 @@ class ExceptionStructureDecompiler311:
                 and self.tokens[cursor + 1].kind == "POP_TOP"
             ):
                 cursor += 2
+            while (
+                cursor < handler_index
+                and self.tokens[cursor].offset
+                in self.owner._suppressed_exception_protocol_offsets
+            ):
+                cursor += 1
             if (
                 cursor > body_end
                 and cursor < handler_index
@@ -674,15 +1195,16 @@ class ExceptionStructureDecompiler311:
             nested_handler_index = self.offset_to_index[
                 nested_protected.target
             ]
-            outer_fragments = [
-                candidate
-                for candidate in self.entries
-                if candidate.target == entry.target
-                and candidate.depth == entry.depth
-                and candidate.lasti == entry.lasti
-                and start <= self.offset_to_index[candidate.start]
-                < nested_handler_index
-            ]
+            outer_fragments = []
+            for candidate in self.entries:
+                candidate_start = self.offset_to_index[candidate.start]
+                if (
+                    candidate.target == entry.target
+                    and candidate.depth == entry.depth
+                    and candidate.lasti == entry.lasti
+                    and start <= candidate_start < nested_handler_index
+                ):
+                    outer_fragments.append(candidate)
             if not outer_fragments:
                 self.owner.current_token = self.tokens[body_end]
                 self.owner._error(
@@ -693,7 +1215,26 @@ class ExceptionStructureDecompiler311:
                 for candidate in outer_fragments
             )
             crosses_with = True
-        body = self._capture_protected(start, body_end, loop)
+        deferred_return_body = (
+            self._capture_protected_return(start, body_end, loop)
+            if not held_return_through_handler
+            and any(
+                self.tokens[index].kind == "RETURN_VALUE"
+                for index in range(body_end, handler_index)
+            )
+            else None
+        )
+        protected_return = deferred_return_body is not None
+        body = (
+            deferred_return_body
+            if protected_return
+            else self._capture_protected_fragments(
+                start,
+                body_end,
+                loop,
+                fragments,
+            )
+        )
         if crosses_with:
             enclosing_jump = next(
                 (
@@ -712,7 +1253,10 @@ class ExceptionStructureDecompiler311:
             and self.tokens[handler_index - 1].kind == "JUMP_FORWARD"
             else None
         )
-        if normal_jump is None:
+        if protected_return or held_return_through_handler:
+            orelse = []
+            normal_join = None
+        elif normal_jump is None:
             orelse = self._capture_before_handler(
                 body_end,
                 handler_index,
@@ -729,10 +1273,33 @@ class ExceptionStructureDecompiler311:
             )
             normal_join = instruction_target(self.tokens[normal_jump])
 
-        handlers, cleanup_end, handler_join = self._parse_handlers(
-            handler_index,
-            loop,
+        held_return_offsets = set()
+        if held_return_through_handler:
+            predicted_cleanup_end = self._handler_cleanup_end(
+                handler_index + 1,
+                handler_index,
+            )
+            held_return_offsets = {
+                self.tokens[index].offset
+                for index in range(body_end, predicted_cleanup_end)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            }
+        added_held_returns = (
+            held_return_offsets
+            - self.owner._suppressed_exception_protocol_offsets
         )
+        self.owner._suppressed_exception_protocol_offsets.update(
+            added_held_returns
+        )
+        try:
+            handlers, cleanup_end, handler_join = self._parse_handlers(
+                handler_index,
+                loop,
+            )
+        finally:
+            self.owner._suppressed_exception_protocol_offsets.difference_update(
+                added_held_returns
+            )
         join = normal_join or handler_join
         next_index = (
             self.offset_to_index[join]
@@ -767,14 +1334,85 @@ class ExceptionStructureDecompiler311:
                 else outer_end
             )
 
+        if next_index < len(self.tokens):
+            continuation_offset = self.tokens[next_index].offset
+            enclosing_handler_targets = sorted(
+                {
+                    region.target
+                    for region in self.entries
+                    if region.end == continuation_offset
+                    and region.start < continuation_offset
+                    and self.offset_to_index[region.target] > next_index
+                    and self.tokens[
+                        self.offset_to_index[region.target]
+                    ].kind
+                    == "PUSH_EXC_INFO"
+                    and self._handler_has_match(
+                        self.offset_to_index[region.target]
+                    )
+                    and region.target
+                    not in self.owner._suppressed_exception_handler_targets
+                }
+            )
+            if enclosing_handler_targets:
+                outer_target = enclosing_handler_targets[0]
+                outer_handler_index = self.offset_to_index[outer_target]
+                outer_orelse = self._capture_before_handler(
+                    next_index,
+                    outer_handler_index,
+                    outer_target,
+                    loop,
+                )
+                outer_handlers, outer_end, outer_join = self._parse_handlers(
+                    outer_handler_index,
+                    loop,
+                )
+                statement = ast.Try(
+                    body=[statement],
+                    handlers=outer_handlers,
+                    orelse=outer_orelse,
+                    finalbody=[],
+                )
+                next_index = (
+                    self.offset_to_index[outer_join]
+                    if outer_join is not None
+                    else outer_end
+                )
+
+        enclosing_with_targets = {
+            region.target
+            for region in self.entries
+            if region.lasti
+            and region.start in self.owner._suppressed_exception_starts
+            and self.offset_to_index[region.target] > next_index
+            and self.offset_to_index[region.target] + 1 < len(self.tokens)
+            and self.tokens[
+                self.offset_to_index[region.target] + 1
+            ].kind
+            == "WITH_EXCEPT_START"
+        }
+        with_handler_limit = (
+            min(enclosing_with_targets)
+            if enclosing_with_targets
+            else None
+        )
         finally_targets = sorted(
             {
                 region.target
                 for region in self.entries
-                if region.depth == 0
+                if region.depth == entry.depth
+                and region.start
+                not in self.owner._suppressed_exception_starts
                 and region.target > self.tokens[next_index - 1].offset
                 and region.start < self.tokens[next_index].offset
-                and self.tokens[self.offset_to_index[region.target]].kind
+                and region.end > entry.start
+                and (
+                    with_handler_limit is None
+                    or region.target < with_handler_limit
+                )
+                and self.tokens[
+                    self.offset_to_index[region.target]
+                ].kind
                 == "PUSH_EXC_INFO"
                 and region.target
                 not in self.owner._suppressed_exception_handler_targets
@@ -805,18 +1443,135 @@ class ExceptionStructureDecompiler311:
                     if protected_ends
                     else next_index
                 )
+                if (
+                    protected_end == handler_index
+                    and protected_return
+                    and body_end < except_handler_index
+                ):
+                    # Every source path exits the try/except, so CPython has
+                    # no separate normal finally copy after the handler
+                    # cleanup.  Reuse the copy placed between the protected
+                    # return expression and the except handler.
+                    finalbody = self._capture_deferred_return_finally(
+                        body_end,
+                        except_handler_index,
+                        handler_offset,
+                        loop,
+                        statement,
+                    )
+                    statement = ast.Try(
+                        body=[statement],
+                        handlers=[],
+                        orelse=[],
+                        finalbody=finalbody or [ast.Pass()],
+                    )
+                    next_index = self._handler_cleanup_end(
+                        handler_index + 1,
+                        handler_index,
+                    )
+                    return statement, next_index
+                exceptional_finally = self._exceptional_finally_body(
+                    handler_offset
+                )
+                duplicated_finally = self._duplicated_finally_offsets(
+                    next_index,
+                    handler_index,
+                    handler_offset,
+                )
+                if (
+                    protected_end == handler_index
+                    and exceptional_finally is not None
+                    and duplicated_finally
+                ):
+                    # All remaining paths return or raise, so the only
+                    # canonical copy of the source finally suite is its
+                    # exceptional handler.  Hide duplicated normal-path
+                    # copies while recovering the protected continuation.
+                    added_protocol = (
+                        duplicated_finally
+                        - self.owner._suppressed_exception_protocol_offsets
+                    )
+                    handler_added = (
+                        handler_offset
+                        not in self.owner._suppressed_exception_handler_targets
+                    )
+                    self.owner._suppressed_exception_protocol_offsets.update(
+                        added_protocol
+                    )
+                    self.owner._suppressed_exception_handler_targets.add(
+                        handler_offset
+                    )
+                    try:
+                        continuation = self._capture_optional(
+                            next_index,
+                            handler_index,
+                            loop,
+                        )
+                    finally:
+                        self.owner._suppressed_exception_protocol_offsets.difference_update(
+                            added_protocol
+                        )
+                        if handler_added:
+                            self.owner._suppressed_exception_handler_targets.remove(
+                                handler_offset
+                            )
+                    finalbody = self._capture_exceptional_finally(
+                        handler_offset,
+                        loop,
+                    )
+                    statement = ast.Try(
+                        body=[statement] + continuation,
+                        handlers=[],
+                        orelse=[],
+                        finalbody=finalbody or [ast.Pass()],
+                    )
+                    next_index = self._handler_cleanup_end(
+                        handler_index + 1,
+                        handler_index,
+                    )
+                    return statement, next_index
+                if (
+                    next_index == protected_end == handler_index
+                ):
+                    embedded_finally = (
+                        self._extract_handler_return_finally(statement)
+                    )
+                    if embedded_finally is not None:
+                        statement = ast.Try(
+                            body=[statement],
+                            handlers=[],
+                            orelse=[],
+                            finalbody=embedded_finally,
+                        )
+                        next_index = self._handler_cleanup_end(
+                            handler_index + 1,
+                            handler_index,
+                        )
+                        return statement, next_index
                 if not next_index <= protected_end < handler_index:
                     self._error("Finally suite has no normal-path body")
-                has_normal_return = any(
-                    self.tokens[index].kind == "RETURN_VALUE"
-                    for index in range(protected_end, handler_index)
+                normal_return_index = next(
+                    (
+                        index
+                        for index in range(protected_end, handler_index)
+                        if self.tokens[index].kind == "RETURN_VALUE"
+                    ),
+                    None,
+                )
+                held_return = (
+                    normal_return_index is not None
+                    and self.owner._latch_expression_start(
+                        protected_end,
+                        normal_return_index,
+                    )
+                    >= normal_return_index
                 )
                 expression_start = (
                     self.owner._latch_expression_start(
                         next_index,
                         protected_end,
                     )
-                    if has_normal_return
+                    if held_return
                     else protected_end
                 )
                 if expression_start < protected_end:
@@ -847,9 +1602,26 @@ class ExceptionStructureDecompiler311:
                     orelse=[],
                     finalbody=[],
                 )
+                finalbody_end = handler_index
+                if (
+                    not any(
+                        isinstance(node, ast.Return)
+                        for node in ast.walk(protected_statement)
+                    )
+                    and finalbody_end >= protected_end + 2
+                    and self.tokens[finalbody_end - 2].kind == "LOAD_CONST"
+                    and self.tokens[finalbody_end - 2].attr is None
+                    and self.tokens[finalbody_end - 2].linestart is None
+                    and self.tokens[finalbody_end - 1].kind
+                    == "RETURN_VALUE"
+                ):
+                    # An implicit function return follows the normal finally
+                    # copy.  It is not a source statement in the finalbody
+                    # and must not suppress an exception raised by the try.
+                    finalbody_end -= 2
                 finalbody = self._capture_deferred_return_finally(
                     protected_end,
-                    handler_index,
+                    finalbody_end,
                     handler_offset,
                     loop,
                     protected_statement,
@@ -1021,23 +1793,20 @@ class ExceptionStructureDecompiler311:
                 )
 
         finalbody = []
-        outer_finally = next(
-            (
-                candidate
-                for candidate in self.entries
-                if candidate is not entry
+        outer_finally = None
+        for candidate in self.entries:
+            target_index = self.offset_to_index[candidate.target]
+            if (
+                candidate is not entry
                 and not candidate.lasti
                 and self.tokens[prep_index].offset
                 <= candidate.start
                 < candidate.end
                 <= self.tokens[join_index].offset
-                and self.tokens[
-                    self.offset_to_index[candidate.target]
-                ].kind
-                == "PUSH_EXC_INFO"
-            ),
-            None,
-        )
+                and self.tokens[target_index].kind == "PUSH_EXC_INFO"
+            ):
+                outer_finally = candidate
+                break
         if outer_finally is not None:
             final_handler_index = self.offset_to_index[
                 outer_finally.target
@@ -1080,6 +1849,226 @@ class ExceptionStructureDecompiler311:
         try_end = self.offset_to_index[entry.end]
         handler_index = self.offset_to_index[entry.target]
         self._remember_exception_state(entry)
+        fragments = []
+        for candidate in self.entries:
+            candidate_start = self.offset_to_index[candidate.start]
+            if (
+                candidate.target == entry.target
+                and candidate.depth == entry.depth
+                and candidate.lasti == entry.lasti
+                and start <= candidate_start < handler_index
+            ):
+                fragments.append(candidate)
+        fragments = sorted(
+            fragments,
+            key=lambda candidate: self.offset_to_index[candidate.start],
+        )
+        fragmented_end = (
+            max(
+                self.offset_to_index[candidate.end]
+                for candidate in fragments
+            )
+            if fragments
+            else try_end
+        )
+        exceptional_finally = self._exceptional_finally_body(entry.target)
+        duplicated_finally = self._duplicated_finally_offsets(
+            start,
+            handler_index,
+            entry.target,
+        )
+        if (
+            len(fragments) > 1
+            and exceptional_finally is not None
+            and duplicated_finally
+        ):
+            added_protocol = (
+                duplicated_finally
+                - self.owner._suppressed_exception_protocol_offsets
+            )
+            self.owner._suppressed_exception_protocol_offsets.update(
+                added_protocol
+            )
+            try:
+                body = self._capture_protected_fragments(
+                    start,
+                    handler_index,
+                    loop,
+                    fragments,
+                )
+            finally:
+                self.owner._suppressed_exception_protocol_offsets.difference_update(
+                    added_protocol
+                )
+            finalbody = self._capture_exceptional_finally(
+                entry.target,
+                loop,
+            )
+            cleanup_end = self._handler_cleanup_end(
+                handler_index + 1,
+                handler_index,
+            )
+            return (
+                ast.Try(
+                    body=body or [ast.Pass()],
+                    handlers=[],
+                    orelse=[],
+                    finalbody=finalbody or [ast.Pass()],
+                ),
+                cleanup_end,
+            )
+        if len(fragments) > 1 and any(
+            self.tokens[index].kind
+            in ("BEFORE_WITH", "BEFORE_ASYNC_WITH", "PUSH_EXC_INFO")
+            for index in range(start, fragmented_end)
+        ):
+            held_return = any(
+                self.tokens[index].kind == "RETURN_VALUE"
+                for index in range(fragmented_end, handler_index)
+            )
+            body = self._capture_protected_fragments(
+                start,
+                fragmented_end,
+                loop,
+                fragments,
+                trailing_return=held_return,
+            )
+            cleanup_end = self._handler_cleanup_end(
+                handler_index + 1,
+                handler_index,
+            )
+            normal_end = handler_index
+            next_index = cleanup_end
+            terminal = self.tokens[handler_index - 1]
+            if terminal.kind == "JUMP_FORWARD":
+                target = instruction_target(terminal)
+                is_break = (
+                    loop is not None and target == loop.break_target
+                )
+                if target > terminal.offset and not is_break:
+                    normal_end -= 1
+                    next_index = self.offset_to_index[target]
+            protected_statement = ast.Try(
+                body=body or [ast.Pass()],
+                handlers=[],
+                orelse=[],
+                finalbody=[],
+            )
+            finalbody = self._capture_deferred_return_finally(
+                fragmented_end,
+                normal_end,
+                entry.target,
+                loop,
+                protected_statement,
+            )
+            return (
+                ast.Try(
+                    body=body or [ast.Pass()],
+                    handlers=[],
+                    orelse=[],
+                    finalbody=finalbody or [ast.Pass()],
+                ),
+                next_index,
+            )
+        if len(fragments) > 1:
+            body = []
+            for position, fragment in enumerate(fragments):
+                fragment_start = self.offset_to_index[fragment.start]
+                fragment_end = self.offset_to_index[fragment.end]
+                boundary = (
+                    self.offset_to_index[fragments[position + 1].start]
+                    if position + 1 < len(fragments)
+                    else handler_index
+                )
+                has_deferred_return = any(
+                    self.tokens[index].kind == "RETURN_VALUE"
+                    for index in range(fragment_end, boundary)
+                )
+                fragment_body = None
+                if has_deferred_return:
+                    return_index = max(
+                        index
+                        for index in range(fragment_end, boundary)
+                        if self.tokens[index].kind == "RETURN_VALUE"
+                    )
+                    protocol_offsets = {
+                        self.tokens[index].offset
+                        for index in range(fragment_end, boundary)
+                        if index != return_index
+                    }
+                    added_protocol = (
+                        protocol_offsets
+                        - self.owner._suppressed_exception_protocol_offsets
+                    )
+                    added_start = (
+                        fragment.start
+                        not in self.owner._suppressed_exception_starts
+                    )
+                    self.owner._suppressed_exception_protocol_offsets.update(
+                        added_protocol
+                    )
+                    self.owner._suppressed_exception_starts.add(
+                        fragment.start
+                    )
+                    try:
+                        fragment_body = self._capture_optional(
+                            fragment_start,
+                            boundary,
+                            loop,
+                        )
+                    finally:
+                        self.owner._suppressed_exception_protocol_offsets.difference_update(
+                            added_protocol
+                        )
+                        if added_start:
+                            self.owner._suppressed_exception_starts.remove(
+                                fragment.start
+                            )
+                if fragment_body is None:
+                    fragment_body = self._capture_protected(
+                        fragment_start,
+                        fragment_end,
+                        loop,
+                    )
+                body.extend(fragment_body)
+
+            cleanup_end = self._handler_cleanup_end(
+                handler_index + 1,
+                handler_index,
+            )
+            normal_end = handler_index
+            next_index = cleanup_end
+            terminal = self.tokens[handler_index - 1]
+            if terminal.kind == "JUMP_FORWARD":
+                target = instruction_target(terminal)
+                is_break = (
+                    loop is not None and target == loop.break_target
+                )
+                if target > terminal.offset and not is_break:
+                    normal_end -= 1
+                    next_index = self.offset_to_index[target]
+            protected_statement = ast.Try(
+                body=body or [ast.Pass()],
+                handlers=[],
+                orelse=[],
+                finalbody=[],
+            )
+            finalbody = self._capture_deferred_return_finally(
+                self.offset_to_index[fragments[-1].end],
+                normal_end,
+                entry.target,
+                loop,
+                protected_statement,
+            )
+            return (
+                ast.Try(
+                    body=body or [ast.Pass()],
+                    handlers=[],
+                    orelse=[],
+                    finalbody=finalbody or [ast.Pass()],
+                ),
+                next_index,
+            )
         normal_return_index = next(
             (
                 index
@@ -1088,9 +2077,39 @@ class ExceptionStructureDecompiler311:
             ),
             None,
         )
+        finalbody_expression_start = (
+            self.owner._latch_expression_start(
+                try_end,
+                normal_return_index,
+            )
+            if normal_return_index is not None
+            else None
+        )
+        has_local_finalbody_return = False
+        if (
+            finalbody_expression_start is not None
+            and finalbody_expression_start < normal_return_index
+        ):
+            try:
+                self.owner._expression_slice(
+                    finalbody_expression_start,
+                    normal_return_index,
+                )
+            except Python311ParseError:
+                pass
+            else:
+                has_local_finalbody_return = True
+        return_uses_protected_value = (
+            normal_return_index is not None
+            and (
+                not has_local_finalbody_return
+                or self.tokens[normal_return_index - 1].kind
+                in ("POP_TOP", "POP_EXCEPT")
+            )
+        )
         body = (
             self._capture_protected_return(start, try_end, loop)
-            if normal_return_index is not None
+            if return_uses_protected_value
             else None
         )
         protected_return = body is not None
@@ -1107,25 +2126,21 @@ class ExceptionStructureDecompiler311:
         )
         finalbody_end = handler_index
         next_index = cleanup_end
-        enclosing_finally_targets = sorted(
-            {
-                region.target
-                for region in self.entries
-                if region.depth == 0
-                and try_end <= self.offset_to_index[region.start]
-                < handler_index
+        enclosing_finally_targets = set()
+        for region in self.entries:
+            region_start = self.offset_to_index[region.start]
+            target_index = self.offset_to_index[region.target]
+            if (
+                region.depth == 0
+                and try_end <= region_start < handler_index
                 and region.target > entry.target
                 and region.target
                 not in self.owner._suppressed_exception_handler_targets
-                and self.tokens[
-                    self.offset_to_index[region.target]
-                ].kind
-                == "PUSH_EXC_INFO"
-                and not self._handler_has_match(
-                    self.offset_to_index[region.target]
-                )
-            }
-        )
+                and self.tokens[target_index].kind == "PUSH_EXC_INFO"
+                and not self._handler_has_match(target_index)
+            ):
+                enclosing_finally_targets.add(region.target)
+        enclosing_finally_targets = sorted(enclosing_finally_targets)
         outer_handler_offset = (
             enclosing_finally_targets[0]
             if enclosing_finally_targets
@@ -1194,28 +2209,48 @@ class ExceptionStructureDecompiler311:
                 # physical branch; retain the whole branch shape while hiding
                 # those terminal stack operations.
                 cursor = normal_return_index
-                while (
-                    cursor < finalbody_end
-                    and self.tokens[cursor].kind == "RETURN_VALUE"
-                ):
-                    finalbody_protocol_offsets.add(
-                        self.tokens[cursor].offset
-                    )
+                while cursor < handler_index:
+                    if self.tokens[cursor].kind == "RETURN_VALUE":
+                        swap_index = cursor - 2
+                        finally_overrides_return = (
+                            swap_index >= try_end
+                            and self.tokens[swap_index].kind == "SWAP_STACK"
+                            and self.tokens[swap_index].attr == 2
+                            and self.tokens[swap_index + 1].kind == "POP_TOP"
+                        )
+                        if not finally_overrides_return:
+                            finalbody_protocol_offsets.add(
+                                self.tokens[cursor].offset
+                            )
                     cursor += 1
-                finalbody_end = cursor
+                finalbody_end = normal_return_index + 1
             else:
-                expression_start = self.owner._latch_expression_start(
-                    try_end,
-                    normal_return_index,
+                terminal_none_index = normal_return_index - 1
+                terminal_implicit_none = (
+                    terminal_none_index >= try_end
+                    and self.tokens[terminal_none_index].kind
+                    == "LOAD_CONST"
+                    and self.tokens[terminal_none_index].attr is None
+                    and (
+                        self.tokens[terminal_none_index].linestart is None
+                        or cleanup_end == len(self.tokens)
+                    )
                 )
-                if expression_start < normal_return_index:
-                    finalbody_return = self.owner._expression_slice(
-                        expression_start,
+                if terminal_implicit_none:
+                    finalbody_end = terminal_none_index
+                else:
+                    expression_start = self.owner._latch_expression_start(
+                        try_end,
                         normal_return_index,
                     )
-                    finalbody_end = expression_start
-                else:
-                    finalbody_end = normal_return_index
+                    if expression_start < normal_return_index:
+                        finalbody_return = self.owner._expression_slice(
+                            expression_start,
+                            normal_return_index,
+                        )
+                        finalbody_end = expression_start
+                    else:
+                        finalbody_end = normal_return_index
         added_protocol_offsets = (
             finalbody_protocol_offsets
             - self.owner._suppressed_exception_protocol_offsets
@@ -1258,11 +2293,12 @@ class ExceptionStructureDecompiler311:
                 outer_handler_offset
             ]
             if normal_outer_boundary < handler_index:
-                outer_finalbody = self._capture_before_handler(
+                outer_finalbody = self._capture_deferred_return_finally(
                     normal_outer_boundary,
                     handler_index,
                     outer_handler_offset,
                     loop,
+                    statement,
                 )
                 self._move_normal_return_before_finally(
                     statement.body,
@@ -1451,14 +2487,16 @@ class ExceptionStructureDecompiler311:
     def _with_fragments(self, protected, limit_index: int):
         """Return source-body fragments sharing one with-handler target."""
         start_index = self.offset_to_index[protected.start]
-        fragments = [
-            entry
-            for entry in self.entries
-            if entry.target == protected.target
-            and entry.depth == protected.depth
-            and entry.lasti == protected.lasti
-            and start_index <= self.offset_to_index[entry.start] < limit_index
-        ]
+        fragments = []
+        for entry in self.entries:
+            entry_start = self.offset_to_index[entry.start]
+            if (
+                entry.target == protected.target
+                and entry.depth == protected.depth
+                and entry.lasti == protected.lasti
+                and start_index <= entry_start < limit_index
+            ):
+                fragments.append(entry)
         return sorted(
             fragments,
             key=lambda entry: self.offset_to_index[entry.start],
@@ -1500,6 +2538,7 @@ class ExceptionStructureDecompiler311:
         end: int,
         loop,
         fragments,
+        trailing_return: bool = False,
     ):
         fragment_ranges = [
             (
@@ -1538,7 +2577,12 @@ class ExceptionStructureDecompiler311:
             added_protocol
         )
         try:
-            return self._capture_optional(start, end, loop)
+            return self._capture_optional(
+                start,
+                end,
+                loop,
+                trailing_return=trailing_return,
+            )
         finally:
             self.owner._suppressed_exception_starts.difference_update(
                 added_starts
@@ -1674,8 +2718,17 @@ class ExceptionStructureDecompiler311:
             for index in range(body_start, handler_index)
             if self.tokens[index].kind == "RETURN_VALUE"
         ]
+        deferred_return = bool(return_indexes) and any(
+            self.tokens[index].kind == "PUSH_EXC_INFO"
+            and self._handler_has_match(index)
+            for index in range(body_end, handler_index)
+        )
         capture_end = body_end
-        if return_indexes and return_indexes[-1] >= body_end:
+        if (
+            return_indexes
+            and return_indexes[-1] >= body_end
+            and not deferred_return
+        ):
             capture_end = return_indexes[-1] + 1
         returning = bool(return_indexes)
         try:
@@ -1684,6 +2737,7 @@ class ExceptionStructureDecompiler311:
                 capture_end,
                 loop,
                 fragments,
+                trailing_return=deferred_return,
             )
         except Python311ParseError as error:
             if hasattr(error, "shape_hint"):

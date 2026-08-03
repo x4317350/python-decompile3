@@ -49,106 +49,40 @@
     "platform": "darwin",
     "runtime": "3.11.9"
   },
-  "failure_classifications": {
-    "realworld_call_and_expression_stack": 15,
-    "realworld_comprehension_and_iterator_protocol": 1,
-    "realworld_exception_cleanup_control_transfer": 96
-  },
-  "failure_samples": {
-    "realworld_call_and_expression_stack": [
-      {
-        "error": "Operand stack underflow (opcode COMPARE_LT) [version=3.11, code='_boolean_filter', offset=454]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/parsers/p311/comprehensions.py",
-        "opcode": "COMPARE_LT"
-      },
-      {
-        "error": "Operand stack underflow (opcode COMPARE_LT) [version=3.11, code='analyze_stack', offset=1204]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/scanners/normalize311.py",
-        "opcode": "COMPARE_LT"
-      },
-      {
-        "error": "Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE (opcode POP_JUMP_FORWARD_IF_FALSE) [version=3.11, code='ingest', offset=3210]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/scanners/scanner37base.py",
-        "opcode": "POP_JUMP_FORWARD_IF_FALSE"
-      }
-    ],
-    "realworld_comprehension_and_iterator_protocol": [
-      {
-        "error": "POP_JUMP_FORWARD_IF_NONE targets outside the expression [version=3.11, code='<genexpr>', offset=74]",
-        "error_type": "Python311ParseError",
-        "group": "third_party",
-        "name": "packaging/specifiers.py",
-        "opcode": null
-      }
-    ],
-    "realworld_exception_cleanup_control_transfer": [
-      {
-        "error": "Structured statement region left stack values (opcode CALL) [version=3.11, code='_capture_before_handler', offset=274]",
-        "error_type": "Python311ParseError",
-        "group": "project",
-        "name": "decompyle3/controlflow/exception_structures.py",
-        "opcode": "CALL"
-      },
-      {
-        "error": "Structured region cycle detected (opcode LOAD_GLOBAL) [version=3.11, code='open', offset=1692]",
-        "error_type": "UnsupportedPython311ControlFlow",
-        "group": "stdlib",
-        "name": "_pyio.py",
-        "opcode": "LOAD_GLOBAL"
-      },
-      {
-        "error": "Unsupported phase-3 opcode PUSH_EXC_INFO (opcode PUSH_EXC_INFO) [version=3.11, code='_read_args_from_files', offset=428]",
-        "error_type": "Python311ParseError",
-        "group": "stdlib",
-        "name": "argparse.py",
-        "opcode": "PUSH_EXC_INFO"
-      }
-    ]
-  },
-  "first_failure": {
-    "error_type": "Python311ParseError",
-    "group": "project",
-    "name": "decompyle3/controlflow/exception_structures.py",
-    "opcode": "CALL",
-    "shape": "realworld_exception_cleanup_control_transfer"
-  },
+  "failure_classifications": {},
+  "failure_samples": {},
+  "first_failure": null,
   "groups": {
     "project": {
-      "decompile_success": 110,
-      "fail_closed": 5,
+      "decompile_success": 115,
+      "fail_closed": 0,
       "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 110,
+      "syntax_success": 115,
       "unexpected_crash": 0
     },
     "stdlib": {
-      "decompile_success": 258,
-      "fail_closed": 80,
+      "decompile_success": 338,
+      "fail_closed": 0,
       "input_files": 338,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 258,
+      "syntax_success": 338,
       "unexpected_crash": 0
     },
     "third_party": {
-      "decompile_success": 124,
-      "fail_closed": 27,
+      "decompile_success": 151,
+      "fail_closed": 0,
       "input_files": 151,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 124,
+      "syntax_success": 151,
       "unexpected_crash": 0
     }
   },
-  "input_digest": "55a773f46268cba90ac61c2521fa2425a6d8c073d770d7aa6b7cf94987d62611",
-  "phase": 8,
+  "input_digest": "dc90e2f1231e9bd5ca9c028b1ceb0bcd9d6c8c97bf0c851ae37740ecd039dde2",
+  "phase": 11,
   "schema_version": 1,
   "selection": {
     "project": "decompyle3/**/*.py",
@@ -185,12 +119,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 492,
-    "fail_closed": 112,
+    "decompile_success": 604,
+    "fail_closed": 0,
     "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 492,
+    "syntax_success": 604,
     "unexpected_crash": 0
   }
 }

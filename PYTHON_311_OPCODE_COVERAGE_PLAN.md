@@ -862,8 +862,7 @@ Behavior：
 
 当前状态：
 
-- 阶段 0、阶段 1、阶段 2、阶段 3、阶段 4、阶段 5、阶段 6
-  、阶段 7、阶段 8 和阶段 9 已完成；
+- 阶段 0 至阶段 11 已完成；
 - 已创建 `opcode_matrix.json` 和 `shape_matrix.json`；
 - 两份 Markdown 覆盖报告均由生成器维护，`--check` 可检测过期；
 - raw opcode corpus 已达到 110/110，normalized original opcode 为
@@ -872,15 +871,17 @@ Behavior：
 - Normalizer 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Parser 层已达到 102 pass + 8 internal_consumed，即 110/110；
 - Behavior 层已达到 102 pass + 8 internal_consumed，即 110/110；
-- shape inventory 为 40 项：30 pass、10 unsupported_fail_closed、
+- shape inventory 为 40 项：39 pass、1 unsupported_fail_closed、
   0 missing；
 - `except* + else`、`except* + finally` 和 compound assertion
   已由 fail-closed 转为差分行为验证的正式支持；
 - 阶段 8 固定审计 604 个真实源码：203 个反编译并通过语法校验，
   401 个稳定 fail-closed，0 个语法失败和未包装崩溃；
-- 真实语料暴露的 9 类缺口已进入 shape 矩阵，人工不可约 CFG
-  继续作为第 10 个明确的 fail-closed 边界；
-- 阶段 9 发布策略精确冻结 110 项 opcode、40 项 shape、9 类真实语料
+- 真实语料暴露的 9 类缺口均已转为 pass，人工不可约 CFG
+  继续作为唯一明确的 fail-closed 安全边界；
+- 阶段 11 固定审计 604 个真实源码：604 个反编译并通过语法校验，
+  0 个 fail-closed、语法失败和未包装崩溃，6/6 行为探针一致；
+- 阶段 11 发布策略精确冻结 110 项 opcode、40 项 shape、0 类真实语料
   失败和 6 项 legacy skip，生成报告与支持文档均由 CI 检查时效。
 
 阶段 0：
@@ -1075,4 +1076,24 @@ CI：新增 GitHub Actions CPython 3.11.9 门禁；CircleCI 3.11 job 修正运�
 golden/报告：23 个 corpus golden --check 通过；opcode、shape、real-world、release 和 support 文档时效门禁通过
 已知限制：CI 运行跨平台 smoke/行为测试；604 文件的字节级输入摘要仍绑定归档记录的 Darwin、CPython 3.11.9 和固定依赖环境
 失败现场：门禁反向测试确认 missing、Parser pass 退化、shape pass 退化、行为 mismatch 和新增 skip 均返回失败
+```
+
+后续收敛阶段：
+
+```text
+阶段：10 至 11，不可约 CFG 审查与真实语料全量收敛
+提交：阶段 10 为 8906ed62；阶段 11 等待单独提交
+新增语料：新增阶段 11 定向回归测试；继续复用固定 604 文件归档和 6 个行为探针
+新增 opcode 覆盖：0；110 项 Scanner、Normalizer、Parser 和 Behavior 状态保持完整
+新增 shape 覆盖：9 项 real-world shape 全部转为 pass；40 项合计 39 pass、1 fail-closed、0 missing
+Scanner：维持 110/110 pass
+Normalizer：维持 102 pass + 8 internal_consumed
+Parser：补齐剩余条件、循环、推导式、with、match 和异常表复合布局；维持 0 opcode fail-closed、0 missing
+Behavior：阶段 11 定向差分回归通过；固定真实语料 6/6 探针一致
+真实语料：604/604 反编译并重新编译；0 fail-closed、0 syntax failure、0 unexpected crash
+定向测试：受影响专项 107 passed；real-world、release gate 与阶段 11 回归 40 passed
+全量测试：849 passed, 6 skipped；skip 与发布白名单一致
+golden/报告：opcode、shape、real-world、release 和 support 文档全部更新到阶段 11
+已知限制：人工不可约 CFG 继续通过 IrreducibleControlFlowError 明确 fail-closed；604 文件宽度审计绑定固定 CPython 3.11.9、Darwin 和依赖版本
+失败现场：真实语料失败分类已清空；非 CPython 生产者、篡改字节码和未进入固定语料的任意组合仍受 fail-closed 策略保护
 ```

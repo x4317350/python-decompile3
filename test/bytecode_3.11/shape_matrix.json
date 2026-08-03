@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": 9,
+  "phase": 11,
   "target": {
     "implementation": "CPython",
     "version": "3.11"
@@ -431,17 +431,19 @@
     {
       "name": "realworld_exception_cleanup_control_transfer",
       "category": "realworld_exception",
-      "status": "unsupported_fail_closed",
-      "fixture": null,
-      "expected_error": "Decompyle3Error",
+      "status": "pass",
+      "fixture": "test/simple_source/311/12_exception_cleanup.py",
+      "expected_error": null,
       "tests": [
-        "pytest/test_realworld311.py::test_archived_failures_are_fully_classified",
         "pytest/test_exception_cleanup311.py::test_handler_return_raise_from_and_bare_reraise_preserve_behavior",
         "pytest/test_exception_cleanup311.py::test_nested_handlers_and_finally_side_effect_order_are_preserved",
         "pytest/test_exception_cleanup311.py::test_generator_cleanup_control_transfers_preserve_behavior",
-        "pytest/test_exception_cleanup311.py::test_handler_break_from_while_true_preserves_behavior"
+        "pytest/test_exception_cleanup311.py::test_handler_break_from_while_true_preserves_behavior",
+        "pytest/test_stage11_convergence311.py::test_return_values_survive_loop_finally_cleanup",
+        "pytest/test_stage11_convergence311.py::test_previous_stage11_realworld_failures_recover",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
       ],
-      "notes": "Stage 3 verifies the canonical exception-cleanup fixture, but Stage 4 exposes 25 advanced nested return/call/control-transfer layouts in recognized exception-table regions. They retain exact parser diagnostics with an exception-cleanup shape hint and fail closed instead of falling through to ordinary expression recovery."
+      "notes": "Stage 11 closes the remaining advanced nested exception-table layouts, including held return values across conditional and loop finally suites, handler returns through duplicated cleanup, deferred with returns, nested handlers, and protected while regions. Focused behavior tests plus the fixed 604-file replay retain zero real-world exception-cleanup failures."
     },
     {
       "name": "realworld_function_object_flow",

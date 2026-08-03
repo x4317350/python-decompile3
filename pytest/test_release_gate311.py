@@ -1,4 +1,4 @@
-"""Phase 9 CI and release-gate contracts for CPython 3.11."""
+"""Stage 11 CI and release-gate contracts for CPython 3.11."""
 
 from __future__ import annotations
 
@@ -53,8 +53,10 @@ def test_current_release_policy_is_satisfied():
     assert metrics["opcode_inventory"] == 110
     assert metrics["layer_counts"]["scanner"]["pass"] == 110
     assert metrics["layer_counts"]["parser"]["missing"] == 0
-    assert metrics["shape_counts"]["pass"] == 38
-    assert metrics["shape_counts"]["unsupported_fail_closed"] == 2
+    assert metrics["shape_counts"]["pass"] == 39
+    assert metrics["shape_counts"]["unsupported_fail_closed"] == 1
+    assert metrics["realworld"]["decompile_success"] == 604
+    assert metrics["realworld"]["fail_closed"] == 0
 
 
 @pytest.mark.parametrize(

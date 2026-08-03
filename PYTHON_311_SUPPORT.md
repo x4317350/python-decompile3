@@ -51,10 +51,10 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 38`
-- `Shape fail-closed: 2`
+- `Shape pass: 39`
+- `Shape fail-closed: 1`
 - `Shape missing: 0`
-- 真实语料：492/604 成功反编译，112 项明确 fail-closed；
+- 真实语料：604/604 成功反编译，0 项明确 fail-closed；
 - 差分行为探针：6 项一致，0 项不一致；
 - 全量测试允许的已解释 legacy skip：6 项。
 

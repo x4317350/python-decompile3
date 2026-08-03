@@ -93,8 +93,12 @@ class _LoopContext:
 class _RegionKey:
     start: int
     end: int
+    trailing_return: bool
     break_target: Optional[int]
     continue_targets: FrozenSet[int]
+    suppressed_exception_starts: FrozenSet[int]
+    suppressed_exception_handlers: FrozenSet[int]
+    suppressed_protocol_offsets: FrozenSet[int]
 
 
 def _negate(expression: ast.expr) -> ast.expr:
@@ -291,6 +295,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         limit = len(self.tokens) if end is None else min(end, len(self.tokens))
         for index in range(start, limit):
             if (
+                self.tokens[index].offset
+                in self._suppressed_exception_protocol_offsets
+            ):
+                continue
+            if (
                 index > start
                 and self.tokens[index].offset in stop_offsets
             ):
@@ -379,17 +388,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             offset = instruction_target(self.tokens[index])
         return offset
 
-    def _terminal_return_signature(self, offset: int) -> Optional[str]:
-        """Describe a side-effect-free terminal return block for merging."""
+    def _condition_endpoint_signature(self, offset: int) -> Optional[str]:
+        """Describe a side-effect-free condition endpoint for merging."""
         start = self.offset_to_index.get(offset)
         if start is None:
             return None
         if (
-            self.tokens[start].kind == "RETURN_VALUE"
+            self.tokens[start].kind in ("RERAISE", "RETURN_VALUE")
             and self.tokens[start].offset
             in self._suppressed_exception_protocol_offsets
         ):
-            return "__suppressed_return_value__"
+            return "__suppressed_exception_exit__"
         while (
             start < len(self.tokens)
             and (
@@ -399,6 +408,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
         ):
             start += 1
+        if start >= len(self.tokens):
+            return None
+        token = self.tokens[start]
+        if token.kind in UNCONDITIONAL_JUMPS:
+            target = instruction_target(token)
+            if target is not None:
+                return f"jump:{target}"
         for index in range(start, len(self.tokens)):
             kind = self.tokens[index].kind
             if kind == "RETURN_VALUE":
@@ -420,10 +436,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         left: int,
         right: int,
     ) -> bool:
-        left_signature = self._terminal_return_signature(left)
+        left_signature = self._condition_endpoint_signature(left)
         return (
             left_signature is not None
-            and left_signature == self._terminal_return_signature(right)
+            and left_signature == self._condition_endpoint_signature(right)
         )
 
     def _coalesce_condition_endpoints(
@@ -436,7 +452,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         canonical = {}
         by_signature = {}
         for endpoint in sorted(endpoints):
-            signature = self._terminal_return_signature(endpoint)
+            signature = self._condition_endpoint_signature(endpoint)
             if signature is None:
                 canonical[endpoint] = endpoint
                 continue
@@ -493,7 +509,24 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         comparators = list(first.comparators)
         cursor = start + 1
         final_jump = None
+        direct_none_jump = None
         while cursor < cleanup_index:
+            while (
+                cursor < cleanup_index
+                and self.tokens[cursor].kind in _IGNORED_INTERNAL
+            ):
+                cursor += 1
+            if (
+                cursor < cleanup_index
+                and self.tokens[cursor].kind.startswith("POP_JUMP_")
+                and (
+                    "IF_NONE" in self.tokens[cursor].kind
+                    or "IF_NOT_NONE" in self.tokens[cursor].kind
+                )
+            ):
+                final_jump = cursor
+                direct_none_jump = cursor
+                break
             marker = next(
                 (
                     index
@@ -556,12 +589,50 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         if final_jump is None:
             return None
 
-        true_offset, false_offset = self._jump_outcomes(final_jump)
-        true_endpoint = self._resolve_condition_endpoint(true_offset)
-        false_endpoint = self._resolve_condition_endpoint(false_offset)
         cleanup_endpoint = self._resolve_condition_endpoint(
             self.tokens[cleanup_index + 1].offset
         )
+        if direct_none_jump is not None:
+            token = self.tokens[direct_none_jump]
+            target_endpoint = self._resolve_condition_endpoint(
+                instruction_target(token)
+            )
+            following_endpoint = self._resolve_condition_endpoint(
+                self.tokens[direct_none_jump + 1].offset
+            )
+            target_is_cleanup = (
+                target_endpoint == cleanup_endpoint
+                or self._equivalent_condition_endpoints(
+                    target_endpoint,
+                    cleanup_endpoint,
+                )
+            )
+            following_is_cleanup = (
+                following_endpoint == cleanup_endpoint
+                or self._equivalent_condition_endpoints(
+                    following_endpoint,
+                    cleanup_endpoint,
+                )
+            )
+            if target_is_cleanup == following_is_cleanup:
+                return None
+            token_operator = (
+                ast.IsNot if "IF_NOT_NONE" in token.kind else ast.Is
+            )
+            if target_is_cleanup:
+                operator = ast.Is if token_operator is ast.IsNot else ast.IsNot
+                true_endpoint = following_endpoint
+                false_endpoint = target_endpoint
+            else:
+                operator = token_operator
+                true_endpoint = target_endpoint
+                false_endpoint = following_endpoint
+            operators.append(operator())
+            comparators.append(ast.Constant(value=None))
+        else:
+            true_offset, false_offset = self._jump_outcomes(final_jump)
+            true_endpoint = self._resolve_condition_endpoint(true_offset)
+            false_endpoint = self._resolve_condition_endpoint(false_offset)
         if (
             true_endpoint == false_endpoint
             or (
@@ -600,12 +671,125 @@ class StructuredDecompiler311(_StraightLineDecompiler):
     def _condition_plan(self, start: int) -> Optional[_ConditionPlan]:
         return self._bounded_condition_plan(start, len(self.tokens))
 
+    def _if_expression_condition_plan(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[_ConditionPlan]:
+        """Recover ``if <left> if <test> else <right>`` decision graphs."""
+        first_jump = self._condition_jump(start, end)
+        if first_jump is None:
+            return None
+        _, alternate_offset = self._jump_outcomes(first_jump)
+        alternate_index = self.offset_to_index.get(alternate_offset)
+        if (
+            alternate_index is None
+            or not first_jump + 1 < alternate_index < end
+        ):
+            return None
+        bridge = self._last_forward_jump(
+            first_jump + 1,
+            alternate_index,
+            alternate_offset + 1,
+        )
+        if bridge is None:
+            return None
+        true_endpoint = self._resolve_condition_endpoint(
+            instruction_target(self.tokens[bridge])
+        )
+        true_index = self.offset_to_index.get(true_endpoint)
+        if true_index is None or not alternate_index < true_index <= end:
+            return None
+
+        alternate_jump = None
+        for index in range(alternate_index, true_index):
+            if self.tokens[index].kind in _CONDITIONAL_JUMPS:
+                alternate_jump = index
+        if alternate_jump is None:
+            return None
+        alternate_outcomes = tuple(
+            self._resolve_condition_endpoint(offset)
+            for offset in self._jump_outcomes(alternate_jump)
+        )
+        if true_endpoint not in alternate_outcomes:
+            return None
+        false_endpoint = next(
+            (
+                offset
+                for offset in alternate_outcomes
+                if offset != true_endpoint
+            ),
+            None,
+        )
+        if (
+            false_endpoint is None
+            or false_endpoint == true_endpoint
+            or false_endpoint not in self.offset_to_index
+        ):
+            return None
+
+        nodes: Dict[int, _DecisionNode] = {}
+        active = set()
+
+        def build(offset: int) -> ast.expr:
+            offset = self._resolve_condition_endpoint(offset)
+            if offset == true_endpoint:
+                return ast.Constant(value=True)
+            if offset == false_endpoint:
+                return ast.Constant(value=False)
+            if offset in active:
+                raise ValueError("conditional expression graph has a cycle")
+            index = self.offset_to_index.get(offset)
+            if index is None or index >= end:
+                raise ValueError("conditional expression has an unsafe sink")
+            jump = self._condition_jump(index, end)
+            if jump is None:
+                raise ValueError("conditional expression branch has no jump")
+            predicate = self._predicate(index, jump)
+            true_offset, false_offset = (
+                self._resolve_condition_endpoint(outcome)
+                for outcome in self._jump_outcomes(jump)
+            )
+            nodes[offset] = _DecisionNode(
+                start_index=index,
+                jump_index=jump,
+                predicate=predicate,
+                true_offset=true_offset,
+                false_offset=false_offset,
+            )
+            active.add(offset)
+            try:
+                return _combine_decision(
+                    predicate,
+                    build(true_offset),
+                    build(false_offset),
+                )
+            finally:
+                active.remove(offset)
+
+        entry_offset = self.tokens[start].offset
+        try:
+            expression = build(entry_offset)
+        except (Python311ParseError, ValueError):
+            return None
+        return _ConditionPlan(
+            entry_offset=entry_offset,
+            nodes=nodes,
+            endpoints=tuple(sorted((true_endpoint, false_endpoint))),
+            true_endpoint=true_endpoint,
+            false_endpoint=false_endpoint,
+            expression=expression,
+        )
+
     def _bounded_condition_plan(
         self,
         start: int,
         end: int,
         stop_offsets: FrozenSet[int] = frozenset(),
     ) -> Optional[_ConditionPlan]:
+        if_expression = self._if_expression_condition_plan(start, end)
+        if if_expression is not None:
+            return if_expression
         chained = self._chained_condition_plan(start)
         if chained is not None:
             return chained
@@ -729,6 +913,82 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                         endpoints.add(successor)
             return nodes, endpoints
 
+        def reduce_decision_endpoints(
+            nodes: Dict[int, _DecisionNode],
+            endpoints: Set[int],
+        ) -> Tuple[Dict[int, _DecisionNode], Set[int]]:
+            """Expand pure nested decisions when they reduce to shared sinks."""
+
+            while len(endpoints) > 2:
+                reduced = False
+                for candidate in sorted(endpoints):
+                    candidate_index = self.offset_to_index.get(candidate)
+                    if candidate_index is None or candidate_index >= end:
+                        continue
+                    candidate_block = self.cfg.block_at(candidate)
+                    if len(self.cfg.predecessors(candidate_block.index)) != 1:
+                        continue
+
+                    extra_nodes = {}
+                    leaves = set()
+                    pending = [candidate]
+                    work_count = 0
+                    while pending:
+                        work_count += 1
+                        if work_count > max(32, len(self.tokens) * 2):
+                            extra_nodes = {}
+                            break
+                        offset = pending.pop()
+                        if offset in nodes or offset in extra_nodes:
+                            continue
+                        if offset != candidate and offset in endpoints:
+                            leaves.add(offset)
+                            continue
+                        index = self.offset_to_index.get(offset)
+                        if (
+                            index is None
+                            or index >= end
+                            or offset in stop_offsets
+                        ):
+                            leaves.add(offset)
+                            continue
+                        jump = self._condition_jump(
+                            index,
+                            end,
+                            stop_offsets,
+                        )
+                        if jump is None:
+                            leaves.add(offset)
+                            continue
+                        try:
+                            predicate = self._predicate(index, jump)
+                        except Python311ParseError:
+                            leaves.add(offset)
+                            continue
+                        true_offset, false_offset = self._jump_outcomes(jump)
+                        extra_nodes[offset] = _DecisionNode(
+                            start_index=index,
+                            jump_index=jump,
+                            predicate=predicate,
+                            true_offset=true_offset,
+                            false_offset=false_offset,
+                        )
+                        pending.extend((true_offset, false_offset))
+
+                    revised = (set(endpoints) - {candidate}) | leaves
+                    if (
+                        extra_nodes
+                        and leaves
+                        and len(revised) < len(endpoints)
+                    ):
+                        nodes.update(extra_nodes)
+                        endpoints = revised
+                        reduced = True
+                        break
+                if not reduced:
+                    break
+            return nodes, endpoints
+
         collected = collect(allow_multiline=True)
         if collected is None:
             return None
@@ -737,6 +997,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             nodes,
             endpoints,
         )
+        nodes, endpoints = reduce_decision_endpoints(nodes, endpoints)
         if len(endpoints) != 2:
             collected = collect(allow_multiline=False)
             if collected is None:
@@ -746,6 +1007,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 nodes,
                 endpoints,
             )
+            nodes, endpoints = reduce_decision_endpoints(nodes, endpoints)
         if len(endpoints) != 2:
             return None
 
@@ -886,13 +1148,24 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         start: int,
         end: int,
         loop: Optional[_LoopContext],
+        trailing_return: bool = False,
     ) -> List[ast.stmt]:
         key = _RegionKey(
             start=start,
             end=end,
+            trailing_return=trailing_return,
             break_target=loop.break_target if loop is not None else None,
             continue_targets=(
                 loop.continue_targets if loop is not None else frozenset()
+            ),
+            suppressed_exception_starts=frozenset(
+                self._suppressed_exception_starts
+            ),
+            suppressed_exception_handlers=frozenset(
+                self._suppressed_exception_handler_targets
+            ),
+            suppressed_protocol_offsets=frozenset(
+                self._suppressed_exception_protocol_offsets
             ),
         )
         if key in self._active_regions:
@@ -923,6 +1196,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             self._parse_region(start, end, loop)
             self._flush_assignment()
             result = self.body
+            if (
+                trailing_return
+                and len(self.stack) == 1
+                and isinstance(self.stack[-1], ast.expr)
+            ):
+                result.append(ast.Return(value=self.stack.pop()))
             if self.stack:
                 self._error("Structured statement region left stack values")
             return result
@@ -985,6 +1264,49 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self.stack.append(
             ast.IfExp(test=plan.expression, body=body, orelse=orelse)
         )
+        return join_index
+
+    def _try_inline_if_expression(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Recover a conditional value embedded in a larger expression."""
+        jump_index = self._condition_jump(start, end)
+        if jump_index is None:
+            return None
+        target = instruction_target(self.tokens[jump_index])
+        target_index = self.offset_to_index.get(target)
+        if target_index is None or not jump_index < target_index < end:
+            return None
+        join_jump = self._last_forward_jump(
+            jump_index + 1,
+            target_index,
+            target + 1,
+        )
+        if join_jump is None:
+            return None
+        join = instruction_target(self.tokens[join_jump])
+        join_index = self.offset_to_index.get(join)
+        if join_index is None or not target_index < join_index <= end:
+            return None
+        try:
+            test = self._predicate(start, jump_index)
+            fallthrough = self._expression_slice(
+                jump_index + 1,
+                join_jump,
+            )
+            targeted = self._expression_slice(
+                target_index,
+                join_index,
+            )
+        except Python311ParseError:
+            return None
+        if "IF_TRUE" in self.tokens[jump_index].kind:
+            body, orelse = targeted, fallthrough
+        else:
+            body, orelse = fallthrough, targeted
+        self.stack.append(ast.IfExp(test=test, body=body, orelse=orelse))
         return join_index
 
     def _try_assert_statement(self, start: int, end: int) -> Optional[int]:
@@ -1118,6 +1440,72 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
         )
         return join_index
+
+    def _try_held_return_finally_condition(
+        self,
+        plan: _ConditionPlan,
+        loop: Optional[_LoopContext],
+        end: int,
+    ) -> Optional[int]:
+        """Recover a branched finally suite that returns one held value."""
+        if len(self.stack) != 1 or not isinstance(self.stack[-1], ast.expr):
+            return None
+        first = self.offset_to_index[plan.true_endpoint]
+        second = self.offset_to_index[plan.false_endpoint]
+        if first > second:
+            first, second = second, first
+        first_return = next(
+            (
+                index
+                for index in range(first, second)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ),
+            None,
+        )
+        second_return = next(
+            (
+                index
+                for index in range(second, end)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ),
+            None,
+        )
+        if first_return is None or second_return is None:
+            return None
+        if any(
+            self.tokens[index].kind in _CONDITIONAL_JUMPS
+            for index in range(first, first_return)
+        ) or any(
+            self.tokens[index].kind in _CONDITIONAL_JUMPS
+            for index in range(second, second_return)
+        ):
+            return None
+        try:
+            first_body = self._capture_region(first, first_return, loop)
+            second_body = self._capture_region(second, second_return, loop)
+        except Python311ParseError:
+            return None
+        test = plan.expression
+        if self.offset_to_index[plan.true_endpoint] == first:
+            body, orelse = first_body, second_body
+        else:
+            body, orelse = second_body, first_body
+        finalbody = [
+            ast.If(
+                test=test,
+                body=body or [ast.Pass()],
+                orelse=orelse,
+            )
+        ]
+        self.body.append(
+            ast.Try(
+                body=[ast.Return(value=self.stack.pop())],
+                handlers=[],
+                orelse=[],
+                finalbody=finalbody,
+            )
+        )
+        return second_return + 1
 
     def _latch_expression_start(
         self, body_start: int, jump_index: int
@@ -1293,11 +1681,41 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         start_offset = self.tokens[start].offset
         if start_offset in self._suppressed_loop_starts:
             return None
+        header_offsets = {start_offset}
+        header_cursor = start + 1
+        while (
+            self.tokens[start].kind
+            in ("INTERNAL_EXTENDED_ARG", "INTERNAL_RESUME", "NOP")
+            and header_cursor < end
+            and self.tokens[header_cursor].kind
+            in ("INTERNAL_EXTENDED_ARG", "INTERNAL_RESUME", "NOP")
+        ):
+            header_offsets.add(self.tokens[header_cursor].offset)
+            header_cursor += 1
+        if (
+            self.tokens[start].kind
+            in ("INTERNAL_EXTENDED_ARG", "INTERNAL_RESUME", "NOP")
+            and header_cursor < end
+        ):
+            # A 3.11 ``while True`` normally has a source-line NOP before its
+            # first body instruction, while the loop latch targets that first
+            # semantic instruction rather than the NOP itself.
+            header_offsets.add(self.tokens[header_cursor].offset)
+        protected_headers = [
+            region.start
+            for region in self.exception_regions
+            if start_offset < region.start and region.start in header_offsets
+        ]
+        if protected_headers:
+            protected_start = min(protected_headers)
+            header_offsets = {
+                offset for offset in header_offsets if offset < protected_start
+            }
         latches = [
             index
             for index in range(start + 1, end)
             if self.tokens[index].kind == "JUMP_BACKWARD"
-            and instruction_target(self.tokens[index]) == start_offset
+            and instruction_target(self.tokens[index]) in header_offsets
         ]
         if not latches:
             return None
@@ -1309,14 +1727,19 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and instruction_target(self.tokens[index])
             > self.tokens[latch].offset
         ]
-        if not break_targets:
-            return None
-        loop_end = max(break_targets)
-        loop_end_index = self.offset_to_index.get(loop_end)
-        if loop_end_index is None or loop_end_index <= latch:
+        if break_targets:
+            loop_end = max(break_targets)
+            loop_end_index = self.offset_to_index.get(loop_end)
+            if loop_end_index is None or loop_end_index <= latch:
+                return None
+        elif latch + 1 == end:
+            loop_end_index = end
+            loop_end = self.tokens[latch].offset + 2
+        else:
             return None
 
-        self._suppressed_loop_starts.add(start_offset)
+        added_loop_starts = header_offsets - self._suppressed_loop_starts
+        self._suppressed_loop_starts.update(added_loop_starts)
         try:
             body = self._capture_region(
                 start,
@@ -1324,12 +1747,14 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 _LoopContext(
                     break_target=loop_end,
                     continue_targets=frozenset(
-                        {start_offset, self.tokens[latch].offset}
+                        header_offsets | {self.tokens[latch].offset}
                     ),
                 ),
             )
         finally:
-            self._suppressed_loop_starts.remove(start_offset)
+            self._suppressed_loop_starts.difference_update(
+                added_loop_starts
+            )
         self.body.append(
             ast.While(
                 test=ast.Constant(value=True),
@@ -1686,7 +2111,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         token = self.tokens[index]
         target = instruction_target(token)
         if loop is not None and token.kind == "JUMP_FORWARD":
-            if target == loop.break_target:
+            if target >= loop.break_target:
                 self.body.append(ast.Break())
                 return end
         if loop is not None and "BACKWARD" in token.kind:
@@ -1760,8 +2185,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
 
         cursor = index
-        while cursor < end and self.tokens[cursor].kind == "POP_TOP":
-            cursor += 1
+        while cursor < end:
+            if self.tokens[cursor].kind == "POP_TOP":
+                cursor += 1
+                continue
+            if (
+                self.tokens[cursor].offset
+                in self._suppressed_exception_protocol_offsets
+            ):
+                cursor += 1
+                continue
+            break
         return_index = next(
             (
                 candidate
@@ -1932,9 +2366,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         while index < end:
             token = self.tokens[index]
             self.current_token = token
-            self._resolve_booleans(token.offset)
-            if token.kind not in store_kinds:
-                self._flush_assignment()
 
             if (
                 token.offset
@@ -1943,10 +2374,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index += 1
                 continue
 
-            while_true_end = self._while_true_loop(index, end, loop)
-            if while_true_end is not None:
-                index = while_true_end
-                continue
+            self._resolve_booleans(token.offset)
+            if token.kind not in store_kinds:
+                self._flush_assignment()
 
             if (
                 self.exception_regions
@@ -1985,6 +2415,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                         loop,
                     )
                     continue
+
+            while_true_end = self._while_true_loop(index, end, loop)
+            if while_true_end is not None:
+                index = while_true_end
+                continue
 
             if token.kind in (
                 "COPY_FREE_VARS",
@@ -2066,9 +2501,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = return_end
                 continue
 
+            inline_expression_end = self._try_inline_if_expression(
+                index,
+                end,
+            )
+            if inline_expression_end is not None:
+                index = inline_expression_end
+                continue
+
             condition = self._bounded_condition_plan(
                 index,
-                len(self.tokens),
+                end,
                 (
                     loop.continue_targets
                     if loop is not None
@@ -2079,6 +2522,14 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 loop_end = self._while_loop(condition, loop, end)
                 if loop_end is not None:
                     index = loop_end
+                    continue
+                held_return_end = self._try_held_return_finally_condition(
+                    condition,
+                    loop,
+                    end,
+                )
+                if held_return_end is not None:
+                    index = held_return_end
                     continue
                 return_end = self._try_return_expression(index, end)
                 if return_end is not None:
@@ -2117,15 +2568,34 @@ class StructuredDecompiler311(_StraightLineDecompiler):
 
             if (
                 token.kind == "POP_TOP"
-                and index + 1 < end
                 and loop is not None
                 and not self.stack
-                and self.tokens[index + 1].kind == "JUMP_FORWARD"
-                and instruction_target(self.tokens[index + 1])
-                == loop.break_target
             ):
-                index += 1
-                continue
+                next_index = self._next_semantic_index(index + 1, end)
+                if (
+                    next_index < end
+                    and self.tokens[next_index].kind == "JUMP_FORWARD"
+                    and instruction_target(self.tokens[next_index])
+                    >= loop.break_target
+                ):
+                    index += 1
+                    continue
+                if (
+                    next_index >= end
+                    and end < len(self.tokens)
+                    and self.tokens[end].offset == loop.break_target
+                ):
+                    index += 1
+                    continue
+                if (
+                    next_index == end
+                    and end < len(self.tokens)
+                    and self.tokens[end].kind == "JUMP_FORWARD"
+                    and instruction_target(self.tokens[end])
+                    == loop.break_target
+                ):
+                    index += 1
+                    continue
 
             self._dispatch(token)
             index += 1

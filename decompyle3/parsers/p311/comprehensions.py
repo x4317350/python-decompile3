@@ -217,60 +217,9 @@ class ComprehensionDecompiler311:
         if not jump_indices or jump_indices[-1] != final_jump:
             return None
 
-        leaders = {start}
-        for jump_index in jump_indices:
-            if (
-                jump_index + 1 < success_index
-                and self.tokens[jump_index + 1].kind
-                not in (
-                    "JUMP_BACKWARD",
-                    "JUMP_BACKWARD_NO_INTERRUPT",
-                    "JUMP_FORWARD",
-                )
-            ):
-                leaders.add(jump_index + 1)
-            target_index = self.offset_to_index.get(
-                instruction_target(self.tokens[jump_index])
-            )
-            if (
-                target_index is not None
-                and start <= target_index < success_index
-            ):
-                leaders.add(target_index)
-        ordered_leaders = sorted(leaders)
         nodes = {}
-        for position, leader in enumerate(ordered_leaders):
-            limit = (
-                ordered_leaders[position + 1]
-                if position + 1 < len(ordered_leaders)
-                else success_index
-            )
-            block_jumps = [
-                index
-                for index in jump_indices
-                if leader <= index < limit
-            ]
-            if len(block_jumps) != 1:
-                return None
-            jump_index = block_jumps[0]
-            if any(
-                self.tokens[index].kind not in _IGNORED_INTERNAL
-                and self.tokens[index].kind
-                not in (
-                    "JUMP_BACKWARD",
-                    "JUMP_BACKWARD_NO_INTERRUPT",
-                    "JUMP_FORWARD",
-                )
-                for index in range(jump_index + 1, limit)
-            ):
-                return None
-            try:
-                predicate = self._jump_predicate(leader, jump_index)
-            except Python311ParseError:
-                return None
-            nodes[leader] = (predicate, jump_index)
 
-        def endpoint(index: int):
+        def endpoint(index: int, allow_unresolved: bool = False):
             seen = set()
             while index is not None and index not in seen:
                 seen.add(index)
@@ -299,8 +248,47 @@ class ComprehensionDecompiler311:
                         instruction_target(self.tokens[index])
                     )
                     continue
+                if allow_unresolved and start <= index < success_index:
+                    return index
                 return None
             return None
+
+        # Find the widest recoverable predicate at each decision entry.
+        # Conditional expressions and assignment expressions can contain
+        # their own POP_JUMP instructions; treating each of those as a
+        # comprehension-filter node splits the operand stack.  Expression
+        # recovery proves which inner jumps rejoin before the actual filter
+        # branch, so prefer the latest jump whose prefix is one closed
+        # expression.
+        pending = [start]
+        while pending:
+            leader = pending.pop()
+            if leader in nodes:
+                continue
+            selected = None
+            for jump_index in reversed(jump_indices):
+                if jump_index < leader:
+                    continue
+                try:
+                    predicate = self._jump_predicate(
+                        leader,
+                        jump_index,
+                    )
+                except Python311ParseError:
+                    continue
+                selected = (jump_index, predicate)
+                break
+            if selected is None:
+                return None
+            jump_index, predicate = selected
+            nodes[leader] = (predicate, jump_index)
+            target_index = self.offset_to_index.get(
+                instruction_target(self.tokens[jump_index])
+            )
+            for successor in (target_index, jump_index + 1):
+                reference = endpoint(successor, allow_unresolved=True)
+                if type(reference) is int and reference not in nodes:
+                    pending.append(reference)
 
         def build(reference, active=frozenset()):
             if isinstance(reference, bool):

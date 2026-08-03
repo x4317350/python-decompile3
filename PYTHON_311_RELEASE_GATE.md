@@ -1,7 +1,7 @@
 # CPython 3.11 发布门禁
 
 > 本文件由 `test/bytecode_3.11/run_release_gate.py` 生成，
-> 与阶段 9 发布策略、覆盖矩阵和真实语料归档同步。
+> 与阶段 11 发布策略、覆盖矩阵和真实语料归档同步。
 
 ## 四层覆盖
 
@@ -13,8 +13,8 @@
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 38`
-- `Shape fail-closed: 2`
+- `Shape pass: 39`
+- `Shape fail-closed: 1`
 - `Shape missing: 0`
 
 ## 固定环境
@@ -32,8 +32,8 @@
 ## 真实语料归档
 
 - 输入：604
-- 成功反编译：492
-- fail-closed：112
+- 成功反编译：604
+- fail-closed：0
 - 语法失败：0
 - 未包装崩溃：0
 - 行为一致：6
@@ -42,7 +42,6 @@
 ## 已审批的 fail-closed shape
 
 - `irreducible_control_flow`
-- `realworld_exception_cleanup_control_transfer`
 
 ## 已解释的全量测试 skip
 

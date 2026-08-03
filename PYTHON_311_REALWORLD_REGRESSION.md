@@ -1,13 +1,13 @@
 # CPython 3.11 标准库与真实项目回归报告
 
 > 本文件由 `test/bytecode_3.11/run_realworld_regression.py` 自动生成，
-> 记录阶段 8 的固定环境宽度审计，不等同于全量支持声明。
+> 记录阶段 11 的固定环境宽度审计，不等同于全量支持声明。
 
 ## 环境
 
 - Runtime：3.11.9
 - Platform：darwin
-- 输入摘要：`55a773f46268cba90ac61c2521fa2425a6d8c073d770d7aa6b7cf94987d62611`
+- 输入摘要：`dc90e2f1231e9bd5ca9c028b1ceb0bcd9d6c8c97bf0c851ae37740ecd039dde2`
 
 第三方版本：
 
@@ -21,33 +21,30 @@
 ## 汇总
 
 - 输入文件数：604
-- 成功反编译数：492
-- 语法验证成功数：492
+- 成功反编译数：604
+- 语法验证成功数：604
 - 语法失败数：0
-- fail-closed 数：112
+- fail-closed 数：0
 - malformed/unsupported input 数：0
 - 未包装崩溃数：0
 - 行为一致数：6
 - 行为不一致数：0
 - 行为输入缺失数：0
-- 首次失败 opcode：`CALL`
-- 首次失败 shape：`realworld_exception_cleanup_control_transfer`
+- 首次失败 opcode：`—`
+- 首次失败 shape：`—`
 
 ## 分组
 
 | 分组 | 输入 | 反编译成功 | 语法成功 | 语法失败 | fail-closed | 输入不支持 | 未包装崩溃 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| stdlib | 338 | 258 | 258 | 0 | 80 | 0 | 0 |
-| project | 115 | 110 | 110 | 0 | 5 | 0 | 0 |
-| third_party | 151 | 124 | 124 | 0 | 27 | 0 | 0 |
+| stdlib | 338 | 338 | 338 | 0 | 0 | 0 | 0 |
+| project | 115 | 115 | 115 | 0 | 0 | 0 | 0 |
+| third_party | 151 | 151 | 151 | 0 | 0 | 0 | 0 |
 
 ## Fail-closed 分类
 
 | Shape | 数量 |
 | --- | ---: |
-| `realworld_call_and_expression_stack` | 15 |
-| `realworld_comprehension_and_iterator_protocol` | 1 |
-| `realworld_exception_cleanup_control_transfer` | 96 |
 
 ## 行为探针
 

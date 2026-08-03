@@ -552,8 +552,8 @@ git status --short
 - 阶段 7 已完成并提交；
 - 阶段 8 已完成并提交；
 - 阶段 9 已完成并提交；
-- 阶段 10 已完成，等待单独提交；
-- 阶段 11 尚未开始；
+- 阶段 10 已完成并提交；
+- 阶段 11 已完成，等待单独提交；
 - 原发布基线提交为 `9f5bb1e4`；
 - 阶段 0 基线提交为 `4d6483b8`；
 - 阶段 1 修复提交为 `748aafb9`；
@@ -565,7 +565,8 @@ git status --short
 - 阶段 7 修复提交为 `4291bda5`；
 - 阶段 8 修复提交为 `32ab3a89`；
 - 阶段 9 修复提交为 `d06a8fa8`；
-- 当前 shape 状态为 38 pass、2 fail-closed、0 missing。
+- 阶段 10 修复提交为 `8906ed62`；
+- 当前 shape 状态为 39 pass、1 fail-closed、0 missing。
 
 每阶段完成后追加：
 
@@ -780,7 +781,7 @@ tarfile 验证：原模块 offset 424 的 match 误判已消失；整文件继�
 
 ```text
 阶段：10，审查人工不可约 CFG
-提交：本阶段修复提交（等待单独提交）
+提交：8906ed62，提交说明为“修复：完成 Python 3.11 不可约 CFG 安全边界审查”
 目标 shape：irreducible_control_flow
 阶段前计数：0 个真实语料；人工 CFG 保持明确 fail-closed
 阶段后计数：0 个真实语料；保持 unsupported_fail_closed
@@ -794,4 +795,23 @@ tarfile 验证：原模块 offset 424 的 match 误判已消失；整文件继�
 全量测试：839 passed, 6 skipped；skip 与 legacy 白名单逐项一致
 发布门禁：110/110 opcode 四层覆盖完整；38 shape pass、2 fail-closed、0 missing；报告时效、golden、真实语料归档和完整门禁均通过；不可约 CFG 继续作为已审查的人工安全边界
 已知限制：真实语料仍有调用/表达式栈 15、推导式/迭代协议 1、高级异常清理 96；人工不可约 CFG 不计入 604 文件成功率
+```
+
+阶段 11：
+
+```text
+阶段：11，全量收敛和发布门禁
+提交：本阶段修复提交（等待单独提交）
+目标 shape：realworld_call_and_expression_stack、realworld_comprehension_and_iterator_protocol、realworld_exception_cleanup_control_transfer 的剩余复合布局
+阶段前计数：492 success、112 fail-closed；其中调用/表达式栈 15、推导式/迭代协议 1、高级异常清理 96
+阶段后计数：604 success、0 fail-closed、0 syntax failure、0 unexpected crash
+已修复签名：条件表达式作为 if 条件、lambda 函数值进入条件合并、共享条件端点、异常保护区内 while/for 控制转移、循环清理前 return、return 值跨分支 finally、handler return 的物理 finally 副本、with 延迟 return、嵌套 handler/finally 区域归属、match class-pattern guard/body/join，以及推导式隐藏迭代器和方法调用
+剩余子 shape：固定 604 文件真实语料无剩余失败分类；人工不可约 CFG 仍保留明确 IrreducibleControlFlowError 安全边界
+新增 fixture：pytest/test_stage11_convergence311.py；覆盖条件表达式、lambda 值、循环 finally 返回、异常保护循环，并锁定 pathlib.py、runpy.py、ElementTree.py、pytest assertion rewrite/config 和本工程 structures.py 等原失败样本
+行为验证：新增结构与返回值差分验证通过；固定真实语料 6/6 行为探针一致、0 mismatch
+真实语料：604 个输入全部反编译并重新编译；stdlib 338/338、project 115/115、third_party 151/151
+专项测试：阶段 11 与受影响的表达式、控制流、异常、match、推导式、with、递归和 shape behavior 共 107 passed；real-world、release gate 与阶段 11 回归 40 passed
+全量测试：849 passed, 6 skipped；skip 与 legacy 白名单逐项一致
+发布门禁：110/110 opcode 四层覆盖完整；39 shape pass、1 fail-closed、0 missing；真实语料、矩阵、报告和支持文档时效检查通过
+已知限制：604/604 仅代表固定 CPython 3.11.9、Darwin 和固定依赖集合，不等同于任意第三方 pyc 的无限制支持；人工不可约 CFG 不计入真实语料成功率
 ```

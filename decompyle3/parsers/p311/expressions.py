@@ -611,10 +611,22 @@ class ExpressionDecompiler311:
             self._error("Conditional expression branch produced no value", index)
         when_true = true_state.stack[-1]
         when_false = false_state.stack[-1]
+        converter = _StraightLineDecompiler(
+            self.code,
+            (),
+            compile_mode="expr",
+        )
+        try:
+            when_true = converter._expression_value(when_true)
+            when_false = converter._expression_value(when_false)
+        except Python311ParseError:
+            pass
         if not isinstance(when_true, ast.expr) or not isinstance(
             when_false, ast.expr
         ):
             self._error("Conditional expression produced a non-expression", index)
+        true_state.stack[-1] = when_true
+        false_state.stack[-1] = when_false
         expression = _combine_decision(predicate, when_true, when_false)
         return self._merge_prefix(
             true_state,
