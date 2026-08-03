@@ -21,6 +21,113 @@ GROUP_SOURCE = (
 EXCEPTION_SOURCE = (
     ROOT / "test" / "simple_source" / "311" / "05_exceptions_with.py"
 )
+EMPTY_STAR_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_star_empty_body.py"
+)
+
+EMPTY_STAR_MATRIX_SOURCE = """
+def ellipsis_body(group):
+    try:
+        raise group
+    except* ValueError:
+        ...
+    return group
+
+
+def constant_assert_body(group):
+    try:
+        raise group
+    except* ValueError:
+        assert True
+    return group
+
+
+def dead_branch_body(group):
+    try:
+        raise group
+    except* ValueError:
+        if False:
+            action()
+    return group
+
+
+def empty_then_nonempty(group, events):
+    try:
+        raise group
+    except* ValueError:
+        pass
+    except* TypeError:
+        events.append("type")
+    return events
+
+
+def nonempty_then_empty(group, events):
+    try:
+        raise group
+    except* ValueError:
+        events.append("value")
+    except* TypeError:
+        pass
+    return events
+
+
+def consecutive_empty(group):
+    try:
+        raise group
+    except* ValueError:
+        pass
+    except* TypeError:
+        pass
+    return group
+
+
+def empty_with_else(group, events):
+    try:
+        if group is not None:
+            raise group
+    except* ValueError:
+        pass
+    else:
+        events.append("else")
+    return events
+
+
+def empty_with_finally(group, events):
+    try:
+        raise group
+    except* ValueError:
+        pass
+    finally:
+        events.append("finally")
+    return events
+
+
+def empty_with_else_finally(group, events):
+    try:
+        if group is not None:
+            raise group
+    except* ValueError:
+        pass
+    else:
+        events.append("else")
+    finally:
+        events.append("finally")
+    return events
+
+
+def empty_inside_normal_try(group, events):
+    try:
+        try:
+            raise group
+        except* ValueError:
+            pass
+    finally:
+        events.append("outer-finally")
+    return events
+"""
 
 pytestmark = pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
@@ -40,6 +147,17 @@ def recover_source(source, tmp_path):
     output = io.StringIO()
     code_deparse(
         code,
+        out=output,
+        version=(3, 11),
+        python_implementation=PythonImplementation.CPython,
+    )
+    return output.getvalue()
+
+
+def recover_inline(source):
+    output = io.StringIO()
+    code_deparse(
+        compile(source, "<except-star-empty-matrix>", "exec"),
         out=output,
         version=(3, 11),
         python_implementation=PythonImplementation.CPython,
@@ -181,6 +299,88 @@ def test_recovered_except_star_uses_trystar_and_keeps_normal_try_distinct(
     assert not any(
         isinstance(node, ast.TryStar) for node in ast.walk(normal_tree)
     )
+
+
+def test_recovered_empty_except_star_uses_pass_and_keeps_binding(tmp_path):
+    recovered = recover_source(EMPTY_STAR_SOURCE, tmp_path)
+    tree = ast.parse(recovered)
+    compile(tree, "<recovered-empty-except-star>", "exec")
+
+    empty = function_node(tree, "empty_handler")
+    named = function_node(tree, "empty_named_handler")
+    nonempty = function_node(tree, "nonempty_handler")
+    empty_try = next(node for node in ast.walk(empty) if isinstance(node, ast.TryStar))
+    named_try = next(node for node in ast.walk(named) if isinstance(node, ast.TryStar))
+    nonempty_try = next(
+        node for node in ast.walk(nonempty) if isinstance(node, ast.TryStar)
+    )
+
+    assert empty_try.handlers[0].name is None
+    assert named_try.handlers[0].name == "error"
+    assert all(
+        len(statement.handlers[0].body) == 1
+        and isinstance(statement.handlers[0].body[0], ast.Pass)
+        for statement in (empty_try, named_try)
+    )
+    assert not isinstance(nonempty_try.handlers[0].body[0], ast.Pass)
+
+
+def test_empty_except_star_clause_matrix_reparses_and_keeps_boundaries():
+    recovered = recover_inline(EMPTY_STAR_MATRIX_SOURCE)
+    tree = ast.parse(recovered)
+    compile(tree, "<recompiled-empty-except-star-matrix>", "exec")
+
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    statements = {
+        name: next(
+            node for node in ast.walk(function) if isinstance(node, ast.TryStar)
+        )
+        for name, function in functions.items()
+    }
+    for name in (
+        "ellipsis_body",
+        "constant_assert_body",
+        "dead_branch_body",
+    ):
+        assert isinstance(statements[name].handlers[0].body[0], ast.Pass)
+
+    assert len(statements["empty_then_nonempty"].handlers) == 2
+    assert isinstance(
+        statements["empty_then_nonempty"].handlers[0].body[0],
+        ast.Pass,
+    )
+    assert not isinstance(
+        statements["empty_then_nonempty"].handlers[1].body[0],
+        ast.Pass,
+    )
+    assert not isinstance(
+        statements["nonempty_then_empty"].handlers[0].body[0],
+        ast.Pass,
+    )
+    assert isinstance(
+        statements["nonempty_then_empty"].handlers[1].body[0],
+        ast.Pass,
+    )
+    assert len(statements["consecutive_empty"].handlers) == 2
+    assert all(
+        isinstance(handler.body[0], ast.Pass)
+        for handler in statements["consecutive_empty"].handlers
+    )
+
+    assert statements["empty_with_else"].orelse
+    assert not statements["empty_with_else"].finalbody
+    assert not statements["empty_with_finally"].orelse
+    assert statements["empty_with_finally"].finalbody
+    assert statements["empty_with_else_finally"].orelse
+    assert statements["empty_with_else_finally"].finalbody
+
+    nested = statements["empty_inside_normal_try"]
+    assert isinstance(nested.handlers[0].body[0], ast.Pass)
+    assert nested.finalbody
 
 
 def match_behavior(namespace):

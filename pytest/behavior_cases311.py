@@ -250,6 +250,29 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/fixtures311/except_star_empty_body.py": _probe(
+        """
+        def _empty_result(function):
+            group = ExceptionGroup("values", [ValueError("bad")])
+            result = function(group)
+            return (
+                result is group,
+                result.message,
+                tuple(type(item).__name__ for item in result.exceptions),
+            )
+
+        def _nonempty_result():
+            events = []
+            return nonempty_handler(
+                ExceptionGroup("values", [ValueError("bad")]),
+                events,
+            )
+
+        _record("empty", lambda: _empty_result(empty_handler))
+        _record("empty_named", lambda: _empty_result(empty_named_handler))
+        _record("nonempty", _nonempty_result)
+        """
+    ),
     "test/simple_source/311/08_imports_unpacking.py": _probe(
         """
         _record("formatting", lambda: formatting(9))

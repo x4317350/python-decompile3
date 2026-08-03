@@ -605,20 +605,77 @@ Scanner、Normalizer、exception table decoder、legacy grammar 和其他 Python
 
 ## 15. 执行记录
 
-当前状态：仅完成问题诊断和修复计划固化，尚未修改 Parser311。
+当前状态：阶段 0 到阶段 6 的空主体修复已完成。外部目标已越过原来的空主体
+错误，并暴露一个独立的终止位置 `except*` cleanup shape；该独立问题未通过
+放宽本次 matcher 处理。
 
-后续每个阶段完成后在此追加：
+### 阶段 0
 
 ```text
-阶段：
-完成日期：
-修改文件：
-最小 fixture：
-定向测试：
-全量测试：
-静态检查：
-目标 .pyc 验证：
-新发现的独立 shape：
-Git 提交：
-备注：
+完成日期：2026-08-03
+修改文件：pytest/test_exceptiontable311.py；test/fixtures311/except_star_empty_body.py
+最小 fixture：无名称空主体、有名称空主体、非空主体对照
+定向测试：5 passed（冻结基线时）
+结果：空主体无 depth >= 4 区域；非空对照具有 36..78 depth=4 区域
+备注：冻结的旧错误为 no protected region，旧外层报告 offset 为 6
+```
+
+### 阶段 1 到阶段 3
+
+```text
+完成日期：2026-08-03
+修改文件：decompyle3/controlflow/exception_structures.py
+实现：严格匹配无名称/有名称 canonical CPython 3.11 空主体协议
+安全边界：校验全部相对 token、三条前向跳转、共同 continuation、
+          LIST_APPEND 3、LIST_APPEND 1、false-match POP_TOP、
+          PREP_RERAISE_STAR 边界和两条名称清理路径
+接入：仅在不存在 depth >= 4 区域且 matcher 完整命中时生成 ast.Pass
+错误位置：协议失配使用真实 body_start offset；结构化上下文保留 3.11 和 code name
+```
+
+### 阶段 4
+
+```text
+完成日期：2026-08-03
+修改文件：pytest/test_syntax311.py；pytest/test_exceptiontable311.py；
+          pytest/test_reliability311.py
+覆盖：无名称/有名称、空/非空排列、连续空子句、ellipsis、assert True、
+      死分支、else、finally、else+finally、外层 finally、正常 continuation
+差分：完全匹配、部分匹配、未匹配 subgroup、嵌套分组、处理顺序、
+      as-name 清理、返回值和异常结构
+负向：正常路径目标、POP_TOP、LIST_APPEND 深度、异常 continuation、
+      清理名称、越过 PREP_RERAISE_STAR、未知源语义 token
+结果：全部负向用例抛出 Python311ParseError，offset=36，不生成猜测的 Pass
+```
+
+### 阶段 5
+
+```text
+完成日期：2026-08-03
+目标：/Users/ice/Desktop/Custom/WorkCode_github/py3disassembly/py3Tool/
+      map_opcode/fixed_output_repaired.pyc
+SHA-256：b65497e7a855fecd71067f07ba6c53b636f5d9aff105665cc9deb22a790d87b0
+安全：只加载、扫描和反编译；未 import、exec 或调用目标代码
+Scanner：41/41 code objects 通过
+空主体：exception_group_ops offset 96 严格命中，恢复为 TryStar handler Pass
+非空主体：offset 258..260、depth=4、RAISE_VARARGS 0 保持可识别
+目标结果：已越过 except* clause body has no protected region
+新独立 shape：except* cleanup has no normal continuation
+新错误：exception_group_ops，offset 258，RAISE_VARARGS 0
+备注：按计划未扩大空主体 matcher；因此完整目标输出尚不能 ast.parse/compile
+```
+
+### 阶段 6
+
+```text
+完成日期：2026-08-03
+Shape：except_star_empty_body；inventory 41，pass 40，fail-closed 1
+定向测试：63 passed
+全量测试：863 passed，6 skipped
+真实语料：604/604 成功反编译，6/6 行为探针一致
+静态检查：本次改动 Python 文件 flake8 通过；git diff --check 通过；
+          覆盖报告、真实语料归档和 release gate 时效检查通过
+仓库级 flake8：仍报告未改动 legacy 文件的既有风格错误，本次文件无新增错误
+目标 .pyc 验证：越过空主体错误；随后在独立 terminal cleanup shape fail-closed
+Git 提交：本次修复提交
 ```

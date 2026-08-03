@@ -26,7 +26,9 @@ CPython 3.11 support includes:
 - `try`/`except`/`else`/`finally`, `with`, `async with`, and zero-cost
   exception-table control flow.
 - `match`/`case` patterns and guards.
-- The covered CPython 3.11 `except*` and `ExceptionGroup` protocol shapes.
+- The covered CPython 3.11 `except*` and `ExceptionGroup` protocol shapes,
+  including compiler-optimized empty handlers when the full canonical
+  control-flow and cleanup protocol can be proven.
 
 The scanner preserves physical offsets and inline caches, then exposes a
 separate normalized instruction stream. Unsupported input is rejected instead
@@ -51,7 +53,7 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 39`
+- `Shape pass: 40`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
 - 真实语料：604/604 成功反编译，0 项明确 fail-closed；
@@ -138,6 +140,14 @@ physical bytecode offset when an offset is available.
   entries in the current shape matrix.
 - The `match` recovery path targets canonical CPython 3.11 compiler output.
   Artificial or ambiguous case/body boundaries are rejected.
+- Empty `except*` recovery likewise targets only canonical CPython 3.11
+  output. A missing depth-4 handler region is converted to `pass` only when
+  every jump, `LIST_APPEND` depth, continuation, and optional binding cleanup
+  matches the compiler protocol; damaged or unknown variants remain
+  fail-closed.
+- A terminal `except*` cleanup with no forward normal-continuation jump remains
+  a separate fail-closed shape. It is not treated as an empty handler and is
+  outside the empty-body protocol matcher.
 - Source is rendered with `ast.unparse()`. Original whitespace, quote style,
   comments, and other non-semantic formatting are not preserved.
 - Partial decompilation with `start_offset` or `stop_offset` is rejected for

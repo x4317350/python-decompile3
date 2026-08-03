@@ -39,6 +39,36 @@ from support311 import (
 STDLIB = Path(sysconfig.get_path("stdlib"))
 STDLIB_SUBSET = ("abc.py", "colorsys.py", "copy.py", "hmac.py", "keyword.py")
 
+EMPTY_STAR_BEHAVIOR_SOURCE = """
+def empty_split(group, events):
+    try:
+        raise group
+    except* ValueError:
+        pass
+    except* TypeError as errors:
+        events.append(("type", len(errors.exceptions)))
+    except* KeyError as errors:
+        events.append(("key", len(errors.exceptions)))
+    return tuple(events)
+
+
+def empty_named(group, events):
+    try:
+        if group is not None:
+            raise group
+    except* ValueError as error:
+        pass
+    else:
+        events.append("else")
+    finally:
+        events.append("finally")
+    try:
+        error
+    except UnboundLocalError:
+        events.append("cleared")
+    return tuple(events)
+"""
+
 pytestmark = pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
     reason="Phase 8 release tests require CPython 3.11",
@@ -369,6 +399,90 @@ def test_except_star_else_and_finally_preserve_behavior(
     for factory in group_factories:
         assert outcome(recovered, factory()) == outcome(
             original,
+            factory(),
+        )
+
+
+def test_empty_except_star_preserves_group_behavior_and_name_cleanup():
+    recovered_source = recover_code(
+        compile(
+            EMPTY_STAR_BEHAVIOR_SOURCE,
+            "<empty-except-star-behavior>",
+            "exec",
+            dont_inherit=True,
+        )
+    )
+    ast.parse(recovered_source)
+    original = execute(
+        EMPTY_STAR_BEHAVIOR_SOURCE,
+        "empty_except_star_original",
+    )
+    recovered = execute(
+        recovered_source,
+        "empty_except_star_recovered",
+    )
+
+    def error_shape(error):
+        if isinstance(error, BaseExceptionGroup):
+            return (
+                type(error).__name__,
+                error.message,
+                tuple(error_shape(child) for child in error.exceptions),
+            )
+        return type(error).__name__, str(error)
+
+    def outcome(namespace, function_name, group):
+        events = []
+        try:
+            result = namespace[function_name](group, events)
+        except BaseException as error:
+            return "raised", error_shape(error), tuple(events)
+        return "returned", result, tuple(events)
+
+    group_factories = (
+        lambda: ExceptionGroup(
+            "values",
+            [ValueError("one"), ValueError("two")],
+        ),
+        lambda: ExceptionGroup(
+            "handled-mix",
+            [
+                TypeError("type"),
+                ValueError("value"),
+                KeyError("key"),
+            ],
+        ),
+        lambda: ExceptionGroup(
+            "partial",
+            [ValueError("value"), RuntimeError("unmatched")],
+        ),
+        lambda: ExceptionGroup(
+            "nested",
+            [
+                ExceptionGroup(
+                    "inner",
+                    [TypeError("type"), ValueError("value")],
+                ),
+                KeyError("key"),
+            ],
+        ),
+    )
+    for factory in group_factories:
+        assert outcome(recovered, "empty_split", factory()) == outcome(
+            original,
+            "empty_split",
+            factory(),
+        )
+
+    assert outcome(recovered, "empty_named", None) == outcome(
+        original,
+        "empty_named",
+        None,
+    )
+    for factory in group_factories[:3]:
+        assert outcome(recovered, "empty_named", factory()) == outcome(
+            original,
+            "empty_named",
             factory(),
         )
 

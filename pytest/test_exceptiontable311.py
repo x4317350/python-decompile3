@@ -7,6 +7,7 @@ import asyncio
 import dis
 import io
 import sys
+from copy import copy
 
 import pytest
 from xdis.version_info import PythonImplementation
@@ -24,12 +25,20 @@ from decompyle3.controlflow.exceptiontable311 import (
     decode_exception_table_bytes,
     validate_exception_regions,
 )
+from decompyle3.parsers.p311.base import Python311ParseError
 from decompyle3.scanners.scanner311 import Scanner311
 from decompyle3.semantics.pysource import code_deparse
+from decompyle3.controlflow.structures import StructuredDecompiler311
 from support311 import ROOT, compile_source
 
 
 SOURCE = ROOT / "test" / "simple_source" / "311" / "05_exceptions_with.py"
+EMPTY_STAR_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_star_empty_body.py"
+)
 
 pytestmark = pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
@@ -50,6 +59,47 @@ def native_code(name):
         code
         for code in Scanner311.iter_code_objects(native_root())
         if code.co_qualname == name
+    )
+
+
+def empty_star_root():
+    return compile(
+        EMPTY_STAR_SOURCE.read_text(encoding="utf-8"),
+        str(EMPTY_STAR_SOURCE),
+        "exec",
+    )
+
+
+def empty_star_code(name):
+    return next(
+        code
+        for code in Scanner311.iter_code_objects(empty_star_root())
+        if code.co_name == name
+    )
+
+
+def normalized_protocol(name):
+    scanner = Scanner311()
+    scanner.ingest(empty_star_code(name))
+    instructions = scanner.normalized_instructions
+    start = next(
+        index
+        for index, instruction in enumerate(instructions)
+        if instruction.kind == "CHECK_EG_MATCH"
+    )
+    end = next(
+        index
+        for index, instruction in enumerate(instructions)
+        if instruction.kind == "PREP_RERAISE_STAR"
+    )
+    return tuple(
+        (
+            instruction.offset,
+            instruction.kind,
+            instruction.argval,
+            instruction.target,
+        )
+        for instruction in instructions[start : end + 1]
     )
 
 
@@ -154,6 +204,182 @@ def test_exception_table_decoder_matches_dis_exactly():
             for entry in dis.Bytecode(code).exception_entries
         )
         assert decode_exception_table(code) == expected
+
+
+def test_except_star_empty_body_normalized_protocol_is_stable():
+    assert normalized_protocol("empty_handler") == (
+        (28, "CHECK_EG_MATCH", None, None),
+        (30, "COPY_STACK", 1, None),
+        (32, "POP_JUMP_FORWARD_IF_NONE", 46, 46),
+        (34, "POP_TOP", None, None),
+        (36, "JUMP_FORWARD", 44, 44),
+        (38, "LIST_APPEND", 3, None),
+        (40, "POP_TOP", None, None),
+        (42, "JUMP_FORWARD", 48, 48),
+        (44, "JUMP_FORWARD", 48, 48),
+        (46, "POP_TOP", None, None),
+        (48, "LIST_APPEND", 1, None),
+        (50, "PREP_RERAISE_STAR", None, None),
+    )
+    assert normalized_protocol("empty_named_handler") == (
+        (28, "CHECK_EG_MATCH", None, None),
+        (30, "COPY_STACK", 1, None),
+        (32, "POP_JUMP_FORWARD_IF_NONE", 58, 58),
+        (34, "STORE_FAST", "error", None),
+        (36, "LOAD_CONST", None, None),
+        (38, "STORE_FAST", "error", None),
+        (40, "DELETE_FAST", "error", None),
+        (42, "JUMP_FORWARD", 56, 56),
+        (44, "LOAD_CONST", None, None),
+        (46, "STORE_FAST", "error", None),
+        (48, "DELETE_FAST", "error", None),
+        (50, "LIST_APPEND", 3, None),
+        (52, "POP_TOP", None, None),
+        (54, "JUMP_FORWARD", 60, 60),
+        (56, "JUMP_FORWARD", 60, 60),
+        (58, "POP_TOP", None, None),
+        (60, "LIST_APPEND", 1, None),
+        (62, "PREP_RERAISE_STAR", None, None),
+    )
+
+
+def test_except_star_empty_body_has_no_depth_four_region():
+    expected = {
+        "empty_handler": (
+            (4, 8, 8, 0, False),
+            (8, 58, 68, 1, True),
+        ),
+        "empty_named_handler": (
+            (4, 8, 8, 0, False),
+            (8, 70, 80, 1, True),
+        ),
+    }
+    for name, entries in expected.items():
+        actual = tuple(
+            (entry.start, entry.end, entry.target, entry.depth, entry.lasti)
+            for entry in dis.Bytecode(empty_star_code(name)).exception_entries
+        )
+        assert actual == entries
+        assert not any(entry[3] >= 4 for entry in actual)
+
+    nonempty_entries = tuple(
+        dis.Bytecode(empty_star_code("nonempty_handler")).exception_entries
+    )
+    assert any(
+        entry.start == 36 and entry.end == 78 and entry.depth >= 4
+        for entry in nonempty_entries
+    )
+
+
+def test_except_star_empty_body_recovers_only_after_protocol_match():
+    expected_names = {
+        "empty_handler": None,
+        "empty_named_handler": "error",
+    }
+    for name, expected_name in expected_names.items():
+        output = io.StringIO()
+        code_deparse(
+            empty_star_code(name),
+            out=output,
+            version=(3, 11),
+            python_implementation=PythonImplementation.CPython,
+        )
+        recovered = ast.parse(output.getvalue())
+        statement = next(
+            node
+            for node in ast.walk(recovered)
+            if isinstance(node, ast.TryStar)
+        )
+        assert statement.handlers[0].name == expected_name
+        assert len(statement.handlers[0].body) == 1
+        assert isinstance(statement.handlers[0].body[0], ast.Pass)
+
+    output = io.StringIO()
+    code_deparse(
+        empty_star_code("nonempty_handler"),
+        out=output,
+        version=(3, 11),
+        python_implementation=PythonImplementation.CPython,
+    )
+    recovered = ast.parse(output.getvalue())
+    statement = next(
+        node for node in ast.walk(recovered) if isinstance(node, ast.TryStar)
+    )
+    assert statement.handlers[0].body
+
+
+def _corrupted_empty_star_decompiler(name, mutation):
+    code = empty_star_code(name)
+    scanner = Scanner311()
+    tokens, _ = scanner.ingest(code)
+    tokens = [copy(token) for token in tokens]
+    by_offset = {token.offset: token for token in tokens}
+    mutation(by_offset)
+    return StructuredDecompiler311(code, tokens)
+
+
+@pytest.mark.parametrize(
+    "name, mutation",
+    [
+        (
+            "empty_handler",
+            lambda tokens: setattr(tokens[36], "attr", 48),
+        ),
+        (
+            "empty_handler",
+            lambda tokens: setattr(tokens[40], "kind", "NOP"),
+        ),
+        (
+            "empty_handler",
+            lambda tokens: setattr(tokens[38], "attr", 2),
+        ),
+        (
+            "empty_handler",
+            lambda tokens: setattr(tokens[42], "attr", 44),
+        ),
+        (
+            "empty_named_handler",
+            lambda tokens: setattr(tokens[48], "attr", "other"),
+        ),
+        (
+            "empty_handler",
+            lambda tokens: setattr(tokens[42], "attr", 52),
+        ),
+        (
+            "empty_handler",
+            lambda tokens: (
+                setattr(tokens[40], "kind", "LOAD_CONST"),
+                setattr(tokens[40], "attr", None),
+            ),
+        ),
+    ],
+    ids=(
+        "normal-jump-target",
+        "missing-pop-top",
+        "list-append-depth",
+        "exception-continuation",
+        "cleanup-name",
+        "jump-past-prep-reraise-star",
+        "unknown-source-token",
+    ),
+)
+def test_except_star_empty_body_protocol_corruption_fails_closed(
+    name,
+    mutation,
+):
+    decompiler = _corrupted_empty_star_decompiler(name, mutation)
+    with pytest.raises(
+        Python311ParseError,
+        match=(
+            r"except\* clause body has neither a protected region "
+            r"nor a valid empty-body protocol"
+        ),
+    ) as raised:
+        decompiler.decompile_body()
+
+    assert raised.value.offset == 36
+    assert raised.value.code_name == name
+    assert raised.value.version == (3, 11)
 
 
 def test_exception_table_decoder_rejects_truncation_and_invalid_ranges():

@@ -28,11 +28,15 @@ class ExceptionStructureDecompiler311:
         self.offset_to_index = owner.offset_to_index
         self.entries = owner.exception_regions
 
-    def _error(self, message):
-        token = self.owner.current_token
-        offset = token.offset if token is not None else "?"
+    def _error(self, message, offset=None):
+        if offset is None:
+            token = self.owner.current_token
+            offset = token.offset if token is not None else "?"
         raise Python311ParseError(
-            f"{message} ({self.owner.code.co_name!r}, offset {offset})"
+            f"{message} ({self.owner.code.co_name!r}, offset {offset})",
+            version=(3, 11),
+            code_name=self.owner.code.co_name,
+            offset=offset if isinstance(offset, int) else None,
         )
 
     def _handler_has_match(self, handler_index: int) -> bool:
@@ -1653,6 +1657,138 @@ class ExceptionStructureDecompiler311:
                 ]
         return statement, next_index
 
+    def _match_empty_except_star_clause(
+        self,
+        body_start: int,
+        false_index: int,
+        prep_index: int,
+        name: Optional[str],
+    ) -> bool:
+        """Match only CPython 3.11's canonical empty ``except*`` body."""
+        if not (
+            0 < body_start < false_index < prep_index < len(self.tokens)
+            and self.tokens[prep_index].kind == "PREP_RERAISE_STAR"
+            and self.tokens[false_index].kind == "POP_TOP"
+        ):
+            return False
+
+        continuation = false_index + 1
+        if continuation >= prep_index:
+            return False
+        continuation_token = self.tokens[continuation]
+        if continuation_token.kind == "LIST_APPEND":
+            if continuation_token.attr != 1 or continuation + 1 != prep_index:
+                return False
+        elif not any(
+            token.kind == "CHECK_EG_MATCH"
+            for token in self.tokens[continuation:prep_index]
+        ):
+            return False
+
+        def forward_jump_to(index: int, target_index: int) -> bool:
+            if not (0 <= index < target_index < prep_index):
+                return False
+            token = self.tokens[index]
+            if token.kind != "JUMP_FORWARD":
+                return False
+            target = instruction_target(token)
+            return (
+                isinstance(target, int)
+                and target > token.offset
+                and self.offset_to_index.get(target) == target_index
+            )
+
+        binding = self.tokens[body_start - 1]
+        if name is None:
+            normal_join = body_start + 4
+            if false_index != body_start + 5:
+                return False
+            if binding.kind != "POP_TOP":
+                return False
+            if [
+                token.kind
+                for token in self.tokens[body_start : false_index + 1]
+            ] != [
+                "JUMP_FORWARD",
+                "LIST_APPEND",
+                "POP_TOP",
+                "JUMP_FORWARD",
+                "JUMP_FORWARD",
+                "POP_TOP",
+            ]:
+                return False
+            if self.tokens[body_start + 1].attr != 3:
+                return False
+            return (
+                forward_jump_to(body_start, normal_join)
+                and forward_jump_to(body_start + 3, continuation)
+                and forward_jump_to(normal_join, continuation)
+            )
+
+        normal_join = body_start + 10
+        if false_index != body_start + 11:
+            return False
+        expected_kinds = [
+            "LOAD_CONST",
+            None,
+            None,
+            "JUMP_FORWARD",
+            "LOAD_CONST",
+            None,
+            None,
+            "LIST_APPEND",
+            "POP_TOP",
+            "JUMP_FORWARD",
+            "JUMP_FORWARD",
+            "POP_TOP",
+        ]
+        clause_tokens = self.tokens[body_start : false_index + 1]
+        if len(clause_tokens) != len(expected_kinds):
+            return False
+        if any(
+            expected is not None and token.kind != expected
+            for token, expected in zip(clause_tokens, expected_kinds)
+        ):
+            return False
+        if (
+            binding.kind not in (
+                "STORE_FAST",
+                "STORE_DEREF",
+                "STORE_GLOBAL",
+                "STORE_NAME",
+            )
+            or self.tokens[body_start].attr is not None
+            or self.tokens[body_start + 4].attr is not None
+            or self.tokens[body_start + 7].attr != 3
+        ):
+            return False
+
+        def token_name(token) -> Optional[str]:
+            value = token.attr if isinstance(token.attr, str) else token.pattr
+            return value if isinstance(value, str) else None
+
+        delete_kind = "DELETE_" + binding.kind[len("STORE_") :]
+        for store_index, delete_index in (
+            (body_start + 1, body_start + 2),
+            (body_start + 5, body_start + 6),
+        ):
+            store = self.tokens[store_index]
+            delete = self.tokens[delete_index]
+            if (
+                store.kind != binding.kind
+                or delete.kind != delete_kind
+                or token_name(store) != name
+                or token_name(delete) != name
+            ):
+                return False
+        if token_name(binding) != name:
+            return False
+        return (
+            forward_jump_to(body_start + 3, normal_join)
+            and forward_jump_to(body_start + 9, continuation)
+            and forward_jump_to(normal_join, continuation)
+        )
+
     def _try_except_star(self, entry, loop) -> Tuple[ast.TryStar, int]:
         start = self.offset_to_index[entry.start]
         try_end = self.offset_to_index[entry.end]
@@ -1734,14 +1870,26 @@ class ExceptionStructureDecompiler311:
                 ),
                 None,
             )
-            if clause_region is None:
-                self._error("except* clause body has no protected region")
-            body_end = self.offset_to_index[clause_region.end]
-            clause_body = self._capture_optional(
+            if clause_region is not None:
+                body_end = self.offset_to_index[clause_region.end]
+                clause_body = self._capture_optional(
+                    body_start,
+                    body_end,
+                    loop,
+                )
+            elif self._match_empty_except_star_clause(
                 body_start,
-                body_end,
-                loop,
-            )
+                false_index,
+                prep_index,
+                name,
+            ):
+                clause_body = [ast.Pass()]
+            else:
+                self._error(
+                    "except* clause body has neither a protected region "
+                    "nor a valid empty-body protocol",
+                    offset=self.tokens[body_start].offset,
+                )
             handlers.append(
                 ast.ExceptHandler(
                     type=exception_type,

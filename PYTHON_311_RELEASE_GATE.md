@@ -13,7 +13,7 @@
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 39`
+- `Shape pass: 40`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
 

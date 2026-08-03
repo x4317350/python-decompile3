@@ -238,6 +238,20 @@
       "notes": "Covers ExceptionGroup splitting, handling, and reraising. Phase 6 verifies its isolated differential behavior contract."
     },
     {
+      "name": "except_star_empty_body",
+      "category": "exception_group",
+      "status": "pass",
+      "fixture": "test/fixtures311/except_star_empty_body.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_syntax311.py::test_recovered_empty_except_star_uses_pass_and_keeps_binding",
+        "pytest/test_exceptiontable311.py::test_except_star_empty_body_protocol_corruption_fails_closed",
+        "pytest/test_reliability311.py::test_empty_except_star_preserves_group_behavior_and_name_cleanup"
+      ],
+      "notes": "Accepts only the canonical CPython 3.11 empty except-star protocol, including named cleanup; malformed or unknown protocol variants remain fail-closed."
+    },
+    {
       "name": "except_star_with_else",
       "category": "exception_group",
       "status": "pass",
