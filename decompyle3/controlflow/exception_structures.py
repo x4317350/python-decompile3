@@ -1789,6 +1789,83 @@ class ExceptionStructureDecompiler311:
             and forward_jump_to(normal_join, continuation)
         )
 
+    def _match_terminal_except_star_cleanup(
+        self,
+        prep_index: int,
+        handler_index: int,
+    ) -> Optional[int]:
+        """Match CPython 3.11's implicit-return ``except*`` cleanup."""
+        terminal_end = prep_index + 13
+        if terminal_end != len(self.tokens):
+            return None
+        cleanup = self.tokens[prep_index:terminal_end]
+        expected_kinds = (
+            "PREP_RERAISE_STAR",
+            "COPY_STACK",
+            "POP_JUMP_FORWARD_IF_NOT_NONE",
+            "POP_TOP",
+            "POP_EXCEPT",
+            "LOAD_CONST",
+            "RETURN_VALUE",
+            "SWAP_STACK",
+            "POP_EXCEPT",
+            "RERAISE",
+            "COPY_STACK",
+            "POP_EXCEPT",
+            "RERAISE",
+        )
+        for token, expected_kind in zip(cleanup, expected_kinds):
+            if token.kind != expected_kind:
+                return None
+        if (
+            cleanup[1].attr != 1
+            or cleanup[5].attr is not None
+            or cleanup[5].linestart is not None
+            or cleanup[6].linestart is not None
+            or cleanup[7].attr != 2
+            or cleanup[9].attr != 0
+            or cleanup[10].attr != 3
+            or cleanup[12].attr != 1
+        ):
+            return None
+        if instruction_target(cleanup[2]) != cleanup[7].offset:
+            return None
+
+        handler_offset = self.tokens[handler_index].offset
+        protected_end = cleanup[4].offset
+        outer_cleanup = cleanup[10].offset
+        cleanup_regions = []
+        first_protected = None
+        last_protected = None
+        for region in self.entries:
+            if not (
+                region.depth == 1
+                and region.lasti
+                and handler_offset <= region.start < protected_end
+                and region.end <= protected_end
+            ):
+                continue
+            if region.target != outer_cleanup:
+                return None
+            cleanup_regions.append(region)
+            first_protected = (
+                region.start
+                if first_protected is None
+                else min(first_protected, region.start)
+            )
+            last_protected = (
+                region.end
+                if last_protected is None
+                else max(last_protected, region.end)
+            )
+        if (
+            not cleanup_regions
+            or first_protected != handler_offset
+            or last_protected != protected_end
+        ):
+            return None
+        return terminal_end
+
     def _try_except_star(self, entry, loop) -> Tuple[ast.TryStar, int]:
         start = self.offset_to_index[entry.start]
         try_end = self.offset_to_index[entry.end]
@@ -1910,7 +1987,25 @@ class ExceptionStructureDecompiler311:
             None,
         )
         if join_jump is None:
-            self._error("except* cleanup has no normal continuation")
+            terminal_end = self._match_terminal_except_star_cleanup(
+                prep_index,
+                handler_index,
+            )
+            if terminal_end is None:
+                self._error(
+                    "except* cleanup has neither a normal continuation "
+                    "nor a valid terminal protocol",
+                    offset=self.tokens[prep_index].offset,
+                )
+            return (
+                ast.TryStar(
+                    body=body or [ast.Pass()],
+                    handlers=handlers,
+                    orelse=[],
+                    finalbody=[],
+                ),
+                terminal_end,
+            )
         join_offset = instruction_target(self.tokens[join_jump])
         join_index = self.offset_to_index[join_offset]
 

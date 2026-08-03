@@ -38,6 +38,12 @@ from support311 import (
 
 STDLIB = Path(sysconfig.get_path("stdlib"))
 STDLIB_SUBSET = ("abc.py", "colorsys.py", "copy.py", "hmac.py", "keyword.py")
+TERMINAL_STAR_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_star_terminal_cleanup.py"
+)
 
 EMPTY_STAR_BEHAVIOR_SOURCE = """
 def empty_split(group, events):
@@ -483,6 +489,81 @@ def test_empty_except_star_preserves_group_behavior_and_name_cleanup():
         assert outcome(recovered, "empty_named", factory()) == outcome(
             original,
             "empty_named",
+            factory(),
+        )
+
+
+def test_terminal_except_star_cleanup_preserves_behavior():
+    source = TERMINAL_STAR_SOURCE.read_text(encoding="utf-8")
+    recovered_source = recover_code(
+        compile(
+            source,
+            str(TERMINAL_STAR_SOURCE),
+            "exec",
+            dont_inherit=True,
+        )
+    )
+    ast.parse(recovered_source)
+    original = execute(source, "terminal_except_star_original")
+    recovered = execute(
+        recovered_source,
+        "terminal_except_star_recovered",
+    )
+
+    def error_shape(error):
+        if isinstance(error, BaseExceptionGroup):
+            return (
+                type(error).__name__,
+                error.message,
+                tuple(error_shape(child) for child in error.exceptions),
+            )
+        return type(error).__name__, str(error)
+
+    def outcome(namespace, function_name, group, with_events=False):
+        events = []
+        arguments = (group, events) if with_events else (group,)
+        try:
+            result = namespace[function_name](*arguments)
+        except BaseException as error:
+            return "raised", error_shape(error), tuple(events)
+        return "returned", result, tuple(events)
+
+    factories = (
+        lambda: ExceptionGroup("value", [ValueError("bad")]),
+        lambda: ExceptionGroup(
+            "mixed",
+            [ValueError("bad"), TypeError("type")],
+        ),
+    )
+    for function_name, with_events in (
+        ("terminal_empty", False),
+        ("terminal_named", False),
+        ("terminal_nonempty", True),
+        ("terminal_raise", False),
+        ("terminal_multiple", True),
+    ):
+        for factory in factories:
+            assert outcome(
+                recovered,
+                function_name,
+                factory(),
+                with_events,
+            ) == outcome(
+                original,
+                function_name,
+                factory(),
+                with_events,
+            )
+
+    def generator_outcome(namespace, group):
+        try:
+            return "returned", list(namespace["terminal_generator"](group))
+        except BaseException as error:
+            return "raised", error_shape(error)
+
+    for factory in factories:
+        assert generator_outcome(recovered, factory()) == generator_outcome(
+            original,
             factory(),
         )
 

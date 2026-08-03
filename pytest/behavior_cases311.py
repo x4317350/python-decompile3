@@ -273,6 +273,57 @@ FIXTURE_PROBES = {
         _record("nonempty", _nonempty_result)
         """
     ),
+    "test/fixtures311/except_star_terminal_cleanup.py": _probe(
+        """
+        def _terminal_nonempty():
+            events = []
+            result = terminal_nonempty(
+                ExceptionGroup("value", [ValueError("bad")]),
+                events,
+            )
+            return result, events
+
+        def _terminal_multiple():
+            events = []
+            result = terminal_multiple(
+                ExceptionGroup(
+                    "mixed",
+                    [ValueError("bad"), TypeError("type")],
+                ),
+                events,
+            )
+            return result, events
+
+        _record(
+            "terminal_empty",
+            lambda: terminal_empty(
+                ExceptionGroup("value", [ValueError("bad")])
+            ),
+        )
+        _record(
+            "terminal_named",
+            lambda: terminal_named(
+                ExceptionGroup("value", [ValueError("bad")])
+            ),
+        )
+        _record("terminal_nonempty", _terminal_nonempty)
+        _record(
+            "terminal_raise",
+            lambda: terminal_raise(
+                ExceptionGroup("type", [TypeError("bad")])
+            ),
+        )
+        _record("terminal_multiple", _terminal_multiple)
+        _record(
+            "terminal_generator",
+            lambda: list(
+                terminal_generator(
+                    ExceptionGroup("value", [ValueError("bad")])
+                )
+            ),
+        )
+        """
+    ),
     "test/simple_source/311/08_imports_unpacking.py": _probe(
         """
         _record("formatting", lambda: formatting(9))

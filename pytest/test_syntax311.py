@@ -27,6 +27,12 @@ EMPTY_STAR_SOURCE = (
     / "fixtures311"
     / "except_star_empty_body.py"
 )
+TERMINAL_STAR_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_star_terminal_cleanup.py"
+)
 
 EMPTY_STAR_MATRIX_SOURCE = """
 def ellipsis_body(group):
@@ -381,6 +387,61 @@ def test_empty_except_star_clause_matrix_reparses_and_keeps_boundaries():
     nested = statements["empty_inside_normal_try"]
     assert isinstance(nested.handlers[0].body[0], ast.Pass)
     assert nested.finalbody
+
+
+def test_terminal_except_star_cleanup_reparses_and_keeps_handlers(tmp_path):
+    recovered = recover_source(TERMINAL_STAR_SOURCE, tmp_path)
+    tree = ast.parse(recovered)
+    compile(tree, "<recompiled-terminal-except-star>", "exec")
+
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    statements = {
+        name: next(
+            node for node in ast.walk(function) if isinstance(node, ast.TryStar)
+        )
+        for name, function in functions.items()
+    }
+    assert isinstance(statements["terminal_empty"].handlers[0].body[0], ast.Pass)
+    assert statements["terminal_named"].handlers[0].name == "error"
+    assert isinstance(statements["terminal_named"].handlers[0].body[0], ast.Pass)
+    assert not isinstance(
+        statements["terminal_nonempty"].handlers[0].body[0],
+        ast.Pass,
+    )
+    assert isinstance(
+        statements["terminal_raise"].handlers[0].body[0],
+        ast.Raise,
+    )
+    assert len(statements["terminal_multiple"].handlers) == 2
+    assert isinstance(functions["terminal_async"], ast.AsyncFunctionDef)
+    assert any(
+        isinstance(node, ast.Yield)
+        for node in ast.walk(functions["terminal_generator"])
+    )
+    assert all(
+        not isinstance(function.body[-1], ast.Return)
+        for function in functions.values()
+    )
+
+
+def test_module_terminal_except_star_cleanup_reparses():
+    recovered = recover_inline(
+        """
+try:
+    raise ExceptionGroup("value", [ValueError("bad")])
+except* ValueError:
+    pass
+"""
+    )
+    tree = ast.parse(recovered)
+    compile(tree, "<recompiled-module-terminal-except-star>", "exec")
+    assert len(tree.body) == 1
+    assert isinstance(tree.body[0], ast.TryStar)
+    assert isinstance(tree.body[0].handlers[0].body[0], ast.Pass)
 
 
 def match_behavior(namespace):

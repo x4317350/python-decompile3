@@ -606,8 +606,8 @@ Scanner、Normalizer、exception table decoder、legacy grammar 和其他 Python
 ## 15. 执行记录
 
 当前状态：阶段 0 到阶段 6 的空主体修复已完成。外部目标已越过原来的空主体
-错误，并暴露一个独立的终止位置 `except*` cleanup shape；该独立问题未通过
-放宽本次 matcher 处理。
+错误，并暴露一个独立的终止位置 `except*` cleanup shape；该问题随后通过
+独立的严格 terminal cleanup matcher 修复，没有放宽空主体 matcher。
 
 ### 阶段 0
 
@@ -678,4 +678,18 @@ Shape：except_star_empty_body；inventory 41，pass 40，fail-closed 1
 仓库级 flake8：仍报告未改动 legacy 文件的既有风格错误，本次文件无新增错误
 目标 .pyc 验证：越过空主体错误；随后在独立 terminal cleanup shape fail-closed
 Git 提交：本次修复提交
+```
+
+### 后续 terminal cleanup 修复
+
+```text
+完成日期：2026-08-03
+根因：终止位置的 canonical except* cleanup 直接进入隐式
+      LOAD_CONST None；RETURN_VALUE，不生成 JUMP_FORWARD
+实现：严格匹配 13-token implicit-return/reraise 后缀和 depth-1 cleanup 目标；
+      匹配成功后消费到 normalized token 流末尾
+安全边界：任一 opcode、参数、跳转、异常表目标或尾随 token 不符均 fail-closed；
+          terminal except* + else 继续作为独立双出口 shape 拒绝
+外部目标：完整反编译和 syntax verification 通过；exception_group_ops
+          恢复两个 TryStar，handler 分别为 ValueError/pass 和 TypeError/raise
 ```

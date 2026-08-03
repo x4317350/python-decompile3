@@ -252,6 +252,20 @@
       "notes": "Accepts only the canonical CPython 3.11 empty except-star protocol, including named cleanup; malformed or unknown protocol variants remain fail-closed."
     },
     {
+      "name": "except_star_terminal_cleanup",
+      "category": "exception_group",
+      "status": "pass",
+      "fixture": "test/fixtures311/except_star_terminal_cleanup.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_syntax311.py::test_terminal_except_star_cleanup_reparses_and_keeps_handlers",
+        "pytest/test_exceptiontable311.py::test_terminal_except_star_cleanup_corruption_fails_closed",
+        "pytest/test_reliability311.py::test_terminal_except_star_cleanup_preserves_behavior"
+      ],
+      "notes": "Accepts only the exact CPython 3.11 implicit-return cleanup suffix and its depth-1 exception-table target. Terminal except-star with else remains a separate fail-closed two-exit shape."
+    },
+    {
       "name": "except_star_with_else",
       "category": "exception_group",
       "status": "pass",

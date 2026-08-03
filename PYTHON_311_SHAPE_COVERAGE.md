@@ -5,8 +5,8 @@
 
 ## 汇总
 
-- Shape inventory：41
-- pass：40
+- Shape inventory：42
+- pass：41
 - internal_consumed：0
 - unsupported_fail_closed：1
 - not_applicable：0
@@ -35,6 +35,7 @@
 | `async_with` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
 | `except_star_basic` | exception_group | pass | `test/simple_source/311/07_exception_group.py` | `—` | 2 |
 | `except_star_empty_body` | exception_group | pass | `test/fixtures311/except_star_empty_body.py` | `—` | 4 |
+| `except_star_terminal_cleanup` | exception_group | pass | `test/fixtures311/except_star_terminal_cleanup.py` | `—` | 4 |
 | `except_star_with_else` | exception_group | pass | `—` | `—` | 2 |
 | `except_star_with_finally` | exception_group | pass | `—` | `—` | 2 |
 | `match_patterns_and_guards` | match | pass | `test/simple_source/311/06_match.py` | `—` | 2 |

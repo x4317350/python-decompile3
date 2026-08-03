@@ -8,6 +8,7 @@ import dis
 import io
 import sys
 from copy import copy
+from dataclasses import replace
 
 import pytest
 from xdis.version_info import PythonImplementation
@@ -38,6 +39,12 @@ EMPTY_STAR_SOURCE = (
     / "test"
     / "fixtures311"
     / "except_star_empty_body.py"
+)
+TERMINAL_STAR_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_star_terminal_cleanup.py"
 )
 
 pytestmark = pytest.mark.skipif(
@@ -74,6 +81,22 @@ def empty_star_code(name):
     return next(
         code
         for code in Scanner311.iter_code_objects(empty_star_root())
+        if code.co_name == name
+    )
+
+
+def terminal_star_root():
+    return compile(
+        TERMINAL_STAR_SOURCE.read_text(encoding="utf-8"),
+        str(TERMINAL_STAR_SOURCE),
+        "exec",
+    )
+
+
+def terminal_star_code(name):
+    return next(
+        code
+        for code in Scanner311.iter_code_objects(terminal_star_root())
         if code.co_name == name
     )
 
@@ -380,6 +403,156 @@ def test_except_star_empty_body_protocol_corruption_fails_closed(
     assert raised.value.offset == 36
     assert raised.value.code_name == name
     assert raised.value.version == (3, 11)
+
+
+def test_terminal_except_star_cleanup_protocol_is_stable():
+    code = terminal_star_code("terminal_raise")
+    scanner = Scanner311()
+    scanner.ingest(code)
+    instructions = scanner.normalized_instructions
+    prep_index = next(
+        index
+        for index, instruction in enumerate(instructions)
+        if instruction.kind == "PREP_RERAISE_STAR"
+    )
+    cleanup = instructions[prep_index:]
+
+    assert tuple((item.kind, item.argval) for item in cleanup) == (
+        ("PREP_RERAISE_STAR", None),
+        ("COPY_STACK", 1),
+        ("POP_JUMP_FORWARD_IF_NOT_NONE", 62),
+        ("POP_TOP", None),
+        ("POP_EXCEPT", None),
+        ("LOAD_CONST", None),
+        ("RETURN_VALUE", None),
+        ("SWAP_STACK", 2),
+        ("POP_EXCEPT", None),
+        ("RERAISE", 0),
+        ("COPY_STACK", 3),
+        ("POP_EXCEPT", None),
+        ("RERAISE", 1),
+    )
+    entries = tuple(dis.Bytecode(code).exception_entries)
+    assert any(
+        entry.depth == 1
+        and entry.lasti
+        and entry.end == 56
+        and entry.target == 68
+        for entry in entries
+    )
+
+
+def _corrupted_terminal_star_decompiler(mutation):
+    code = terminal_star_code("terminal_raise")
+    scanner = Scanner311()
+    tokens, _ = scanner.ingest(code)
+    owner = StructuredDecompiler311(
+        code,
+        [copy(token) for token in tokens],
+    )
+    prep_index = next(
+        index
+        for index, token in enumerate(owner.tokens)
+        if token.kind == "PREP_RERAISE_STAR"
+    )
+    mutation(owner, prep_index)
+    return owner, owner.tokens[prep_index].offset
+
+
+def _change_terminal_cleanup_region_target(owner, prep_index):
+    handler_offset = next(
+        token.offset for token in owner.tokens if token.kind == "PUSH_EXC_INFO"
+    )
+    wrong_target = owner.tokens[prep_index + 7].offset
+    owner.exception_regions = tuple(
+        replace(region, target=wrong_target)
+        if region.depth == 1
+        and region.lasti
+        and region.start >= handler_offset
+        else region
+        for region in owner.exception_regions
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda owner, prep: setattr(owner.tokens[prep + 1], "attr", 2),
+        lambda owner, prep: setattr(
+            owner.tokens[prep + 2],
+            "attr",
+            owner.tokens[prep + 10].offset,
+        ),
+        lambda owner, prep: setattr(owner.tokens[prep + 3], "kind", "NOP"),
+        lambda owner, prep: setattr(owner.tokens[prep + 5], "attr", 1),
+        lambda owner, prep: setattr(owner.tokens[prep + 6], "kind", "NOP"),
+        lambda owner, prep: setattr(owner.tokens[prep + 7], "attr", 3),
+        lambda owner, prep: setattr(owner.tokens[prep + 9], "attr", 1),
+        lambda owner, prep: setattr(owner.tokens[prep + 10], "attr", 2),
+        lambda owner, prep: setattr(owner.tokens[prep + 12], "attr", 0),
+        lambda owner, prep: owner.tokens.append(copy(owner.tokens[-1])),
+        _change_terminal_cleanup_region_target,
+    ],
+    ids=(
+        "copy-depth",
+        "conditional-target",
+        "missing-pop-top",
+        "non-none-return",
+        "missing-return",
+        "swap-depth",
+        "reraise-zero-argument",
+        "outer-copy-depth",
+        "reraise-one-argument",
+        "trailing-token",
+        "exception-table-target",
+    ),
+)
+def test_terminal_except_star_cleanup_corruption_fails_closed(mutation):
+    decompiler, prep_offset = _corrupted_terminal_star_decompiler(mutation)
+    with pytest.raises(
+        Python311ParseError,
+        match=(
+            r"except\* cleanup has neither a normal continuation "
+            r"nor a valid terminal protocol"
+        ),
+    ) as raised:
+        decompiler.decompile_body()
+
+    assert raised.value.offset == prep_offset
+    assert raised.value.code_name == "terminal_raise"
+    assert raised.value.version == (3, 11)
+
+
+def test_terminal_except_star_else_remains_a_separate_fail_closed_shape():
+    source = """
+def terminal_else(group, events):
+    try:
+        if group is not None:
+            raise group
+    except* ValueError:
+        pass
+    else:
+        events.append("else")
+"""
+    code = next(
+        nested
+        for nested in Scanner311.iter_code_objects(
+            compile(source, "<terminal-except-star-else>", "exec")
+        )
+        if nested.co_name == "terminal_else"
+    )
+    output = io.StringIO()
+    with pytest.raises(
+        Python311ParseError,
+        match=r"except\* cleanup has neither a normal continuation",
+    ) as raised:
+        code_deparse(
+            code,
+            out=output,
+            version=(3, 11),
+            python_implementation=PythonImplementation.CPython,
+        )
+    assert raised.value.offset == 56
 
 
 def test_exception_table_decoder_rejects_truncation_and_invalid_ranges():

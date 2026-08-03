@@ -53,7 +53,7 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 40`
+- `Shape pass: 41`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
 - 真实语料：604/604 成功反编译，0 项明确 fail-closed；
@@ -145,9 +145,11 @@ physical bytecode offset when an offset is available.
   every jump, `LIST_APPEND` depth, continuation, and optional binding cleanup
   matches the compiler protocol; damaged or unknown variants remain
   fail-closed.
-- A terminal `except*` cleanup with no forward normal-continuation jump remains
-  a separate fail-closed shape. It is not treated as an empty handler and is
-  outside the empty-body protocol matcher.
+- Canonical terminal `except*` cleanup is accepted only when its implicit
+  return, reraising suffix, stack-operation arguments, jump target, and
+  depth-1 exception-table target all match CPython 3.11 output. Terminal
+  `except*` combined with `else` has two distinct terminal exits and remains a
+  separate fail-closed shape.
 - Source is rendered with `ast.unparse()`. Original whitespace, quote style,
   comments, and other non-semantic formatting are not preserved.
 - Partial decompilation with `start_offset` or `stop_offset` is rejected for
