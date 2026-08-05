@@ -84,6 +84,19 @@ class _ConditionPlan:
 
 
 @dataclass(frozen=True)
+class _TerminalIfPlan:
+    test: ast.expr
+    body_start: int
+    body_end: int
+    orelse_start: int
+    orelse_end: int
+    body_exit_kinds: FrozenSet[str]
+    orelse_exit_kinds: FrozenSet[str]
+    body_is_implicit_return_only: bool
+    orelse_is_implicit_return_only: bool
+
+
+@dataclass(frozen=True)
 class _LoopContext:
     break_target: int
     continue_targets: frozenset
@@ -1230,6 +1243,278 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 return index
         return None
 
+    def _region_end_offset(self, end: int) -> int:
+        if end < len(self.tokens):
+            return self.tokens[end].offset
+        if not self.tokens:
+            return 0
+        return self.tokens[-1].offset + 2
+
+    def _normal_edges_from(self, block_index: int):
+        return tuple(
+            edge
+            for edge in self.cfg.outgoing(block_index)
+            if edge.kind != "exception"
+        )
+
+    def _terminal_interval_exit_kinds(
+        self,
+        start: int,
+        end: int,
+        condition_blocks: FrozenSet[int],
+    ) -> Optional[FrozenSet[str]]:
+        """Prove that one physical branch interval terminates locally."""
+        if not 0 <= start < end <= len(self.tokens):
+            return None
+        lower = self.tokens[start].offset
+        upper = self._region_end_offset(end)
+        start_block = self.cfg.offset_to_block.get(lower)
+        if start_block is None:
+            return None
+
+        interval_blocks = {
+            block.index
+            for block in self.cfg.blocks
+            if lower <= block.start < upper
+        }
+        if start_block not in interval_blocks:
+            return None
+        if any(
+            edge.kind == "exception"
+            and (
+                edge.source in interval_blocks
+                or edge.target in interval_blocks
+            )
+            for edge in self.cfg.edges
+        ):
+            return None
+
+        pending = [start_block]
+        visited = set()
+        work_limit = max(32, len(interval_blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            if block_index not in interval_blocks:
+                return None
+            visited.add(block_index)
+            for edge in self._normal_edges_from(block_index):
+                if edge.target not in interval_blocks:
+                    return None
+                pending.append(edge.target)
+
+        if visited != interval_blocks:
+            return None
+        for block_index in visited:
+            outside_predecessors = {
+                edge.source
+                for edge in self.cfg.incoming(block_index)
+                if edge.kind != "exception" and edge.source not in visited
+            }
+            if block_index == start_block:
+                if not outside_predecessors:
+                    return None
+                if not outside_predecessors <= condition_blocks:
+                    return None
+            elif outside_predecessors:
+                return None
+
+        exits = {
+            self.cfg.block(block_index).terminator
+            for block_index in visited
+            if not self._normal_edges_from(block_index)
+        }
+        if any(
+            self.cfg.block(block_index).terminator == "RETURN_VALUE"
+            and self._normal_edges_from(block_index)
+            for block_index in visited
+        ):
+            return None
+        if not exits or exits != {"RETURN_VALUE"}:
+            return None
+        return frozenset(exits)
+
+    def _is_implicit_none_return_only(self, start: int, end: int) -> bool:
+        semantic = [
+            token
+            for token in self.tokens[start:end]
+            if token.kind not in _IGNORED_INTERNAL
+        ]
+        return (
+            len(semantic) == 2
+            and semantic[0].kind == "LOAD_CONST"
+            and semantic[0].attr is None
+            and semantic[1].kind == "RETURN_VALUE"
+        )
+
+    def _terminal_if_plan(
+        self,
+        plan: _ConditionPlan,
+        loop: Optional[_LoopContext],
+        region_end: int,
+    ) -> Optional[_TerminalIfPlan]:
+        """Match a CPython 3.11 conditional whose arms return independently."""
+        if (
+            loop is not None
+            or self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+        ):
+            return None
+
+        true_index = self.offset_to_index.get(plan.true_endpoint)
+        false_index = self.offset_to_index.get(plan.false_endpoint)
+        if (
+            true_index is None
+            or false_index is None
+            or true_index == false_index
+        ):
+            return None
+        first = min(true_index, false_index)
+        second = max(true_index, false_index)
+        if not first < second < region_end <= len(self.tokens):
+            return None
+
+        condition_blocks = frozenset(
+            self.cfg.offset_to_block[self.tokens[node.jump_index].offset]
+            for node in plan.nodes.values()
+            if self.tokens[node.jump_index].offset in self.cfg.offset_to_block
+        )
+        if len(condition_blocks) != len(
+            {
+                self.cfg.offset_to_block.get(
+                    self.tokens[node.jump_index].offset
+                )
+                for node in plan.nodes.values()
+            }
+        ) or not condition_blocks:
+            return None
+
+        first_exits = self._terminal_interval_exit_kinds(
+            first,
+            second,
+            condition_blocks,
+        )
+        second_exits = self._terminal_interval_exit_kinds(
+            second,
+            region_end,
+            condition_blocks,
+        )
+        if first_exits is None or second_exits is None:
+            return None
+
+        if true_index < false_index:
+            test = plan.expression
+        else:
+            test = _negate(plan.expression)
+        return _TerminalIfPlan(
+            test=test,
+            body_start=first,
+            body_end=second,
+            orelse_start=second,
+            orelse_end=region_end,
+            body_exit_kinds=first_exits,
+            orelse_exit_kinds=second_exits,
+            body_is_implicit_return_only=self._is_implicit_none_return_only(
+                first,
+                second,
+            ),
+            orelse_is_implicit_return_only=self._is_implicit_none_return_only(
+                second,
+                region_end,
+            ),
+        )
+
+    @staticmethod
+    def _ends_in_control_transfer(body: List[ast.stmt]) -> bool:
+        return bool(body) and isinstance(
+            body[-1],
+            (ast.Break, ast.Continue, ast.Raise, ast.Return),
+        )
+
+    def _preserve_terminal_none_return(
+        self,
+        body: List[ast.stmt],
+        start: int,
+        end: int,
+    ) -> List[ast.stmt]:
+        if (
+            self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+        ):
+            return body
+        semantic = [
+            token
+            for token in self.tokens[start:end]
+            if token.kind not in _IGNORED_INTERNAL
+        ]
+        if (
+            len(semantic) >= 2
+            and semantic[-2].kind == "LOAD_CONST"
+            and semantic[-2].attr is None
+            and semantic[-1].kind == "RETURN_VALUE"
+            and not self._ends_in_control_transfer(body)
+        ):
+            body.append(ast.Return(value=None))
+        return body
+
+    def _emit_terminal_if(
+        self,
+        plan: _TerminalIfPlan,
+        loop: Optional[_LoopContext],
+    ) -> int:
+        if plan.body_is_implicit_return_only:
+            self.body.append(
+                ast.If(
+                    test=plan.test,
+                    body=[ast.Return(value=None)],
+                    orelse=[],
+                )
+            )
+            return plan.orelse_start
+
+        body = self._capture_region(
+            plan.body_start,
+            plan.body_end,
+            loop,
+        )
+        if len(body) == 1 and isinstance(body[0], ast.Return):
+            self.body.append(
+                ast.If(
+                    test=plan.test,
+                    body=body,
+                    orelse=[],
+                )
+            )
+            return plan.orelse_start
+        if plan.orelse_is_implicit_return_only:
+            self.body.append(
+                ast.If(
+                    test=plan.test,
+                    body=body or [ast.Pass()],
+                    orelse=[],
+                )
+            )
+            return plan.orelse_end
+
+        orelse = self._capture_region(
+            plan.orelse_start,
+            plan.orelse_end,
+            loop,
+        )
+        self.body.append(
+            ast.If(
+                test=plan.test,
+                body=body or [ast.Pass()],
+                orelse=orelse or [ast.Pass()],
+            )
+        )
+        return plan.orelse_end
+
     def _try_if_expression(
         self,
         plan: _ConditionPlan,
@@ -1401,11 +1686,20 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self,
         plan: _ConditionPlan,
         loop: Optional[_LoopContext],
+        region_end: int,
     ) -> int:
         true_index = self.offset_to_index[plan.true_endpoint]
         false_index = self.offset_to_index[plan.false_endpoint]
         if true_index > false_index:
+            terminal = self._terminal_if_plan(plan, loop, region_end)
+            if terminal is not None:
+                return self._emit_terminal_if(terminal, loop)
             body = self._capture_region(false_index, true_index, loop)
+            body = self._preserve_terminal_none_return(
+                body,
+                false_index,
+                true_index,
+            )
             self.body.append(
                 ast.If(
                     test=_negate(plan.expression),
@@ -1422,7 +1716,15 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             excluded_target=excluded,
         )
         if jump_index is None:
+            terminal = self._terminal_if_plan(plan, loop, region_end)
+            if terminal is not None:
+                return self._emit_terminal_if(terminal, loop)
             body = self._capture_region(true_index, false_index, loop)
+            body = self._preserve_terminal_none_return(
+                body,
+                true_index,
+                false_index,
+            )
             self.body.append(
                 ast.If(test=plan.expression, body=body or [ast.Pass()], orelse=[])
             )
@@ -2539,7 +2841,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 if expression_end is not None:
                     index = expression_end
                     continue
-                index = self._if_statement(condition, loop)
+                index = self._if_statement(condition, loop, end)
                 continue
 
             if token.kind in UNCONDITIONAL_JUMPS:

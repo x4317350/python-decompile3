@@ -98,6 +98,34 @@
       "notes": "Behavior coverage includes classify, nested conditions, and choose. Phase 6 verifies its isolated differential behavior contract."
     },
     {
+      "name": "terminal_if_else",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/fixtures311/terminal_if_else.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_terminal_if_else_and_elif_keep_mutually_exclusive_ast_regions",
+        "pytest/test_controlflow311.py::test_terminal_if_else_and_elif_preserve_branch_behavior",
+        "pytest/test_controlflow311.py::test_terminal_if_plan_rejects_unsafe_cfg_ownership",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
+      ],
+      "notes": "CPython 3.11 terminal branches may return independently without a JUMP_FORWARD join. Recovery requires disjoint CFG ownership and RETURN_VALUE exits; unsafe ownership is rejected."
+    },
+    {
+      "name": "terminal_if_elif_else",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/fixtures311/terminal_if_else.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_terminal_if_else_and_elif_keep_mutually_exclusive_ast_regions",
+        "pytest/test_controlflow311.py::test_terminal_if_else_and_elif_preserve_branch_behavior",
+        "pytest/test_controlflow311.py::test_terminal_condition_is_evaluated_once_and_plain_if_stays_plain",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
+      ],
+      "notes": "A terminal False region beginning with another proven terminal conditional is emitted as nested ast.If and rendered as elif; plain terminal if and explicit early return remain distinct."
+    },
+    {
       "name": "for_break_continue_else",
       "category": "control_flow",
       "status": "pass",

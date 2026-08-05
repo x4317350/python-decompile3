@@ -843,6 +843,55 @@ FIXTURE_PROBES = {
         '_record("assert_success", lambda: require_value("present"))\n'
         '_record("assert_failure", lambda: require_value(""))\n'
     ),
+    "test/fixtures311/terminal_if_else.py": _probe(
+        """
+        def _if_else_results():
+            results = []
+            for flag in (False, True):
+                events = []
+                terminal_if_else(flag, events)
+                results.append((flag, events))
+            return results
+
+        def _if_elif_results():
+            results = []
+            for value in (1, 2, 3):
+                events = []
+                terminal_if_elif(value, events)
+                results.append((value, events))
+            return results
+
+        def _nested_results():
+            results = []
+            for value in (-2, 2, 3):
+                events = []
+                terminal_nested(value, events)
+                results.append((value, events))
+            return results
+
+        def _plain_and_early_results():
+            results = []
+            for flag in (False, True):
+                plain_events = []
+                early_events = []
+                plain_terminal_if(flag, plain_events)
+                early_return(flag, early_events)
+                results.append(
+                    (
+                        flag,
+                        plain_events,
+                        early_events,
+                        terminal_explicit_returns(flag),
+                    )
+                )
+            return results
+
+        _record("terminal_if_else", _if_else_results)
+        _record("terminal_if_elif", _if_elif_results)
+        _record("terminal_nested", _nested_results)
+        _record("terminal_plain_early", _plain_and_early_results)
+        """
+    ),
 }
 
 

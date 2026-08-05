@@ -19,7 +19,8 @@ CPython 3.11 support includes:
 
 - Modules, functions, lambdas, classes, decorators, annotations, closures,
   imports, calls, unpacking, f-strings, and expressions.
-- `if`/`elif`/`else`, Boolean short-circuiting, `for`, `while`,
+- `if`/`elif`/`else`, including CFG-proven terminal branches without a
+  `JUMP_FORWARD` join; Boolean short-circuiting, `for`, `while`,
   `break`/`continue`, and loop `else`.
 - List, set, and dict comprehensions; generator expressions; generators;
   `yield from`; coroutines; `await`; async comprehensions; and `async for`.
@@ -53,7 +54,7 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 41`
+- `Shape pass: 43`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
 - 真实语料：604/604 成功反编译，0 项明确 fail-closed；

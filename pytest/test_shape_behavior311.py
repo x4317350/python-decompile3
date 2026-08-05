@@ -103,7 +103,7 @@ def test_each_shape_has_differential_behavior_contract(
         item for item in SHAPE_ITEMS if item["name"] == shape_name
     )
 
-    assert len(SHAPE_ITEMS) == 42
+    assert len(SHAPE_ITEMS) == 44
     assert item["status"] in ("pass", "unsupported_fail_closed")
 
     if (
