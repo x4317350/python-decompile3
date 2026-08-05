@@ -21,7 +21,11 @@ from decompyle3.controlflow import (
     build_exception_region_map,
     decode_exception_table,
 )
-from decompyle3.controlflow.exception_structures import ExceptionState311
+from decompyle3.controlflow.exception_structures import (
+    ExceptionState311,
+    ExceptionStructureDecompiler311,
+)
+from decompyle3.controlflow.cfg import instruction_target
 from decompyle3.controlflow.exceptiontable311 import (
     decode_exception_table_bytes,
     validate_exception_regions,
@@ -45,6 +49,12 @@ TERMINAL_STAR_SOURCE = (
     / "test"
     / "fixtures311"
     / "except_star_terminal_cleanup.py"
+)
+HANDLER_RETURN_SOURCE = (
+    ROOT
+    / "test"
+    / "fixtures311"
+    / "except_handler_return.py"
 )
 
 pytestmark = pytest.mark.skipif(
@@ -98,6 +108,89 @@ def terminal_star_code(name):
         code
         for code in Scanner311.iter_code_objects(terminal_star_root())
         if code.co_name == name
+    )
+
+
+def handler_return_root():
+    return compile(
+        HANDLER_RETURN_SOURCE.read_text(encoding="utf-8"),
+        str(HANDLER_RETURN_SOURCE),
+        "exec",
+    )
+
+
+def handler_return_code(name):
+    return next(
+        code
+        for code in Scanner311.iter_code_objects(handler_return_root())
+        if code.co_name == name
+    )
+
+
+def recover_handler_return_source():
+    output = io.StringIO()
+    code_deparse(
+        handler_return_root(),
+        out=output,
+        version=(3, 11),
+        python_implementation=PythonImplementation.CPython,
+    )
+    return output.getvalue()
+
+
+def handler_return_candidate(name):
+    code = handler_return_code(name)
+    scanner = Scanner311()
+    tokens, _ = scanner.ingest(code)
+    owner = StructuredDecompiler311(
+        code,
+        [copy(token) for token in tokens],
+    )
+    structure = ExceptionStructureDecompiler311(owner)
+    handler_index = next(
+        index
+        for index, token in enumerate(owner.tokens)
+        if token.kind == "PUSH_EXC_INFO"
+        and structure._handler_has_match(index)
+    )
+    check_index = next(
+        index
+        for index in range(handler_index + 1, len(owner.tokens))
+        if owner.tokens[index].kind == "CHECK_EXC_MATCH"
+    )
+    jump_index = owner._next_semantic_index(
+        check_index + 1,
+        len(owner.tokens),
+    )
+    false_index = owner.offset_to_index[
+        instruction_target(owner.tokens[jump_index])
+    ]
+    binding_index = owner._next_semantic_index(
+        jump_index + 1,
+        len(owner.tokens),
+    )
+    binding = owner.tokens[binding_index]
+    name_binding = (
+        binding.attr
+        if isinstance(binding.attr, str)
+        else binding.pattr
+    ) if binding.kind.startswith("STORE_") else None
+    body_start = binding_index + 1
+    body_end = structure._clause_structural_end(
+        body_start,
+        false_index,
+        name_binding,
+    )
+    normal_jump = owner.tokens[handler_index - 1]
+    assert normal_jump.kind == "JUMP_FORWARD"
+    continuation = instruction_target(normal_jump)
+    return (
+        owner,
+        structure,
+        body_start,
+        body_end,
+        name_binding,
+        continuation,
     )
 
 
@@ -862,3 +955,402 @@ def test_recovered_async_with_and_async_for_preserve_behavior(tmp_path):
     assert asyncio.run(async_behavior(recovered)) == asyncio.run(
         async_behavior(original)
     )
+
+
+def _first_handler(tree, name):
+    function = function_node(tree, name)
+    return next(
+        handler
+        for node in ast.walk(function)
+        if isinstance(node, ast.Try)
+        for handler in node.handlers
+        if isinstance(handler.type, ast.Name)
+        and handler.type.id == "StopIteration"
+    )
+
+
+def test_except_handler_return_protocol_and_cfg_are_unambiguous():
+    bare_code = handler_return_code("bare_return")
+    scanner = Scanner311()
+    bare_tokens, _ = scanner.ingest(bare_code)
+    bare_entries = tuple(dis.Bytecode(bare_code).exception_entries)
+    assert tuple(scanner.exception_entries) == bare_entries
+
+    return_index = next(
+        index
+        for index in range(2, len(bare_tokens))
+        if bare_tokens[index - 2].kind == "POP_EXCEPT"
+        and bare_tokens[index - 1].kind == "LOAD_CONST"
+        and bare_tokens[index - 1].attr is None
+        and bare_tokens[index].kind == "RETURN_VALUE"
+    )
+    graph = build_cfg(
+        scanner.normalized_instructions,
+        decode_exception_table(bare_code),
+    )
+    return_block = graph.offset_to_block[
+        bare_tokens[return_index].offset
+    ]
+    assert graph.outgoing(return_block) == ()
+    assert any(
+        token.kind == "JUMP_FORWARD"
+        and token.attr > bare_tokens[return_index].offset
+        for token in bare_tokens[:return_index]
+    )
+
+    pass_scanner = Scanner311()
+    pass_tokens, _ = pass_scanner.ingest(
+        handler_return_code("empty_pass")
+    )
+    assert any(
+        pass_tokens[index].kind == "POP_EXCEPT"
+        and pass_tokens[index + 1].kind == "JUMP_FORWARD"
+        for index in range(len(pass_tokens) - 1)
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "bare_return",
+        "explicit_none_return",
+        "named_return",
+        "nested_return",
+        "return_with_else",
+        "return_inside_terminal_if",
+        "return_in_loop",
+        "return_after_nested_handler",
+    ],
+)
+def test_except_handler_return_plan_requires_complete_owned_path(name):
+    owner, structure, start, end, binding, continuation = (
+        handler_return_candidate(name)
+    )
+    plan = structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+    )
+    assert plan is not None
+    assert plan.kind == "return_none"
+    assert plan.body_start == start
+    assert plan.return_index < owner.offset_to_index[continuation]
+    return_block = owner.cfg.offset_to_block[
+        owner.tokens[plan.return_index].offset
+    ]
+    assert owner.cfg.outgoing(return_block) == ()
+
+
+def test_except_handler_return_plan_accepts_owned_loop_and_with_cleanup():
+    owner, structure, start, end, binding, continuation = (
+        handler_return_candidate("return_in_for_loop")
+    )
+    loop_plan = structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+        loop=object(),
+    )
+    assert loop_plan is not None
+    assert any(
+        token.kind == "POP_TOP"
+        for token in owner.tokens[
+            loop_plan.cleanup_start : loop_plan.return_load_index
+        ]
+    )
+
+    owner, structure, start, end, binding, continuation = (
+        handler_return_candidate("return_inside_with")
+    )
+    assert structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+    ) is None
+    semantic = [
+        index
+        for index in range(start, end)
+        if owner.tokens[index].kind != "INTERNAL_EXTENDED_ARG"
+    ]
+    cleanup_position = max(
+        position
+        for position, index in enumerate(semantic[:-2])
+        if owner.tokens[index].kind == "POP_EXCEPT"
+    )
+    supplemental = semantic[cleanup_position + 4 : -2]
+    owner._suppressed_exception_protocol_offsets.update(
+        owner.tokens[index].offset for index in supplemental
+    )
+    with_plan = structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+    )
+    assert with_plan is not None
+    assert supplemental
+
+
+@pytest.mark.parametrize(
+    "corruption, expect_refusal",
+    [
+        ("missing_pop_except", True),
+        ("non_none_value", False),
+        ("missing_return", False),
+        ("normal_successor", True),
+        ("foreign_predecessor", True),
+        ("return_exception_edge", True),
+        ("missing_continuation", False),
+        ("unknown_continuation", True),
+        ("backward_continuation", True),
+        ("named_store_mismatch", True),
+        ("named_delete_mismatch", True),
+        ("work_limit", True),
+    ],
+)
+def test_except_handler_return_plan_fails_closed(
+    corruption,
+    expect_refusal,
+):
+    function_name = (
+        "named_return"
+        if corruption.startswith("named_") or corruption == "work_limit"
+        else "bare_return"
+    )
+    owner, structure, start, end, binding, continuation = (
+        handler_return_candidate(function_name)
+    )
+    original = structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+    )
+    assert original is not None
+
+    candidate_continuation = continuation
+    if corruption == "missing_pop_except":
+        owner.tokens[original.cleanup_start].kind = "NOP"
+    elif corruption == "non_none_value":
+        owner.tokens[original.return_load_index].attr = "not-none"
+    elif corruption == "missing_return":
+        owner.tokens[original.return_index].kind = "NOP"
+    elif corruption == "normal_successor":
+        return_block = owner.cfg.offset_to_block[
+            owner.tokens[original.return_index].offset
+        ]
+        continuation_block = owner.cfg.offset_to_block[continuation]
+        owner.cfg.edges += (
+            Edge(return_block, continuation_block, "jump"),
+        )
+    elif corruption == "foreign_predecessor":
+        return_block = owner.cfg.offset_to_block[
+            owner.tokens[original.return_index].offset
+        ]
+        owner.cfg.edges += (
+            Edge(owner.cfg.entry, return_block, "jump"),
+        )
+    elif corruption == "return_exception_edge":
+        return_block = owner.cfg.offset_to_block[
+            owner.tokens[original.return_index].offset
+        ]
+        continuation_block = owner.cfg.offset_to_block[continuation]
+        owner.cfg.edges += (
+            Edge(return_block, continuation_block, "exception"),
+        )
+    elif corruption == "missing_continuation":
+        candidate_continuation = None
+    elif corruption == "unknown_continuation":
+        candidate_continuation = max(owner.offset_to_index) + 2
+    elif corruption == "backward_continuation":
+        candidate_continuation = owner.tokens[start].offset
+    elif corruption == "named_store_mismatch":
+        store = next(
+            token
+            for token in owner.tokens[
+                original.cleanup_start : original.return_load_index
+            ]
+            if token.kind.startswith("STORE_")
+        )
+        store.attr = "other"
+    elif corruption == "named_delete_mismatch":
+        delete = next(
+            token
+            for token in owner.tokens[
+                original.cleanup_start : original.return_load_index
+            ]
+            if token.kind.startswith("DELETE_")
+        )
+        delete.attr = "other"
+    elif corruption == "work_limit":
+        start_block = owner.cfg.offset_to_block[owner.tokens[start].offset]
+        return_block = owner.cfg.offset_to_block[
+            owner.tokens[original.return_index].offset
+        ]
+        owner.cfg.edges += tuple(
+            Edge(start_block, return_block, "jump") for _ in range(256)
+        )
+    else:  # pragma: no cover - protects the corruption table itself
+        raise AssertionError(corruption)
+
+    assert structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        candidate_continuation,
+    ) is None
+    if expect_refusal:
+        with pytest.raises(
+            Python311ParseError,
+            match="Cannot prove except handler None-return ownership",
+        ):
+            structure._clause_body(
+                start,
+                end,
+                binding,
+                None,
+                candidate_continuation,
+            )
+
+
+def test_non_none_and_terminal_pass_handlers_do_not_enter_return_plan():
+    owner, structure, start, end, binding, continuation = (
+        handler_return_candidate("return_value")
+    )
+    assert structure._handler_none_return_plan(
+        start,
+        end,
+        binding,
+        continuation,
+    ) is None
+
+    recovered = ast.parse(recover_handler_return_source())
+    terminal_handler = _first_handler(recovered, "terminal_pass")
+    assert len(terminal_handler.body) == 1
+    assert isinstance(terminal_handler.body[0], ast.Pass)
+
+
+def test_except_handler_none_returns_stay_inside_handlers():
+    recovered = recover_handler_return_source()
+    tree = ast.parse(recovered)
+    compile(tree, "<except-handler-return-recovered>", "exec")
+
+    for name in (
+        "bare_return",
+        "explicit_none_return",
+        "named_return",
+        "nested_return",
+        "return_with_else",
+        "return_inside_terminal_if",
+        "return_in_loop",
+        "return_in_for_loop",
+        "return_inside_with",
+        "return_after_nested_handler",
+    ):
+        handler = _first_handler(tree, name)
+        assert isinstance(handler.body[-1], ast.Return)
+        assert not any(isinstance(node, ast.Pass) for node in handler.body)
+
+    pass_handler = _first_handler(tree, "empty_pass")
+    assert len(pass_handler.body) == 1
+    assert isinstance(pass_handler.body[0], ast.Pass)
+
+    terminal_pass = _first_handler(tree, "terminal_pass")
+    assert len(terminal_pass.body) == 1
+    assert isinstance(terminal_pass.body[0], ast.Pass)
+
+    value_handler = _first_handler(tree, "return_value")
+    assert isinstance(value_handler.body[-1], ast.Return)
+    assert isinstance(value_handler.body[-1].value, ast.Constant)
+    assert value_handler.body[-1].value.value == "stopped"
+
+
+def _call_with_events(namespace, name, values, *args):
+    events = []
+    result = namespace[name](*args, iter(values), events)
+    return result, events
+
+
+def test_except_handler_returns_preserve_continuation_behavior():
+    original = execute(
+        HANDLER_RETURN_SOURCE.read_text(encoding="utf-8"),
+        "handler_return_original",
+    )
+    recovered = execute(
+        recover_handler_return_source(),
+        "handler_return_recovered",
+    )
+
+    for name in (
+        "bare_return",
+        "explicit_none_return",
+        "named_return",
+        "real_pass",
+        "empty_pass",
+        "return_value",
+        "nested_return",
+        "return_with_else",
+        "return_in_loop",
+        "return_in_for_loop",
+        "return_inside_with",
+        "return_after_nested_handler",
+    ):
+        for values in ((), (7,)):
+            expected = _call_with_events(original, name, values)
+            actual = _call_with_events(recovered, name, values)
+            assert actual == expected
+
+    class CountingStopIterator:
+        def __init__(self):
+            self.calls = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            self.calls += 1
+            raise StopIteration
+
+    class WrongExceptionIterator:
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            raise RuntimeError("not StopIteration")
+
+    for namespace in (original, recovered):
+        iterator = CountingStopIterator()
+        events = []
+        assert namespace["bare_return"](iterator, events) is None
+        assert iterator.calls == 1
+        assert events == []
+
+        with pytest.raises(RuntimeError, match="not StopIteration"):
+            namespace["bare_return"](WrongExceptionIterator(), events)
+        assert events == []
+
+    for mode in ("stop", "value", "key", "other"):
+        expected_events = []
+        actual_events = []
+        expected = original["multiple_handlers"](mode, expected_events)
+        actual = recovered["multiple_handlers"](mode, actual_events)
+        assert (actual, actual_events) == (expected, expected_events)
+
+    for enabled in (False, True):
+        for values in ((), (9,)):
+            expected = _call_with_events(
+                original,
+                "return_inside_terminal_if",
+                values,
+                enabled,
+            )
+            actual = _call_with_events(
+                recovered,
+                "return_inside_terminal_if",
+                values,
+                enabled,
+            )
+            assert actual == expected

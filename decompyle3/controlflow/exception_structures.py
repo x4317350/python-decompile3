@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import FrozenSet, List, Optional, Tuple
 
 from decompyle3.controlflow.cfg import instruction_target
 from decompyle3.parsers.p311.base import Python311ParseError
@@ -17,6 +17,20 @@ class ExceptionState311:
     handler_offset: int
     depth: int
     lasti: bool
+
+
+@dataclass(frozen=True)
+class _HandlerTerminalTransfer:
+    """One CFG-proven control transfer owned by an except clause."""
+
+    kind: str
+    body_start: int
+    body_end: int
+    cleanup_start: int
+    return_load_index: int
+    return_index: int
+    continuation_offset: int
+    protocol_offsets: FrozenSet[int]
 
 
 class ExceptionStructureDecompiler311:
@@ -672,6 +686,274 @@ class ExceptionStructureDecompiler311:
                 added_handlers
             )
 
+    def _handler_none_return_plan(
+        self,
+        start: int,
+        end: int,
+        name: Optional[str],
+        continuation_offset: Optional[int],
+        loop=None,
+    ) -> Optional[_HandlerTerminalTransfer]:
+        """Prove that one ordinary handler returns before a normal join."""
+        if (
+            continuation_offset is None
+            or start >= end
+            or continuation_offset not in self.offset_to_index
+        ):
+            return None
+
+        semantic = [
+            index
+            for index in range(start, end)
+            if self.tokens[index].kind != "INTERNAL_EXTENDED_ARG"
+        ]
+        if len(semantic) < 3:
+            return None
+        return_load_index, return_index = semantic[-2:]
+        if (
+            self.tokens[return_load_index].kind != "LOAD_CONST"
+            or self.tokens[return_load_index].attr is not None
+            or self.tokens[return_index].kind != "RETURN_VALUE"
+        ):
+            return None
+        continuation_index = self.offset_to_index[continuation_offset]
+        if continuation_index <= return_index:
+            return None
+
+        cleanup_position = next(
+            (
+                position
+                for position in range(len(semantic) - 3, -1, -1)
+                if self.tokens[semantic[position]].kind == "POP_EXCEPT"
+            ),
+            None,
+        )
+        if cleanup_position is None:
+            return None
+        cleanup_start = semantic[cleanup_position]
+        protocol = semantic[cleanup_position:-2]
+        protocol_cursor = 1
+        if name is not None:
+            if len(protocol) < 4:
+                return None
+            load, store, delete = (
+                self.tokens[index] for index in protocol[1:4]
+            )
+            stored_name = (
+                store.attr if isinstance(store.attr, str) else store.pattr
+            )
+            deleted_name = (
+                delete.attr
+                if isinstance(delete.attr, str)
+                else delete.pattr
+            )
+            if (
+                load.kind != "LOAD_CONST"
+                or load.attr is not None
+                or not store.kind.startswith("STORE_")
+                or not delete.kind.startswith("DELETE_")
+                or stored_name != name
+                or deleted_name != name
+            ):
+                return None
+            protocol_cursor = 4
+
+        loop_cleanup_seen = False
+        for index in protocol[protocol_cursor:]:
+            token = self.tokens[index]
+            if (
+                token.offset
+                in self.owner._suppressed_exception_protocol_offsets
+            ):
+                continue
+            if (
+                loop is not None
+                and not loop_cleanup_seen
+                and token.kind == "POP_TOP"
+            ):
+                loop_cleanup_seen = True
+                continue
+            return None
+
+        cfg = self.owner.cfg
+        return_offset = self.tokens[return_index].offset
+        return_block = cfg.offset_to_block.get(return_offset)
+        start_block = cfg.offset_to_block.get(self.tokens[start].offset)
+        if return_block is None or start_block is None:
+            return None
+        if cfg.block(return_block).terminator != "RETURN_VALUE":
+            return None
+        if any(
+            edge.kind != "exception"
+            for edge in cfg.outgoing(return_block)
+        ):
+            return None
+        if any(
+            edge.kind == "exception"
+            and (edge.source == return_block or edge.target == return_block)
+            for edge in cfg.edges
+        ):
+            return None
+
+        lower = cfg.block(start_block).start
+        interval_blocks = {
+            block.index
+            for block in cfg.blocks
+            if lower <= block.start <= return_offset
+        }
+        protocol_blocks = {
+            cfg.offset_to_block.get(self.tokens[index].offset)
+            for index in (*protocol, return_load_index, return_index)
+        }
+        if (
+            start_block not in interval_blocks
+            or return_block not in interval_blocks
+            or None in protocol_blocks
+            or not protocol_blocks <= interval_blocks
+        ):
+            return None
+        pending = [start_block]
+        visited = set()
+        work_limit = max(32, len(interval_blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            if block_index not in interval_blocks:
+                return None
+            visited.add(block_index)
+            for edge in cfg.outgoing(block_index):
+                if edge.kind == "exception":
+                    if edge.target in interval_blocks:
+                        pending.append(edge.target)
+                    continue
+                if edge.target not in interval_blocks:
+                    return None
+                pending.append(edge.target)
+        if visited != interval_blocks or return_block not in visited:
+            return None
+
+        for block_index in visited:
+            outside = {
+                edge.source
+                for edge in cfg.incoming(block_index)
+                if edge.source not in visited
+                and (
+                    block_index == start_block
+                    or edge.kind != "exception"
+                )
+            }
+            if block_index == start_block:
+                if len(outside) != 1:
+                    return None
+            elif outside:
+                return None
+
+        continuation_block = cfg.offset_to_block.get(continuation_offset)
+        if continuation_block is None or not any(
+            edge.kind != "exception"
+            and edge.target == continuation_block
+            and cfg.block(edge.source).start < lower
+            and cfg.block(edge.source).terminator == "JUMP_FORWARD"
+            for edge in cfg.edges
+        ):
+            return None
+
+        protocol_offsets = frozenset(
+            self.tokens[index].offset
+            for index in (*protocol, return_load_index, return_index)
+        )
+        return _HandlerTerminalTransfer(
+            kind="return_none",
+            body_start=start,
+            body_end=cleanup_start,
+            cleanup_start=cleanup_start,
+            return_load_index=return_load_index,
+            return_index=return_index,
+            continuation_offset=continuation_offset,
+            protocol_offsets=protocol_offsets,
+        )
+
+    def _has_unresolved_handler_none_return(
+        self,
+        start: int,
+        end: int,
+        name: Optional[str],
+        loop,
+    ) -> bool:
+        """Report a canonical None-return whose ownership was not proven."""
+        semantic = [
+            index
+            for index in range(start, end)
+            if self.tokens[index].kind != "INTERNAL_EXTENDED_ARG"
+        ]
+        if len(semantic) < 2:
+            return False
+        load_index, return_index = semantic[-2:]
+        if not (
+            self.tokens[load_index].kind == "LOAD_CONST"
+            and self.tokens[load_index].attr is None
+            and self.tokens[return_index].kind == "RETURN_VALUE"
+        ):
+            return False
+        cleanup_position = next(
+            (
+                position
+                for position in range(len(semantic) - 3, -1, -1)
+                if self.tokens[semantic[position]].kind == "POP_EXCEPT"
+            ),
+            None,
+        )
+        if cleanup_position is None:
+            return len(semantic) <= 6
+        protocol = semantic[cleanup_position:-2]
+        cursor = 1
+        if name is not None:
+            if len(protocol) < 4:
+                return False
+            load, store, delete = (
+                self.tokens[index] for index in protocol[1:4]
+            )
+            stored_name = (
+                store.attr if isinstance(store.attr, str) else store.pattr
+            )
+            deleted_name = (
+                delete.attr
+                if isinstance(delete.attr, str)
+                else delete.pattr
+            )
+            if (
+                load.kind != "LOAD_CONST"
+                or load.attr is not None
+                or not store.kind.startswith("STORE_")
+                or not delete.kind.startswith("DELETE_")
+                or stored_name != name
+                or deleted_name != name
+            ):
+                return len(protocol) <= 6
+            cursor = 4
+        loop_cleanup_seen = False
+        for index in protocol[cursor:]:
+            token = self.tokens[index]
+            if (
+                token.offset
+                in self.owner._suppressed_exception_protocol_offsets
+            ):
+                continue
+            if (
+                loop is not None
+                and not loop_cleanup_seen
+                and token.kind == "POP_TOP"
+            ):
+                loop_cleanup_seen = True
+                continue
+            return False
+        return True
+
     def _conditional_handler_transfer(
         self,
         start: int,
@@ -813,7 +1095,24 @@ class ExceptionStructureDecompiler311:
         end: int,
         name: Optional[str],
         loop,
+        continuation_offset: Optional[int] = None,
     ) -> List[ast.stmt]:
+        terminal = self._handler_none_return_plan(
+            start,
+            end,
+            name,
+            continuation_offset,
+            loop,
+        )
+        if terminal is not None:
+            body = self._capture_handler_clause(
+                terminal.body_start,
+                terminal.body_end,
+                name,
+                loop,
+            )
+            body.append(ast.Return(value=None))
+            return body
         if start < end and self.tokens[end - 1].kind == "JUMP_FORWARD":
             target = instruction_target(self.tokens[end - 1])
             transfer = None
@@ -842,7 +1141,22 @@ class ExceptionStructureDecompiler311:
         )
         if conditional_transfer is not None:
             return conditional_transfer
-        return self._capture_handler_clause(start, end, name, loop)
+        body = self._capture_handler_clause(start, end, name, loop)
+        if (
+            continuation_offset is not None
+            and self._has_unresolved_handler_none_return(
+                start,
+                end,
+                name,
+                loop,
+            )
+            and (not body or not isinstance(body[-1], ast.Return))
+        ):
+            self._error(
+                "Cannot prove except handler None-return ownership",
+                self.tokens[end - 2].offset,
+            )
+        return body
 
     def _handler_cleanup_end(
         self,
@@ -948,6 +1262,7 @@ class ExceptionStructureDecompiler311:
         self,
         handler_index: int,
         loop,
+        continuation_offset: Optional[int] = None,
     ) -> Tuple[List[ast.ExceptHandler], int, Optional[int]]:
         if self.tokens[handler_index].kind != "PUSH_EXC_INFO":
             self._error("Exception handler does not start with PUSH_EXC_INFO")
@@ -972,6 +1287,7 @@ class ExceptionStructureDecompiler311:
                     cursor,
                     loop,
                     handler_index,
+                    continuation_offset,
                 )
                 handlers.append(bare)
                 if bare_join is not None:
@@ -1031,7 +1347,13 @@ class ExceptionStructureDecompiler311:
                 false_index,
                 name,
             )
-            body = self._clause_body(body_start, normal_end, name, loop)
+            body = self._clause_body(
+                body_start,
+                normal_end,
+                name,
+                loop,
+                continuation_offset,
+            )
             handlers.append(
                 ast.ExceptHandler(
                     type=exception_type,
@@ -1055,6 +1377,7 @@ class ExceptionStructureDecompiler311:
         cursor: int,
         loop,
         handler_index: int,
+        continuation_offset: Optional[int] = None,
     ) -> Tuple[ast.ExceptHandler, int, Optional[int]]:
         if self.tokens[cursor].kind != "POP_TOP":
             self._error("Bare exception handler has no POP_TOP")
@@ -1113,7 +1436,13 @@ class ExceptionStructureDecompiler311:
                     None,
                 )
             join = target
-        body = self._clause_body(body_start, body_end, None, loop)
+        body = self._clause_body(
+            body_start,
+            body_end,
+            None,
+            loop,
+            continuation_offset,
+        )
         return (
             ast.ExceptHandler(type=None, name=None, body=body or [ast.Pass()]),
             cleanup_end,
@@ -1299,6 +1628,7 @@ class ExceptionStructureDecompiler311:
             handlers, cleanup_end, handler_join = self._parse_handlers(
                 handler_index,
                 loop,
+                normal_join,
             )
         finally:
             self.owner._suppressed_exception_protocol_offsets.difference_update(
@@ -2620,6 +2950,7 @@ class ExceptionStructureDecompiler311:
             outer_handlers, outer_end, outer_join = self._parse_handlers(
                 outer_handler_index,
                 loop,
+                normal_except_join,
             )
             statement = ast.Try(
                 body=[statement],

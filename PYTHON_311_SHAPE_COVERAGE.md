@@ -5,8 +5,8 @@
 
 ## 汇总
 
-- Shape inventory：44
-- pass：43
+- Shape inventory：45
+- pass：44
 - internal_consumed：0
 - unsupported_fail_closed：1
 - not_applicable：0
@@ -33,6 +33,7 @@
 | `coroutine_await` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
 | `async_for` | generator_async | pass | `test/simple_source/311/04_generators_async.py` | `—` | 2 |
 | `try_except_else_finally` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
+| `except_handler_return` | exception | pass | `test/fixtures311/except_handler_return.py` | `—` | 5 |
 | `with_statement` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
 | `async_with` | exception | pass | `test/simple_source/311/05_exceptions_with.py` | `—` | 2 |
 | `except_star_basic` | exception_group | pass | `test/simple_source/311/07_exception_group.py` | `—` | 2 |

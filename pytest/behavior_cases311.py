@@ -250,6 +250,94 @@ FIXTURE_PROBES = {
         )
         """
     ),
+    "test/fixtures311/except_handler_return.py": _probe(
+        """
+        def _handler_result(function, values):
+            events = []
+            result = function(iter(values), events)
+            return result, events
+
+        def _terminal_if_result(enabled, values):
+            events = []
+            result = return_inside_terminal_if(
+                enabled,
+                iter(values),
+                events,
+            )
+            return result, events
+
+        def _multiple_result(mode):
+            events = []
+            result = multiple_handlers(mode, events)
+            return result, events
+
+        class _CountingStopIterator:
+            def __init__(self):
+                self.calls = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self.calls += 1
+                raise StopIteration
+
+        def _counted_return():
+            iterator = _CountingStopIterator()
+            events = []
+            result = bare_return(iterator, events)
+            return result, events, iterator.calls
+
+        class _WrongExceptionIterator:
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                raise RuntimeError("not StopIteration")
+
+        _record(
+            "return_paths",
+            lambda: [
+                (name, values, _handler_result(globals()[name], values))
+                for name in (
+                    "bare_return",
+                    "explicit_none_return",
+                    "named_return",
+                    "real_pass",
+                    "empty_pass",
+                    "return_value",
+                    "nested_return",
+                    "return_with_else",
+                    "return_in_loop",
+                    "return_in_for_loop",
+                    "return_inside_with",
+                    "return_after_nested_handler",
+                )
+                for values in ((), (7,))
+            ],
+        )
+        _record(
+            "multiple_handlers",
+            lambda: [
+                _multiple_result(mode)
+                for mode in ("stop", "value", "key", "other")
+            ],
+        )
+        _record(
+            "terminal_if",
+            lambda: [
+                _terminal_if_result(enabled, values)
+                for enabled in (False, True)
+                for values in ((), (9,))
+            ],
+        )
+        _record("counted_stop", _counted_return)
+        _record(
+            "wrong_exception",
+            lambda: bare_return(_WrongExceptionIterator(), []),
+        )
+        """
+    ),
     "test/fixtures311/except_star_empty_body.py": _probe(
         """
         def _empty_result(function):

@@ -230,6 +230,21 @@
       "notes": "Covers normal, handled, else, finally, and reraised paths. Phase 6 verifies its isolated differential behavior contract."
     },
     {
+      "name": "except_handler_return",
+      "category": "exception",
+      "status": "pass",
+      "fixture": "test/fixtures311/except_handler_return.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract",
+        "pytest/test_exceptiontable311.py::test_except_handler_return_plan_requires_complete_owned_path",
+        "pytest/test_exceptiontable311.py::test_except_handler_return_plan_fails_closed",
+        "pytest/test_exceptiontable311.py::test_except_handler_none_returns_stay_inside_handlers",
+        "pytest/test_exceptiontable311.py::test_except_handler_returns_preserve_continuation_behavior"
+      ],
+      "notes": "Ordinary handler None-return recovery requires a distinct normal continuation, the exact POP_EXCEPT and optional named-binding cleanup protocol, closed CFG ownership, and a terminal RETURN_VALUE with no successor. The paired pass handlers remain reachable through their normal join, while unknown ownership fails closed."
+    },
+    {
       "name": "with_statement",
       "category": "exception",
       "status": "pass",
