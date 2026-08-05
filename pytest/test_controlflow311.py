@@ -686,6 +686,507 @@ def test_terminal_condition_is_evaluated_once_and_plain_if_stays_plain():
     assert isinstance(early.body[0].body[-1], ast.Return)
 
 
+def test_terminal_no_else_implicit_epilogues_are_not_source_returns():
+    recovered_text = recover_terminal_source()
+    tree = ast.parse(recovered_text)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    for name in (
+        "terminal_and_no_else",
+        "terminal_or_no_else",
+        "terminal_nested_no_else",
+        "terminal_nested_short_circuit_no_else",
+        "terminal_many_and_no_else",
+        "terminal_mixed_no_else",
+        "terminal_not_no_else",
+        "terminal_before_no_else",
+    ):
+        function = functions[name]
+        assert isinstance(function.body[-1], ast.If)
+        assert function.body[-1].orelse == []
+        assert not any(
+            isinstance(node, ast.Return)
+            for node in ast.walk(function)
+        )
+
+
+def test_terminal_no_else_epilogues_preserve_behavior_and_short_circuiting():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_epilogue_original",
+    )
+    recovered = execute(
+        recover_terminal_source(),
+        "terminal_epilogue_recovered",
+    )
+
+    cases = (
+        ("terminal_and_no_else", (False, False)),
+        ("terminal_and_no_else", (False, True)),
+        ("terminal_and_no_else", (True, False)),
+        ("terminal_and_no_else", (True, True)),
+        ("terminal_or_no_else", (False, False)),
+        ("terminal_or_no_else", (False, True)),
+        ("terminal_or_no_else", (True, False)),
+        ("terminal_or_no_else", (True, True)),
+    )
+    for name, arguments in cases:
+        original_events = []
+        recovered_events = []
+        assert original[name](*arguments, original_events) is None
+        assert recovered[name](*arguments, recovered_events) is None
+        assert recovered_events == original_events
+
+    for arguments in (
+        (False, False, False),
+        (False, True, True),
+        (True, False, True),
+        (True, True, False),
+        (True, True, True),
+    ):
+        for name in (
+            "terminal_many_and_no_else",
+            "terminal_mixed_no_else",
+        ):
+            original_events = []
+            recovered_events = []
+            original_result = original[name](*arguments, original_events)
+            recovered_result = recovered[name](*arguments, recovered_events)
+            assert recovered_result is original_result is None
+            assert recovered_events == original_events
+
+        original_events = []
+        recovered_events = []
+        original_result = original["terminal_nested_no_else"](
+            *arguments,
+            original_events,
+        )
+        recovered_result = recovered["terminal_nested_no_else"](
+            *arguments,
+            recovered_events,
+        )
+        assert recovered_result is original_result is None
+        assert recovered_events == original_events
+
+    for flag in (False, True):
+        original_events = []
+        recovered_events = []
+        original["terminal_not_no_else"](flag, original_events)
+        recovered["terminal_not_no_else"](flag, recovered_events)
+        assert recovered_events == original_events
+
+    for arguments in (
+        (False, True, True, True),
+        (True, False, True, True),
+        (True, True, False, True),
+        (True, True, True, False),
+        (True, True, True, True),
+    ):
+        original_events = []
+        recovered_events = []
+        original["terminal_nested_short_circuit_no_else"](
+            *arguments,
+            original_events,
+        )
+        recovered["terminal_nested_short_circuit_no_else"](
+            *arguments,
+            recovered_events,
+        )
+        assert recovered_events == original_events
+
+    for left in (False, True):
+        for right in (False, True):
+            original_events = []
+            recovered_events = []
+            original["terminal_before_no_else"](
+                left,
+                right,
+                original_events,
+            )
+            recovered["terminal_before_no_else"](
+                left,
+                right,
+                recovered_events,
+            )
+            assert recovered_events == original_events
+
+
+def test_terminal_no_else_mixed_condition_preserves_bool_call_order():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_epilogue_calls_original",
+    )
+    recovered = execute(
+        recover_terminal_source(),
+        "terminal_epilogue_calls_recovered",
+    )
+
+    class BoolProbe:
+        def __init__(self, value, calls, label):
+            self.value = value
+            self.calls = calls
+            self.label = label
+
+        def __bool__(self):
+            self.calls.append(self.label)
+            return self.value
+
+    for values in (
+        (False, False, False),
+        (False, True, True),
+        (True, False, True),
+        (True, True, False),
+        (True, True, True),
+    ):
+        original_calls = []
+        recovered_calls = []
+        original_events = []
+        recovered_events = []
+        original_arguments = tuple(
+            BoolProbe(value, original_calls, label)
+            for value, label in zip(values, ("first", "second", "third"))
+        )
+        recovered_arguments = tuple(
+            BoolProbe(value, recovered_calls, label)
+            for value, label in zip(values, ("first", "second", "third"))
+        )
+        original["terminal_mixed_no_else"](
+            *original_arguments,
+            original_events,
+        )
+        recovered["terminal_mixed_no_else"](
+            *recovered_arguments,
+            recovered_events,
+        )
+        assert recovered_calls == original_calls
+        assert recovered_events == original_events
+
+
+def test_terminal_no_else_epilogue_preserves_condition_and_suite_errors():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_epilogue_errors_original",
+    )
+    recovered = execute(
+        recover_terminal_source(),
+        "terminal_epilogue_errors_recovered",
+    )
+
+    class RaisingBool:
+        def __bool__(self):
+            raise LookupError("condition")
+
+    class RaisingEvents:
+        def append(self, value):
+            raise RuntimeError("suite")
+
+    for namespace in (original, recovered):
+        with pytest.raises(LookupError, match="condition"):
+            namespace["terminal_and_no_else"](
+                RaisingBool(),
+                True,
+                [],
+            )
+        with pytest.raises(RuntimeError, match="suite"):
+            namespace["terminal_and_no_else"](
+                True,
+                True,
+                RaisingEvents(),
+            )
+
+
+def test_condition_extension_does_not_absorb_an_independent_terminal_if():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "independent_terminal_if_original",
+    )
+    recovered_text = recover_terminal_source()
+    recovered = execute(
+        recovered_text,
+        "independent_terminal_if_recovered",
+    )
+    function = next(
+        node
+        for node in ast.parse(recovered_text).body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "independent_terminal_ifs"
+    )
+
+    assert len(function.body) == 2
+    assert all(isinstance(statement, ast.If) for statement in function.body)
+    for first in (False, True):
+        for second in (False, True):
+            original_events = []
+            recovered_events = []
+            original["independent_terminal_ifs"](
+                first,
+                second,
+                original_events,
+            )
+            recovered["independent_terminal_ifs"](
+                first,
+                second,
+                recovered_events,
+            )
+            assert recovered_events == original_events
+
+
+def test_condition_extension_rejects_an_exception_predecessor():
+    decompiler, condition = terminal_decompiler("terminal_mixed_no_else")
+    extension_offset = max(condition.nodes)
+    extension_block = decompiler.cfg.offset_to_block[extension_offset]
+    source_block = min(
+        decompiler.cfg.offset_to_block[
+            decompiler.tokens[node.jump_index].offset
+        ]
+        for offset, node in condition.nodes.items()
+        if offset != extension_offset
+    )
+    decompiler.cfg = ControlFlowGraph(
+        blocks=decompiler.cfg.blocks,
+        edges=tuple(
+            sorted(
+                (
+                    *decompiler.cfg.edges,
+                    Edge(source_block, extension_block, "exception"),
+                )
+            )
+        ),
+        entry=decompiler.cfg.entry,
+        offset_to_block=decompiler.cfg.offset_to_block,
+    )
+    start = decompiler.offset_to_index[condition.entry_offset]
+    replanned = decompiler._bounded_condition_plan(
+        start,
+        len(decompiler.tokens),
+    )
+
+    assert replanned is not None
+    assert extension_offset not in replanned.nodes
+
+
+@pytest.mark.parametrize(
+    ("name", "exit_count"),
+    (
+        ("plain_terminal_if", 2),
+        ("terminal_and_no_else", 3),
+        ("terminal_or_no_else", 2),
+        ("terminal_nested_no_else", 4),
+        ("terminal_nested_short_circuit_no_else", 5),
+        ("terminal_many_and_no_else", 4),
+        ("terminal_mixed_no_else", 2),
+        ("terminal_not_no_else", 2),
+    ),
+)
+def test_implicit_return_epilogue_plan_owns_every_physical_exit(
+    name,
+    exit_count,
+):
+    decompiler, condition = terminal_decompiler(name)
+    plan = decompiler._implicit_return_epilogue_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+
+    assert plan is not None
+    assert len(plan.exit_blocks) == exit_count
+    assert len(plan.owned_offsets) == exit_count * 2
+    assert plan.condition_blocks
+    assert all(
+        decompiler.tokens[decompiler.offset_to_index[offset]].kind
+        in ("LOAD_CONST", "RETURN_VALUE")
+        for offset in plan.owned_offsets
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("early_return", "terminal_mixed_return", "terminal_if_else"),
+)
+def test_implicit_return_epilogue_plan_rejects_real_control_transfers(name):
+    decompiler, condition = terminal_decompiler(name)
+    assert (
+        decompiler._implicit_return_epilogue_plan(
+            condition,
+            loop=None,
+            region_end=len(decompiler.tokens),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    (
+        "outside_region",
+        "missing_endpoint",
+        "middle_endpoint",
+        "missing_condition_block",
+        "loop_context",
+        "class_body",
+        "module_body",
+        "generator",
+        "coroutine",
+        "async_generator",
+        "non_none_return",
+        "extra_semantic_instruction",
+        "missing_return",
+        "overlapping_pairs",
+        "normal_successor",
+        "back_edge",
+        "exception_edge",
+        "foreign_predecessor",
+        "unreachable_exit",
+        "work_limit",
+    ),
+)
+def test_implicit_return_epilogue_plan_rejects_unsafe_ownership(corruption):
+    decompiler, condition = terminal_decompiler("terminal_and_no_else")
+    baseline = decompiler._implicit_return_epilogue_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+    assert baseline is not None
+
+    blocks = decompiler.cfg.blocks
+    edges = decompiler.cfg.edges
+    loop = None
+    region_end = len(decompiler.tokens)
+    if corruption == "outside_region":
+        region_end -= 1
+    elif corruption == "missing_endpoint":
+        condition = replace(
+            condition,
+            endpoints=(condition.endpoints[0], max(decompiler.offset_to_index) + 2),
+        )
+    elif corruption == "middle_endpoint":
+        condition = replace(
+            condition,
+            endpoints=(condition.endpoints[0] + 2, condition.endpoints[1]),
+        )
+    elif corruption == "missing_condition_block":
+        jump_offset = decompiler.tokens[
+            next(iter(condition.nodes.values())).jump_index
+        ].offset
+        decompiler.cfg.offset_to_block = {
+            offset: block
+            for offset, block in decompiler.cfg.offset_to_block.items()
+            if offset != jump_offset
+        }
+    elif corruption == "loop_context":
+        loop = SimpleNamespace()
+    elif corruption == "class_body":
+        decompiler.is_class_body = True
+    elif corruption == "module_body":
+        decompiler.code = decompiler.code.replace(co_name="<module>")
+    elif corruption in ("generator", "coroutine", "async_generator"):
+        flag = {
+            "generator": 0x20,
+            "coroutine": 0x80,
+            "async_generator": 0x200,
+        }[corruption]
+        decompiler.code = decompiler.code.replace(
+            co_flags=decompiler.code.co_flags | flag,
+        )
+    elif corruption in (
+        "non_none_return",
+        "extra_semantic_instruction",
+        "missing_return",
+    ):
+        owned = sorted(baseline.owned_offsets)
+        offset = owned[-1] if corruption == "missing_return" else owned[0]
+        token = decompiler.tokens[decompiler.offset_to_index[offset]]
+        if corruption == "non_none_return":
+            assert token.kind == "LOAD_CONST"
+            token.attr = 1
+        elif corruption == "extra_semantic_instruction":
+            assert token.kind == "LOAD_CONST"
+            token.kind = "LOAD_FAST"
+            token.attr = "unexpected"
+        else:
+            assert token.kind == "RETURN_VALUE"
+            token.kind = "NOP"
+    elif corruption == "overlapping_pairs":
+        owned = sorted(baseline.owned_offsets)
+        first_block = decompiler.cfg.offset_to_block[owned[0]]
+        decompiler.cfg.offset_to_block = dict(decompiler.cfg.offset_to_block)
+        decompiler.cfg.offset_to_block[owned[-2]] = first_block
+        decompiler.cfg.offset_to_block[owned[-1]] = first_block
+    elif corruption == "normal_successor":
+        extra_index = len(blocks)
+        extra_start = max(block.end for block in blocks) + 2
+        extra = BasicBlock(
+            index=extra_index,
+            start=extra_start,
+            end=extra_start + 2,
+            instructions=(FakeInstruction(extra_start, "NOP"),),
+        )
+        blocks = (*blocks, extra)
+        edges = tuple(
+            sorted(
+                (*edges, Edge(max(baseline.exit_blocks), extra_index, "jump"))
+            )
+        )
+    elif corruption in ("back_edge", "exception_edge"):
+        exit_block = max(baseline.exit_blocks)
+        kind = "jump" if corruption == "back_edge" else "exception"
+        edges = tuple(
+            sorted((*edges, Edge(exit_block, decompiler.cfg.entry, kind)))
+        )
+    elif corruption == "foreign_predecessor":
+        extra_index = len(blocks)
+        extra_start = max(block.end for block in blocks) + 2
+        extra = BasicBlock(
+            index=extra_index,
+            start=extra_start,
+            end=extra_start + 2,
+            instructions=(FakeInstruction(extra_start, "NOP"),),
+        )
+        blocks = (*blocks, extra)
+        edges = tuple(
+            sorted(
+                (*edges, Edge(extra_index, min(baseline.exit_blocks), "jump"))
+            )
+        )
+    elif corruption == "unreachable_exit":
+        orphan = max(baseline.exit_blocks)
+        edges = tuple(edge for edge in edges if edge.target != orphan)
+    elif corruption == "work_limit":
+        forward = min(baseline.exit_blocks)
+        edges = tuple(
+            sorted(
+                (
+                    *edges,
+                    *(
+                        Edge(decompiler.cfg.entry, forward, "jump")
+                        for _ in range(300)
+                    ),
+                )
+            )
+        )
+
+    decompiler.cfg = ControlFlowGraph(
+        blocks=blocks,
+        edges=edges,
+        entry=decompiler.cfg.entry,
+        offset_to_block=decompiler.cfg.offset_to_block,
+    )
+    assert (
+        decompiler._implicit_return_epilogue_plan(
+            condition,
+            loop=loop,
+            region_end=region_end,
+        )
+        is None
+    )
+
+
 def test_terminal_if_plan_uses_two_disjoint_returning_cfg_regions():
     decompiler, condition = terminal_decompiler()
     plan = decompiler._terminal_if_plan(

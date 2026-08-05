@@ -974,10 +974,58 @@ FIXTURE_PROBES = {
                 )
             return results
 
+        def _implicit_epilogue_results():
+            results = []
+            for first in (False, True):
+                for second in (False, True):
+                    events = []
+                    terminal_and_no_else(first, second, events)
+                    results.append(("and", first, second, events))
+
+                    events = []
+                    terminal_or_no_else(first, second, events)
+                    results.append(("or", first, second, events))
+
+                    events = []
+                    independent_terminal_ifs(first, second, events)
+                    results.append(("independent", first, second, events))
+
+            for first, second, third in (
+                (False, False, False),
+                (False, True, True),
+                (True, False, True),
+                (True, True, False),
+                (True, True, True),
+            ):
+                events = []
+                terminal_nested_no_else(first, second, third, events)
+                results.append(("nested", first, second, third, events))
+
+                events = []
+                terminal_many_and_no_else(first, second, third, events)
+                results.append(("many", first, second, third, events))
+
+                events = []
+                terminal_mixed_no_else(first, second, third, events)
+                results.append(("mixed", first, second, third, events))
+
+            for values in (
+                (False, True, True, True),
+                (True, False, True, True),
+                (True, True, False, True),
+                (True, True, True, False),
+                (True, True, True, True),
+            ):
+                events = []
+                terminal_nested_short_circuit_no_else(*values, events)
+                results.append(("nested_short", values, events))
+            return results
+
         _record("terminal_if_else", _if_else_results)
         _record("terminal_if_elif", _if_elif_results)
         _record("terminal_nested", _nested_results)
         _record("terminal_plain_early", _plain_and_early_results)
+        _record("terminal_implicit_epilogue", _implicit_epilogue_results)
         """
     ),
 }

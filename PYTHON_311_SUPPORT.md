@@ -54,7 +54,7 @@ recoverable.
 - `Parser unsupported_fail_closed: 0/110`
 - `Parser missing: 0/110`
 - `Behavior verified: 110/110`
-- `Shape pass: 44`
+- `Shape pass: 45`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
 - 真实语料：604/604 成功反编译，0 项明确 fail-closed；

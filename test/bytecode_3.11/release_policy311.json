@@ -68,7 +68,7 @@
     }
   },
   "shape": {
-    "inventory": 45,
+    "inventory": 46,
     "unsupported_fail_closed": [
       "irreducible_control_flow"
     ],

@@ -126,6 +126,22 @@
       "notes": "A terminal False region beginning with another proven terminal conditional is emitted as nested ast.If and rendered as elif; plain terminal if and explicit early return remain distinct."
     },
     {
+      "name": "implicit_none_epilogue",
+      "category": "control_flow",
+      "status": "pass",
+      "fixture": "test/fixtures311/terminal_if_else.py",
+      "expected_error": null,
+      "tests": [
+        "pytest/test_controlflow311.py::test_terminal_no_else_implicit_epilogues_are_not_source_returns",
+        "pytest/test_controlflow311.py::test_terminal_no_else_epilogues_preserve_behavior_and_short_circuiting",
+        "pytest/test_controlflow311.py::test_terminal_no_else_mixed_condition_preserves_bool_call_order",
+        "pytest/test_controlflow311.py::test_implicit_return_epilogue_plan_owns_every_physical_exit",
+        "pytest/test_controlflow311.py::test_implicit_return_epilogue_plan_rejects_unsafe_ownership",
+        "pytest/test_shape_behavior311.py::test_each_shape_has_differential_behavior_contract"
+      ],
+      "notes": "CPython 3.11 may duplicate LOAD_CONST None; RETURN_VALUE for each terminal short-circuit exit. Recovery consumes only a contiguous tail cluster whose complete CFG exit ownership is proven; real early returns, exception edges, loops, non-None returns, foreign predecessors, generators, and coroutines remain outside the matcher."
+    },
+    {
       "name": "for_break_continue_else",
       "category": "control_flow",
       "status": "pass",

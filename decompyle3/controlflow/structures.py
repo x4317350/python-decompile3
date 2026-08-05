@@ -20,6 +20,8 @@ from decompyle3.controlflow.dominators import analyze_control_flow
 from decompyle3.controlflow.exception_regions import build_exception_region_map
 from decompyle3.controlflow.exceptiontable311 import decode_exception_table
 from decompyle3.parsers.p311.base import (
+    CO_ASYNC_GENERATOR,
+    CO_COROUTINE,
     CO_GENERATOR,
     Python311ParseError,
     UnsupportedPython311ControlFlow,
@@ -97,6 +99,16 @@ class _TerminalIfPlan:
 
 
 @dataclass(frozen=True)
+class _ImplicitReturnEpiloguePlan:
+    test: ast.expr
+    body_start: int
+    region_end: int
+    condition_blocks: FrozenSet[int]
+    exit_blocks: FrozenSet[int]
+    owned_offsets: FrozenSet[int]
+
+
+@dataclass(frozen=True)
 class _LoopContext:
     break_target: int
     continue_targets: frozenset
@@ -112,6 +124,7 @@ class _RegionKey:
     suppressed_exception_starts: FrozenSet[int]
     suppressed_exception_handlers: FrozenSet[int]
     suppressed_protocol_offsets: FrozenSet[int]
+    suppressed_implicit_epilogue_offsets: FrozenSet[int]
 
 
 def _negate(expression: ast.expr) -> ast.expr:
@@ -206,6 +219,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self._suppressed_exception_starts = set()
         self._suppressed_exception_handler_targets = set()
         self._suppressed_exception_protocol_offsets = set()
+        self._suppressed_implicit_epilogue_offsets = set()
         self._suppressed_loop_starts = set()
         self._active_regions: Set[_RegionKey] = set()
         self._region_work_count = 0
@@ -1037,7 +1051,23 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if index is None:
                 return None
             block = self.cfg.block_at(offset)
-            if len(self.cfg.predecessors(block.index)) != 1:
+            condition_predecessors = {
+                self.cfg.block_at(node_offset).index
+                for node_offset in active
+                if node_offset in self.offset_to_index
+            }
+            incoming = self.cfg.incoming(block.index)
+            if any(edge.kind == "exception" for edge in incoming):
+                return None
+            predecessors = {
+                edge.source
+                for edge in incoming
+                if edge.kind != "exception"
+            }
+            if (
+                not predecessors
+                or not predecessors <= condition_predecessors
+            ):
                 return None
             if index >= end:
                 return None
@@ -1179,6 +1209,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             ),
             suppressed_protocol_offsets=frozenset(
                 self._suppressed_exception_protocol_offsets
+            ),
+            suppressed_implicit_epilogue_offsets=frozenset(
+                self._suppressed_implicit_epilogue_offsets
             ),
         )
         if key in self._active_regions:
@@ -1352,6 +1385,184 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and semantic[1].kind == "RETURN_VALUE"
         )
 
+    def _implicit_return_epilogue_plan(
+        self,
+        plan: _ConditionPlan,
+        loop: Optional[_LoopContext],
+        region_end: int,
+    ) -> Optional[_ImplicitReturnEpiloguePlan]:
+        """Prove that duplicated terminal None returns are one fallthrough."""
+        flags = int(getattr(self.code, "co_flags", 0))
+        if (
+            loop is not None
+            or region_end != len(self.tokens)
+            or self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+            or flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)
+        ):
+            return None
+
+        semantic_indices = [
+            index
+            for index in range(region_end)
+            if self.tokens[index].kind not in _IGNORED_INTERNAL
+        ]
+        pairs = []
+        cursor = len(semantic_indices)
+        while cursor >= 2:
+            load_index = semantic_indices[cursor - 2]
+            return_index = semantic_indices[cursor - 1]
+            load = self.tokens[load_index]
+            returned = self.tokens[return_index]
+            if not (
+                load.kind == "LOAD_CONST"
+                and load.attr is None
+                and returned.kind == "RETURN_VALUE"
+            ):
+                break
+            pairs.append((load_index, return_index))
+            cursor -= 2
+        if len(pairs) < 2:
+            return None
+        pairs.reverse()
+        cluster_start = pairs[0][0]
+
+        condition_block_indexes = tuple(
+            self.cfg.offset_to_block.get(
+                self.tokens[node.jump_index].offset
+            )
+            for node in plan.nodes.values()
+        )
+        if not condition_block_indexes or any(
+            block_index is None
+            for block_index in condition_block_indexes
+        ):
+            return None
+        condition_blocks = frozenset(condition_block_indexes)
+
+        pair_blocks = set()
+        owned_offsets = set()
+        for load_index, return_index in pairs:
+            load = self.tokens[load_index]
+            returned = self.tokens[return_index]
+            load_block = self.cfg.offset_to_block.get(load.offset)
+            return_block = self.cfg.offset_to_block.get(returned.offset)
+            if load_block is None or load_block != return_block:
+                return None
+            block = self.cfg.block(load_block)
+            if (
+                block.terminator != "RETURN_VALUE"
+                or self._normal_edges_from(load_block)
+            ):
+                return None
+            pair_blocks.add(load_block)
+            owned_offsets.update((load.offset, returned.offset))
+        if len(pair_blocks) != len(pairs):
+            return None
+
+        entry_block = self.cfg.offset_to_block.get(plan.entry_offset)
+        if entry_block is None:
+            return None
+
+        pending = [entry_block]
+        visited = set()
+        work_limit = max(64, len(self.cfg.blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            visited.add(block_index)
+            block = self.cfg.block(block_index)
+            for edge in self._normal_edges_from(block_index):
+                target = self.cfg.block(edge.target)
+                if target.start <= block.start:
+                    return None
+                pending.append(edge.target)
+
+        if not condition_blocks <= visited:
+            return None
+        if any(
+            edge.kind == "exception"
+            and (edge.source in visited or edge.target in visited)
+            for edge in self.cfg.edges
+        ):
+            return None
+        for block_index in visited:
+            outside_predecessors = {
+                edge.source
+                for edge in self.cfg.incoming(block_index)
+                if edge.kind != "exception" and edge.source not in visited
+            }
+            if outside_predecessors:
+                if block_index != entry_block:
+                    return None
+                entry_start = self.cfg.block(entry_block).start
+                if any(
+                    self.cfg.block(source).start >= entry_start
+                    for source in outside_predecessors
+                ):
+                    return None
+
+        exit_blocks = {
+            block_index
+            for block_index in visited
+            if not self._normal_edges_from(block_index)
+        }
+        if exit_blocks != pair_blocks:
+            return None
+
+        endpoint_indices = {
+            endpoint: self.offset_to_index.get(endpoint)
+            for endpoint in plan.endpoints
+        }
+        if any(index is None for index in endpoint_indices.values()):
+            return None
+        if any(
+            endpoint not in self.cfg.offset_to_block
+            or self.cfg.block_at(endpoint).start != endpoint
+            for endpoint in plan.endpoints
+        ):
+            return None
+        body_endpoints = [
+            endpoint
+            for endpoint, index in endpoint_indices.items()
+            if index < cluster_start
+        ]
+        epilogue_endpoints = [
+            endpoint
+            for endpoint, index in endpoint_indices.items()
+            if index >= cluster_start
+        ]
+        if len(body_endpoints) != 1 or len(epilogue_endpoints) != 1:
+            return None
+        body_endpoint = body_endpoints[0]
+        body_start = endpoint_indices[body_endpoint]
+        if body_start is None or not body_start < cluster_start:
+            return None
+        if not any(
+            self.tokens[index].kind not in _IGNORED_INTERNAL
+            for index in range(body_start, cluster_start)
+        ):
+            return None
+
+        test = (
+            plan.expression
+            if body_endpoint == plan.true_endpoint
+            else _negate(plan.expression)
+        )
+        return _ImplicitReturnEpiloguePlan(
+            test=test,
+            body_start=body_start,
+            region_end=region_end,
+            condition_blocks=condition_blocks,
+            exit_blocks=frozenset(exit_blocks),
+            owned_offsets=frozenset(owned_offsets),
+        )
+
     def _terminal_if_plan(
         self,
         plan: _ConditionPlan,
@@ -1450,7 +1661,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         semantic = [
             token
             for token in self.tokens[start:end]
-            if token.kind not in _IGNORED_INTERNAL
+            if (
+                token.kind not in _IGNORED_INTERNAL
+                and token.offset
+                not in self._suppressed_implicit_epilogue_offsets
+            )
         ]
         if (
             len(semantic) >= 2
@@ -1461,6 +1676,34 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         ):
             body.append(ast.Return(value=None))
         return body
+
+    def _emit_implicit_return_epilogue(
+        self,
+        plan: _ImplicitReturnEpiloguePlan,
+        loop: Optional[_LoopContext],
+    ) -> int:
+        newly_suppressed = set(plan.owned_offsets).difference(
+            self._suppressed_implicit_epilogue_offsets
+        )
+        self._suppressed_implicit_epilogue_offsets.update(newly_suppressed)
+        try:
+            body = self._capture_region(
+                plan.body_start,
+                plan.region_end,
+                loop,
+            )
+        finally:
+            self._suppressed_implicit_epilogue_offsets.difference_update(
+                newly_suppressed
+            )
+        self.body.append(
+            ast.If(
+                test=plan.test,
+                body=body or [ast.Pass()],
+                orelse=[],
+            )
+        )
+        return plan.region_end
 
     def _emit_terminal_if(
         self,
@@ -1694,6 +1937,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             terminal = self._terminal_if_plan(plan, loop, region_end)
             if terminal is not None:
                 return self._emit_terminal_if(terminal, loop)
+            epilogue = self._implicit_return_epilogue_plan(
+                plan,
+                loop,
+                region_end,
+            )
+            if epilogue is not None:
+                return self._emit_implicit_return_epilogue(epilogue, loop)
             body = self._capture_region(false_index, true_index, loop)
             body = self._preserve_terminal_none_return(
                 body,
@@ -1719,6 +1969,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             terminal = self._terminal_if_plan(plan, loop, region_end)
             if terminal is not None:
                 return self._emit_terminal_if(terminal, loop)
+            epilogue = self._implicit_return_epilogue_plan(
+                plan,
+                loop,
+                region_end,
+            )
+            if epilogue is not None:
+                return self._emit_implicit_return_epilogue(epilogue, loop)
             body = self._capture_region(true_index, false_index, loop)
             body = self._preserve_terminal_none_return(
                 body,
@@ -2672,6 +2929,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if (
                 token.offset
                 in self._suppressed_exception_protocol_offsets
+                or token.offset
+                in self._suppressed_implicit_epilogue_offsets
             ):
                 index += 1
                 continue

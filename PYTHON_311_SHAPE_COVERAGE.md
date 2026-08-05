@@ -5,8 +5,8 @@
 
 ## 汇总
 
-- Shape inventory：45
-- pass：44
+- Shape inventory：46
+- pass：45
 - internal_consumed：0
 - unsupported_fail_closed：1
 - not_applicable：0
@@ -25,6 +25,7 @@
 | `if_elif_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
 | `terminal_if_else` | control_flow | pass | `test/fixtures311/terminal_if_else.py` | `—` | 4 |
 | `terminal_if_elif_else` | control_flow | pass | `test/fixtures311/terminal_if_else.py` | `—` | 4 |
+| `implicit_none_epilogue` | control_flow | pass | `test/fixtures311/terminal_if_else.py` | `—` | 6 |
 | `for_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
 | `while_break_continue_else` | control_flow | pass | `test/simple_source/311/02_control_flow.py` | `—` | 2 |
 | `irreducible_control_flow` | control_flow | unsupported_fail_closed | `—` | `IrreducibleControlFlowError` | 10 |

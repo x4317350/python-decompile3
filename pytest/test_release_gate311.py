@@ -53,7 +53,7 @@ def test_current_release_policy_is_satisfied():
     assert metrics["opcode_inventory"] == 110
     assert metrics["layer_counts"]["scanner"]["pass"] == 110
     assert metrics["layer_counts"]["parser"]["missing"] == 0
-    assert metrics["shape_counts"]["pass"] == 44
+    assert metrics["shape_counts"]["pass"] == 45
     assert metrics["shape_counts"]["unsupported_fail_closed"] == 1
     assert metrics["realworld"]["decompile_success"] == 604
     assert metrics["realworld"]["fail_closed"] == 0

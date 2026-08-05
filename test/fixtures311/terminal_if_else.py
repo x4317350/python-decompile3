@@ -29,6 +29,63 @@ def plain_terminal_if(flag, events):
         events.append("hit")
 
 
+def terminal_and_no_else(left, right, events):
+    if left and right:
+        events.append("both")
+
+
+def terminal_or_no_else(left, right, events):
+    if left or right:
+        events.append("either")
+
+
+def terminal_nested_no_else(left, right, key, events):
+    if left and right:
+        if key:
+            events.append("hit")
+
+
+def terminal_nested_short_circuit_no_else(
+    first,
+    second,
+    third,
+    fourth,
+    events,
+):
+    if first and second:
+        if third and fourth:
+            events.append("hit")
+
+
+def terminal_many_and_no_else(first, second, third, events):
+    if first and second and third:
+        events.append("all")
+
+
+def terminal_mixed_no_else(first, second, third, events):
+    if (first and second) or third:
+        events.append("selected")
+
+
+def terminal_not_no_else(flag, events):
+    if not flag:
+        events.append("false")
+
+
+def terminal_before_no_else(left, right, events):
+    events.append("before")
+    if left and right:
+        events.append("both")
+        events.append("done")
+
+
+def independent_terminal_ifs(first, second, events):
+    if first:
+        events.append("first")
+    if second:
+        events.append("second")
+
+
 def early_return(flag, events):
     if flag:
         return
