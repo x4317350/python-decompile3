@@ -274,6 +274,31 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     UnsupportedPython311ControlFlow,
                 )
 
+    def _is_explicit_none_return(self, token_index: Optional[int]) -> bool:
+        """Distinguish source returns from copied implicit None epilogues."""
+        if not super()._is_explicit_none_return(token_index):
+            return False
+        load_index = token_index - 1
+        load = self.tokens[load_index]
+        position = self._positions_by_offset.get(load.offset)
+        if (
+            position is None
+            or len(position) != 4
+            or any(value is None for value in position)
+        ):
+            return True
+
+        # CPython 3.11 assigns a copied implicit return the exact source span
+        # of the statement or condition whose fallthrough it terminates.  A
+        # real ``return``/``return None`` has a span used only by its own
+        # LOAD_CONST/RETURN_VALUE pair.
+        return not any(
+            token.kind not in _IGNORED_INTERNAL
+            and token.kind not in ("LOAD_CONST", "RETURN_VALUE")
+            and self._positions_by_offset.get(token.offset) == position
+            for token in self.tokens[:load_index]
+        )
+
     def _await_protocol(self, index: int) -> int:
         value = self._pop_expr()
         send_index = next(
@@ -2229,6 +2254,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and semantic[-1].kind == "RETURN_VALUE"
             and not self._ends_in_control_transfer(body)
             and not self._normal_interval_escapes(start, end)
+            and self._is_explicit_none_return(
+                self.offset_to_index.get(semantic[-1].offset)
+            )
         ):
             body.append(ast.Return(value=None))
         return body

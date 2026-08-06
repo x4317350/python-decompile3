@@ -1253,16 +1253,20 @@ class _StraightLineDecompiler:
                 if token_index is not None:
                     self.body.append(ast.Return(value=None))
                 return
-            explicit_none = (
-                token_index is not None
-                and token_index > 0
-                and self.tokens[token_index - 1].kind == "LOAD_CONST"
-                and self.tokens[token_index - 1].attr is None
-                and self.tokens[token_index - 1].linestart is not None
-            )
+            explicit_none = self._is_explicit_none_return(token_index)
             if not explicit_none:
                 return
         self.body.append(ast.Return(value=value))
+
+    def _is_explicit_none_return(self, token_index: Optional[int]) -> bool:
+        """Conservatively identify a source-level ``return [None]`` pair."""
+        return bool(
+            token_index is not None
+            and token_index > 0
+            and self.tokens[token_index - 1].kind == "LOAD_CONST"
+            and self.tokens[token_index - 1].attr is None
+            and self.tokens[token_index - 1].linestart is not None
+        )
 
     def _raise(self, count: int):
         if count == 0:
