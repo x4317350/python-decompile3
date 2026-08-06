@@ -288,16 +288,67 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         ):
             return True
 
-        # CPython 3.11 assigns a copied implicit return the exact source span
-        # of the statement or condition whose fallthrough it terminates.  A
-        # real ``return``/``return None`` has a span used only by its own
-        # LOAD_CONST/RETURN_VALUE pair.
+        # Keep source positions as a formatting signal for direct dispatch.
+        # Structured branch exits use local CFG evidence below instead of
+        # this whole-function overlap heuristic.
         return not any(
             token.kind not in _IGNORED_INTERNAL
             and token.kind not in ("LOAD_CONST", "RETURN_VALUE")
             and self._positions_by_offset.get(token.offset) == position
             for token in self.tokens[:load_index]
         )
+
+    def _terminal_none_return_requires_control(
+        self,
+        start: int,
+        end: int,
+    ) -> bool:
+        """Prove that omitting a local None-return would cross a boundary."""
+        continuation_index = self._next_semantic_index(
+            end,
+            len(self.tokens),
+        )
+        if continuation_index >= len(self.tokens):
+            return False
+        continuation = self.tokens[continuation_index]
+
+        # A copied epilogue cluster can place another equivalent sink directly
+        # after this structured interval.  Falling out of the reconstructed
+        # suite already has that None-return behavior, so do not materialize
+        # either physical copy.
+        if continuation.kind == "LOAD_CONST" and continuation.attr is None:
+            return_index = self._next_semantic_index(
+                continuation_index + 1,
+                len(self.tokens),
+            )
+            if (
+                return_index < len(self.tokens)
+                and self.tokens[return_index].kind == "RETURN_VALUE"
+            ):
+                return False
+
+        if continuation.kind in ("COPY_STACK", "POP_EXCEPT", "RERAISE"):
+            return False
+
+        return_count = sum(
+            self.tokens[index].kind == "RETURN_VALUE"
+            and self.tokens[index].offset
+            not in self._suppressed_implicit_epilogue_offsets
+            for index in range(start, end)
+            if self.tokens[index].kind not in _IGNORED_INTERNAL
+        )
+
+        # Falling out of a source suite here would execute the next loop
+        # iteration, so the terminal return is control-critical even if the
+        # interval contains another nested return.
+        if "BACKWARD" in continuation.kind:
+            return True
+
+        # One local terminal sink followed by more source work is an early
+        # return.  Multiple equivalent sinks are the compiler's duplicated
+        # implicit epilogue; their enclosing if/elif structure owns the
+        # branch separation.
+        return return_count == 1
 
     def _await_protocol(self, index: int) -> int:
         value = self._pop_expr()
@@ -2254,9 +2305,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and semantic[-1].kind == "RETURN_VALUE"
             and not self._ends_in_control_transfer(body)
             and not self._normal_interval_escapes(start, end)
-            and self._is_explicit_none_return(
-                self.offset_to_index.get(semantic[-1].offset)
-            )
+            and self._terminal_none_return_requires_control(start, end)
         ):
             body.append(ast.Return(value=None))
         return body
