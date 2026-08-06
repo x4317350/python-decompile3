@@ -872,14 +872,174 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             true_offset=true_endpoint,
             false_offset=false_endpoint,
         )
+        nodes = {entry_offset: node}
+        expression = predicate
+
+        def continuation_is_owned(offset: int) -> bool:
+            """Prove a chained-comparison successor is an AND/OR bridge."""
+            continuation_block = self.cfg.block_at(offset)
+            chain_block = self.cfg.block_at(
+                self.tokens[final_jump].offset
+            )
+            owned = {chain_block.index}
+            work_limit = max(32, len(self.cfg.blocks) * 2)
+            for _ in range(work_limit):
+                changed = False
+                for block in self.cfg.blocks:
+                    if block.index in owned:
+                        continue
+                    incoming = self.cfg.incoming(block.index)
+                    if any(edge.kind == "exception" for edge in incoming):
+                        continue
+                    sources = {
+                        edge.source
+                        for edge in incoming
+                        if edge.kind != "exception"
+                    }
+                    outgoing = self._normal_edges_from(block.index)
+                    if (
+                        block.terminator in UNCONDITIONAL_JUMPS
+                        and len(outgoing) == 1
+                        and sources
+                        and sources <= owned
+                    ):
+                        owned.add(block.index)
+                        changed = True
+                if not changed:
+                    break
+            else:
+                return False
+            incoming = self.cfg.incoming(continuation_block.index)
+            return bool(incoming) and not any(
+                edge.kind == "exception" for edge in incoming
+            ) and all(
+                edge.source in owned
+                for edge in incoming
+                if edge.kind != "exception"
+            )
+
+        # A chained comparison can be the left operand of a following
+        # short-circuit decision.  The comparison's successful edge then
+        # passes through a transparent JUMP_FORWARD before evaluating the
+        # next predicate.  Fold that predicate only when the CFG proves the
+        # continuation is exclusively owned and its other outcome rejoins
+        # the already-known opposite sink.
+        continuation_offset = None
+        opposite_endpoint = None
+        continuation_on_true = False
+        for candidate, opposite, on_true in (
+            (true_endpoint, false_endpoint, True),
+            (false_endpoint, true_endpoint, False),
+        ):
+            candidate_index = self.offset_to_index.get(candidate)
+            if candidate_index is None or not continuation_is_owned(candidate):
+                continue
+            candidate_jump = self._condition_jump(
+                candidate_index,
+                len(self.tokens),
+            )
+            if candidate_jump is None:
+                continue
+            outcomes = tuple(
+                self._resolve_condition_endpoint(value)
+                for value in self._jump_outcomes(candidate_jump)
+            )
+            canonical_outcomes = tuple(
+                opposite
+                if value == opposite
+                or self._equivalent_condition_endpoints(value, opposite)
+                else value
+                for value in outcomes
+            )
+            if canonical_outcomes.count(opposite) != 1:
+                continue
+            continuation_offset = candidate
+            opposite_endpoint = opposite
+            continuation_on_true = on_true
+            break
+
+        if continuation_offset is not None:
+            continuation_index = self.offset_to_index[continuation_offset]
+            continuation_jump = self._condition_jump(
+                continuation_index,
+                len(self.tokens),
+            )
+            continuation_predicate = self._predicate(
+                continuation_index,
+                continuation_jump,
+            )
+            continuation_outcomes = tuple(
+                opposite_endpoint
+                if value == opposite_endpoint
+                or self._equivalent_condition_endpoints(
+                    value,
+                    opposite_endpoint,
+                )
+                else value
+                for value in (
+                    self._resolve_condition_endpoint(outcome)
+                    for outcome in self._jump_outcomes(
+                        continuation_jump
+                    )
+                )
+            )
+            other_endpoint = next(
+                value
+                for value in continuation_outcomes
+                if value != opposite_endpoint
+            )
+            continuation_node = _DecisionNode(
+                start_index=continuation_index,
+                jump_index=continuation_jump,
+                predicate=continuation_predicate,
+                true_offset=continuation_outcomes[0],
+                false_offset=continuation_outcomes[1],
+            )
+            nodes[continuation_offset] = continuation_node
+            if continuation_on_true:
+                true_endpoint = other_endpoint
+                tail_expression = _combine_decision(
+                    continuation_predicate,
+                    ast.Constant(
+                        value=continuation_outcomes[0]
+                        == true_endpoint
+                    ),
+                    ast.Constant(
+                        value=continuation_outcomes[1]
+                        == true_endpoint
+                    ),
+                )
+                expression = _combine_decision(
+                    predicate,
+                    tail_expression,
+                    ast.Constant(value=False),
+                )
+            else:
+                false_endpoint = other_endpoint
+                tail_expression = _combine_decision(
+                    continuation_predicate,
+                    ast.Constant(
+                        value=continuation_outcomes[0]
+                        == true_endpoint
+                    ),
+                    ast.Constant(
+                        value=continuation_outcomes[1]
+                        == true_endpoint
+                    ),
+                )
+                expression = _combine_decision(
+                    predicate,
+                    ast.Constant(value=True),
+                    tail_expression,
+                )
         del self.stack[-2:]
         return _ConditionPlan(
             entry_offset=entry_offset,
-            nodes={entry_offset: node},
+            nodes=nodes,
             endpoints=tuple(sorted((true_endpoint, false_endpoint))),
             true_endpoint=true_endpoint,
             false_endpoint=false_endpoint,
-            expression=predicate,
+            expression=expression,
         )
 
     def _condition_plan(self, start: int) -> Optional[_ConditionPlan]:
@@ -1256,11 +1416,56 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if index is None:
                 return None
             block = self.cfg.block_at(offset)
-            condition_predecessors = {
-                self.cfg.block_at(node_offset).index
-                for node_offset in active
-                if node_offset in self.offset_to_index
-            }
+            condition_predecessors = set()
+            for node_offset in active:
+                if node_offset in self.offset_to_index:
+                    condition_predecessors.add(
+                        self.cfg.block_at(node_offset).index
+                    )
+                node = nodes.get(node_offset)
+                if node is None:
+                    continue
+                jump_offset = self.tokens[node.jump_index].offset
+                condition_predecessors.add(
+                    self.cfg.block_at(jump_offset).index
+                )
+            changed = True
+            bridge_work = 0
+            bridge_limit = max(32, len(self.cfg.blocks) * 2)
+            while changed:
+                bridge_work += 1
+                if bridge_work > bridge_limit:
+                    return None
+                changed = False
+                for candidate_block in self.cfg.blocks:
+                    if candidate_block.index in condition_predecessors:
+                        continue
+                    incoming_edges = self.cfg.incoming(
+                        candidate_block.index
+                    )
+                    if any(
+                        edge.kind == "exception"
+                        for edge in incoming_edges
+                    ):
+                        continue
+                    incoming_sources = {
+                        edge.source
+                        for edge in incoming_edges
+                        if edge.kind != "exception"
+                    }
+                    normal_outgoing = self._normal_edges_from(
+                        candidate_block.index
+                    )
+                    if (
+                        candidate_block.terminator
+                        not in UNCONDITIONAL_JUMPS
+                        or len(normal_outgoing) != 1
+                        or not incoming_sources
+                        or not incoming_sources <= condition_predecessors
+                    ):
+                        continue
+                    condition_predecessors.add(candidate_block.index)
+                    changed = True
             incoming = self.cfg.incoming(block.index)
             if any(edge.kind == "exception" for edge in incoming):
                 return None
@@ -1372,24 +1577,57 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                         ):
                             position_is_owned = True
                             break
-                if (
-                    branch_jump_position is None
-                    or any(
-                        value is None for value in branch_jump_position
-                    )
-                    or not position_is_owned
-                ):
-                    continue
                 branch_block = self.cfg.block_at(branch)
                 branch_predecessors = {
                     edge.source
                     for edge in self.cfg.incoming(branch_block.index)
                     if edge.kind != "exception"
                 }
+                branch_exception_targets = {
+                    edge.target
+                    for edge in self.cfg.outgoing(branch_block.index)
+                    if edge.kind == "exception"
+                }
+                owned_exception_targets = {
+                    edge.target
+                    for node in nodes.values()
+                    for node_block in (
+                        self.cfg.block_at(
+                            self.tokens[node.start_index].offset
+                        ),
+                        self.cfg.block_at(
+                            self.tokens[node.jump_index].offset
+                        ),
+                    )
+                    for edge in self.cfg.outgoing(node_block.index)
+                    if edge.kind == "exception"
+                }
+                same_exception_condition = bool(
+                    branch_exception_targets & owned_exception_targets
+                )
+                single_line_predicate = bool(
+                    branch_jump_position is not None
+                    and not any(
+                        value is None for value in branch_jump_position
+                    )
+                    and branch_jump_position[0]
+                    == branch_jump_position[1]
+                )
                 # Iterative closure is for converging boolean continuations.
-                # A single-predecessor decision is normally the first source
-                # statement inside an if suite and must remain a nested if.
+                # A single-predecessor decision is the first source statement
+                # inside an if suite even when its broad PEP 657 range is
+                # contained by the parent condition.  Chained comparisons
+                # use their narrower transparent-bridge proof above instead.
                 if len(branch_predecessors) < 2:
+                    continue
+                if (
+                    not position_is_owned
+                    and not (
+                        len(branch_predecessors) >= 2
+                        and same_exception_condition
+                        and single_line_predicate
+                    )
+                ):
                     continue
                 for stop in ordered_endpoints:
                     if branch == stop:
@@ -1427,6 +1665,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                             candidate_endpoints,
                         )
                     )
+                    # A three-group OR can temporarily expose a third leaf
+                    # before the next owned continuation closes the graph.
+                    # The source/exception and predecessor checks above keep
+                    # a real nested suite outside that transient state.
                     if not 2 <= len(candidate_endpoints) <= 3:
                         continue
                     nodes = candidate_nodes

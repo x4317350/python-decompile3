@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import FrozenSet, List, Optional, Tuple
 
 from decompyle3.controlflow.cfg import instruction_target
-from decompyle3.parsers.p311.base import Python311ParseError
+from decompyle3.parsers.p311.base import Python311ParseError, _IGNORED_INTERNAL
 
 
 @dataclass(frozen=True)
@@ -449,31 +449,56 @@ class ExceptionStructureDecompiler311:
         entry_offset = self.owner.cfg.block(viable.pop()).start
         return self.offset_to_index.get(entry_offset)
 
-    def _protected_terminal_none_return_end(
+    def _protected_terminal_return_frontier_end(
         self,
         fragments,
         body_end: int,
         handler_index: int,
     ) -> Optional[int]:
-        """Own a non-raising None-return block reached only by the try body."""
-        if not 0 <= body_end + 1 < handler_index:
-            return None
-        load = self.tokens[body_end]
-        returned = self.tokens[body_end + 1]
-        if not (
-            load.kind == "LOAD_CONST"
-            and load.attr is None
-            and returned.kind == "RETURN_VALUE"
-        ):
+        """Own constant-return sinks reached only by the protected body.
+
+        CPython may stop protecting the final, non-raising ``LOAD_CONST`` /
+        ``RETURN_VALUE`` pairs before the exception handler starts.  Those
+        blocks are still terminal exits of the source ``try`` body; treating
+        them as a normal-completion suite invents ``try/else``.  Keep this
+        proof deliberately narrow: the complete physical gap must consist of
+        one or more constant-return blocks and every normal predecessor must
+        already belong to the protected region (or to the proven frontier).
+        """
+        if not 0 <= body_end < handler_index:
             return None
 
-        return_block = self.owner.cfg.offset_to_block.get(load.offset)
-        if (
-            return_block is None
-            or self.owner.cfg.block(return_block).start != load.offset
-            or self.owner.cfg.block(return_block).terminator != "RETURN_VALUE"
-            or self.owner._normal_edges_from(return_block)
-        ):
+        return_blocks = set()
+        cursor = body_end
+        while cursor < handler_index:
+            while (
+                cursor < handler_index
+                and self.tokens[cursor].kind in _IGNORED_INTERNAL
+            ):
+                cursor += 1
+            if cursor >= handler_index:
+                break
+            if (
+                cursor + 1 >= handler_index
+                or self.tokens[cursor].kind != "LOAD_CONST"
+                or self.tokens[cursor + 1].kind != "RETURN_VALUE"
+            ):
+                return None
+            block_index = self.owner.cfg.offset_to_block.get(
+                self.tokens[cursor].offset
+            )
+            if (
+                block_index is None
+                or self.owner.cfg.block(block_index).start
+                != self.tokens[cursor].offset
+                or self.owner.cfg.block(block_index).terminator
+                != "RETURN_VALUE"
+                or self.owner._normal_edges_from(block_index)
+            ):
+                return None
+            return_blocks.add(block_index)
+            cursor += 2
+        if not return_blocks:
             return None
 
         protected_blocks = set()
@@ -482,16 +507,23 @@ class ExceptionStructureDecompiler311:
                 if fragment.start <= block.start < fragment.end:
                     protected_blocks.add(block.index)
                     break
-        incoming = []
-        for edge in self.owner.cfg.incoming(return_block):
-            if edge.kind != "exception":
-                incoming.append(edge)
-        if (
-            not incoming
-            or any(edge.source not in protected_blocks for edge in incoming)
-        ):
-            return None
-        return body_end + 2
+        has_protected_entry = False
+        owned_blocks = protected_blocks | return_blocks
+        for return_block in return_blocks:
+            incoming = self.owner.cfg.incoming(return_block)
+            if any(edge.kind == "exception" for edge in incoming):
+                return None
+            normal_incoming = [
+                edge for edge in incoming if edge.kind != "exception"
+            ]
+            if not normal_incoming or any(
+                edge.source not in owned_blocks for edge in normal_incoming
+            ):
+                return None
+            has_protected_entry = has_protected_entry or any(
+                edge.source in protected_blocks for edge in normal_incoming
+            )
+        return handler_index if has_protected_entry else None
 
     def _enclosing_fragmented_handler(
         self,
@@ -1704,13 +1736,13 @@ class ExceptionStructureDecompiler311:
                 # source return; these physical loop-iterator cleanup pairs
                 # belong to that same normal path, not to ``try`` orelse.
                 body_end = cursor + 1
-        terminal_none_end = self._protected_terminal_none_return_end(
+        terminal_return_end = self._protected_terminal_return_frontier_end(
             fragments,
             body_end,
             handler_index,
         )
-        if terminal_none_end is not None:
-            body_end = terminal_none_end
+        if terminal_return_end is not None:
+            body_end = terminal_return_end
         if (
             0 < body_end < handler_index
             and self.tokens[body_end - 1].kind
