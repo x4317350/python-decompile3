@@ -33,6 +33,18 @@ class _HandlerTerminalTransfer:
     protocol_offsets: FrozenSet[int]
 
 
+@dataclass(frozen=True)
+class _ProtectedLoopTerminalFrontier:
+    """CFG proof for non-raising loop transfers after a protected region."""
+
+    end_index: int
+    owned_blocks: FrozenSet[int]
+    return_blocks: FrozenSet[int]
+    continue_blocks: FrozenSet[int]
+    break_blocks: FrozenSet[int]
+    cleanup_offsets: FrozenSet[int]
+
+
 class ExceptionStructureDecompiler311:
     """Recover try and with statements from protected ranges and handlers."""
 
@@ -524,6 +536,190 @@ class ExceptionStructureDecompiler311:
                 edge.source in protected_blocks for edge in normal_incoming
             )
         return handler_index if has_protected_entry else None
+
+    def _protected_loop_terminal_frontier(
+        self,
+        fragments,
+        body_end: int,
+        handler_index: int,
+        loop,
+    ) -> Optional[_ProtectedLoopTerminalFrontier]:
+        """Own loop return/break/continue sinks after protected fragments.
+
+        CPython leaves non-raising iterator cleanup and control transfers out
+        of exception-table ranges.  They still belong to the source try body
+        when every physical gap block is a proven terminal transfer reached
+        only from that protected body.  Reject the candidate on any business
+        instruction, foreign predecessor, exception edge, or loop target
+        mismatch.
+        """
+        if loop is None or not 0 <= body_end < handler_index:
+            return None
+
+        lower = self.tokens[body_end].offset
+        upper = self.tokens[handler_index].offset
+        first_block = self.owner.cfg.offset_to_block.get(lower)
+        if (
+            first_block is None
+            or self.owner.cfg.block(first_block).start != lower
+        ):
+            return None
+
+        frontier_blocks = {
+            block.index
+            for block in self.owner.cfg.blocks
+            if lower <= block.start < upper
+        }
+        if not frontier_blocks:
+            return None
+        if any(
+            self.owner.cfg.block(block_index).end > upper
+            for block_index in frontier_blocks
+        ):
+            return None
+
+        return_blocks = set()
+        continue_blocks = set()
+        break_blocks = set()
+        cleanup_offsets = set()
+
+        for block_index in sorted(
+            frontier_blocks,
+            key=lambda index: self.owner.cfg.block(index).start,
+        ):
+            block = self.owner.cfg.block(block_index)
+            start_index = self.offset_to_index.get(block.start)
+            end_index = self.offset_to_index.get(block.end)
+            if start_index is None or end_index is None:
+                return None
+            semantic = [
+                self.tokens[index]
+                for index in range(start_index, end_index)
+                if self.tokens[index].kind not in _IGNORED_INTERNAL
+            ]
+            if not semantic:
+                return None
+            incoming = self.owner.cfg.incoming(block_index)
+            outgoing = self.owner.cfg.outgoing(block_index)
+            if any(
+                edge.kind == "exception"
+                for edge in incoming + outgoing
+            ):
+                return None
+            normal_outgoing = self.owner._normal_edges_from(block_index)
+
+            pop_count = 0
+            while (
+                pop_count < len(semantic)
+                and semantic[pop_count].kind == "POP_TOP"
+            ):
+                cleanup_offsets.add(semantic[pop_count].offset)
+                pop_count += 1
+            remaining = semantic[pop_count:]
+
+            if (
+                len(remaining) == 2
+                and remaining[0].kind == "LOAD_CONST"
+                and remaining[1].kind == "RETURN_VALUE"
+                and block.terminator == "RETURN_VALUE"
+                and not normal_outgoing
+            ):
+                return_blocks.add(block_index)
+                continue
+
+            if (
+                pop_count == 0
+                and len(remaining) == 1
+                and remaining[0].kind
+                in ("JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT")
+                and instruction_target(remaining[0])
+                in loop.continue_targets
+                and block.terminator == remaining[0].kind
+                and len(normal_outgoing) == 1
+                and self.owner.cfg.block(normal_outgoing[0].target).start
+                == instruction_target(remaining[0])
+            ):
+                continue_blocks.add(block_index)
+                continue
+
+            if (
+                len(remaining) == 1
+                and remaining[0].kind == "JUMP_FORWARD"
+                and instruction_target(remaining[0]) == loop.break_target
+                and block.terminator == "JUMP_FORWARD"
+                and len(normal_outgoing) == 1
+                and self.owner.cfg.block(normal_outgoing[0].target).start
+                == loop.break_target
+            ):
+                break_blocks.add(block_index)
+                continue
+
+            return None
+
+        if not continue_blocks and not break_blocks:
+            return None
+
+        protected_blocks = set()
+        for block in self.owner.cfg.blocks:
+            if any(
+                fragment.start <= block.start < fragment.end
+                for fragment in fragments
+            ):
+                protected_blocks.add(block.index)
+        if not protected_blocks:
+            return None
+
+        owned_blocks = protected_blocks | frontier_blocks
+        entry_blocks = set()
+        for block_index in frontier_blocks:
+            incoming = self.owner.cfg.incoming(block_index)
+            normal_incoming = [
+                edge for edge in incoming if edge.kind != "exception"
+            ]
+            if not normal_incoming or any(
+                edge.source not in owned_blocks for edge in normal_incoming
+            ):
+                return None
+            if any(
+                edge.source in protected_blocks for edge in normal_incoming
+            ):
+                entry_blocks.add(block_index)
+        if not entry_blocks:
+            return None
+
+        pending = list(entry_blocks)
+        visited = set()
+        work_limit = max(32, len(self.owner.cfg.blocks) * 2)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            if block_index not in frontier_blocks:
+                return None
+            visited.add(block_index)
+            pending.extend(
+                edge.target
+                for edge in self.owner._normal_edges_from(block_index)
+                if edge.target in frontier_blocks
+            )
+        if visited != frontier_blocks:
+            return None
+
+        classified = return_blocks | continue_blocks | break_blocks
+        if classified != frontier_blocks:
+            return None
+        return _ProtectedLoopTerminalFrontier(
+            end_index=handler_index,
+            owned_blocks=frozenset(frontier_blocks),
+            return_blocks=frozenset(return_blocks),
+            continue_blocks=frozenset(continue_blocks),
+            break_blocks=frozenset(break_blocks),
+            cleanup_offsets=frozenset(cleanup_offsets),
+        )
 
     def _enclosing_fragmented_handler(
         self,
@@ -1741,6 +1937,15 @@ class ExceptionStructureDecompiler311:
             body_end,
             handler_index,
         )
+        if terminal_return_end is None:
+            loop_frontier = self._protected_loop_terminal_frontier(
+                fragments,
+                body_end,
+                handler_index,
+                loop,
+            )
+            if loop_frontier is not None:
+                terminal_return_end = loop_frontier.end_index
         if terminal_return_end is not None:
             body_end = terminal_return_end
         if (
