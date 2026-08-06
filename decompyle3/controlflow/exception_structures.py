@@ -83,14 +83,15 @@ class ExceptionStructureDecompiler311:
                 return False
         return False
 
-    def _handler_is_bare(self, handler_index: int) -> bool:
+    def _handler_is_bare(self, entry) -> bool:
+        handler_index = self.offset_to_index[entry.target]
         if not (
             handler_index + 1 < len(self.tokens)
             and self.tokens[handler_index].kind == "PUSH_EXC_INFO"
             and self.tokens[handler_index + 1].kind == "POP_TOP"
         ):
             return False
-        return not (
+        ambiguous_transfer = (
             handler_index + 3 < len(self.tokens)
             and self.tokens[handler_index + 2].kind == "POP_EXCEPT"
             and (
@@ -99,6 +100,30 @@ class ExceptionStructureDecompiler311:
                     "JUMP_BACKWARD"
                 )
             )
+        )
+        if not ambiguous_transfer:
+            return True
+
+        # ``except: continue/break`` and ``finally: continue/break`` have
+        # the same exceptional cleanup prefix.  A real except region has a
+        # normal edge that jumps forward around the handler.  In a finally
+        # region, normal execution instead runs a duplicated copy of the
+        # cleanup/control transfer before reaching the exceptional handler.
+        normal_index = self.offset_to_index.get(entry.end)
+        if normal_index is None:
+            return False
+        normal_index = self.owner._next_semantic_index(
+            normal_index,
+            handler_index,
+        )
+        if normal_index >= handler_index:
+            return False
+        normal_exit = self.tokens[normal_index]
+        normal_target = instruction_target(normal_exit)
+        return (
+            normal_exit.kind == "JUMP_FORWARD"
+            and normal_target is not None
+            and normal_target > entry.target
         )
 
     def _remember_exception_state(self, entry) -> ExceptionState311:
@@ -3079,7 +3104,7 @@ class ExceptionStructureDecompiler311:
             statement, next_index = self._try_except_star(entry, loop)
         elif (
             self._handler_has_match(handler_index)
-            or self._handler_is_bare(handler_index)
+            or self._handler_is_bare(entry)
         ):
             statement, next_index = self._try_except(entry, loop)
         else:
