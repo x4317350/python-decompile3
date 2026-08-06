@@ -72,6 +72,58 @@ def terminal_not_no_else(flag, events):
         events.append("false")
 
 
+def terminal_empty_if(flag):
+    if flag:
+        pass
+
+
+def terminal_empty_and(first, second):
+    if first and second:
+        pass
+
+
+def terminal_empty_many_and(first, second, third):
+    if first and second and third:
+        pass
+
+
+def terminal_empty_or(first, second):
+    if first or second:
+        pass
+
+
+def terminal_empty_not(flag):
+    if not flag:
+        pass
+
+
+def terminal_empty_mixed(first, second, third):
+    if (first and second) or third:
+        pass
+
+
+def terminal_empty_condition(first, second):
+    if first() and second():
+        pass
+
+
+def terminal_return_condition(first, second):
+    if first() and second():
+        return
+
+
+def terminal_short_circuit_statement_and(obj):
+    obj and obj.binding(False)
+
+
+def terminal_short_circuit_statement_or(obj):
+    obj or obj.binding(False)
+
+
+def terminal_short_circuit_statement_many(first, second, final):
+    first() and second() and final()
+
+
 def terminal_before_no_else(left, right, events):
     events.append("before")
     if left and right:

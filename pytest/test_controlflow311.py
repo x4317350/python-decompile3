@@ -68,6 +68,16 @@ def terminal_native_code(name):
 
 
 def terminal_decompiler(name="terminal_if_else"):
+    decompiler, start = terminal_structured_decompiler(name)
+    condition = decompiler._bounded_condition_plan(
+        start,
+        len(decompiler.tokens),
+    )
+    assert condition is not None
+    return decompiler, condition
+
+
+def terminal_structured_decompiler(name):
     code = terminal_native_code(name)
     scanner = Scanner311()
     tokens, _ = scanner.ingest(code)
@@ -77,9 +87,7 @@ def terminal_decompiler(name="terminal_if_else"):
         for index, token in enumerate(tokens)
         if token.kind not in ("INTERNAL_RESUME",)
     )
-    condition = decompiler._bounded_condition_plan(start, len(tokens))
-    assert condition is not None
-    return decompiler, condition
+    return decompiler, start
 
 
 def graph_for(name):
@@ -712,6 +720,768 @@ def test_terminal_no_else_implicit_epilogues_are_not_source_returns():
             isinstance(node, ast.Return)
             for node in ast.walk(function)
         )
+
+
+def test_terminal_empty_if_restores_pass_without_source_returns():
+    recovered_text = recover_terminal_source()
+    tree = ast.parse(recovered_text)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    for name in (
+        "terminal_empty_if",
+        "terminal_empty_and",
+        "terminal_empty_many_and",
+        "terminal_empty_or",
+        "terminal_empty_not",
+        "terminal_empty_mixed",
+        "terminal_empty_condition",
+    ):
+        function = functions[name]
+        assert len(function.body) == 1
+        statement = function.body[0]
+        assert isinstance(statement, ast.If)
+        assert statement.orelse == []
+        assert len(statement.body) == 1
+        assert isinstance(statement.body[0], ast.Pass)
+        assert not any(isinstance(node, ast.Return) for node in ast.walk(function))
+
+
+@pytest.mark.parametrize(
+    ("name", "exit_count"),
+    (
+        ("terminal_empty_if", 2),
+        ("terminal_empty_and", 3),
+        ("terminal_empty_many_and", 4),
+        ("terminal_empty_or", 2),
+        ("terminal_empty_not", 2),
+        ("terminal_empty_mixed", 2),
+        ("terminal_empty_condition", 3),
+    ),
+)
+def test_terminal_empty_if_plan_owns_all_physical_none_returns(
+    name,
+    exit_count,
+):
+    decompiler, condition = terminal_decompiler(name)
+    plan = decompiler._terminal_empty_if_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+
+    assert plan is not None
+    assert len(plan.exit_blocks) == exit_count
+    assert len(plan.owned_offsets) == exit_count * 2
+    assert plan.condition_blocks
+    assert condition.true_endpoint == min(condition.endpoints)
+
+
+def test_terminal_empty_if_preserves_condition_order_and_exceptions():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_empty_if_original",
+    )
+    recovered = execute(
+        recover_terminal_source(),
+        "terminal_empty_if_recovered",
+    )
+
+    for first_result, second_result in (
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ):
+        original_calls = []
+        recovered_calls = []
+
+        def original_first():
+            original_calls.append("first")
+            return first_result
+
+        def original_second():
+            original_calls.append("second")
+            return second_result
+
+        def recovered_first():
+            recovered_calls.append("first")
+            return first_result
+
+        def recovered_second():
+            recovered_calls.append("second")
+            return second_result
+
+        assert (
+            original["terminal_empty_condition"](
+                original_first,
+                original_second,
+            )
+            is None
+        )
+        assert (
+            recovered["terminal_empty_condition"](
+                recovered_first,
+                recovered_second,
+            )
+            is None
+        )
+        assert recovered_calls == original_calls
+
+    def raise_condition():
+        raise LookupError("terminal empty condition")
+
+    for namespace in (original, recovered):
+        with pytest.raises(LookupError, match="terminal empty condition"):
+            namespace["terminal_empty_condition"](
+                lambda: True,
+                raise_condition,
+            )
+
+
+def test_terminal_bare_return_preserves_short_circuit_structure_and_behavior():
+    recovered_text = recover_terminal_source()
+    tree = ast.parse(recovered_text)
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "terminal_return_condition"
+    )
+    assert len(function.body) == 1
+    statement = function.body[0]
+    assert isinstance(statement, ast.If)
+    assert isinstance(statement.test, ast.BoolOp)
+    assert isinstance(statement.test.op, ast.And)
+    assert len(statement.body) == 1
+    assert isinstance(statement.body[0], ast.Return)
+    assert statement.body[0].value is None
+
+    decompiler, condition = terminal_decompiler(
+        "terminal_return_condition"
+    )
+    plan = decompiler._terminal_empty_if_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+    assert plan is not None
+    assert plan.suite_kind == "return"
+
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_return_original",
+    )
+    recovered = execute(recovered_text, "terminal_return_recovered")
+    for first_result, second_result in (
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ):
+        original_calls = []
+        recovered_calls = []
+
+        def original_first():
+            original_calls.append("first")
+            return first_result
+
+        def original_second():
+            original_calls.append("second")
+            return second_result
+
+        def recovered_first():
+            recovered_calls.append("first")
+            return first_result
+
+        def recovered_second():
+            recovered_calls.append("second")
+            return second_result
+
+        assert (
+            original["terminal_return_condition"](
+                original_first,
+                original_second,
+            )
+            is None
+        )
+        assert (
+            recovered["terminal_return_condition"](
+                recovered_first,
+                recovered_second,
+            )
+            is None
+        )
+        assert recovered_calls == original_calls
+
+
+def test_terminal_empty_if_does_not_guess_explicit_return_none():
+    suite = "return None"
+    root = compile(
+        f"def explicit_none(first, second):\n"
+        f"    if first and second:\n"
+        f"        {suite}\n",
+        "<terminal-explicit-none>",
+        "exec",
+    )
+    code = next(
+        code
+        for code in Scanner311.iter_code_objects(root)
+        if code.co_name == "explicit_none"
+    )
+    scanner = Scanner311()
+    tokens, _ = scanner.ingest(code)
+    decompiler = StructuredDecompiler311(code, tokens)
+    start = next(
+        index
+        for index, token in enumerate(tokens)
+        if token.kind != "INTERNAL_RESUME"
+    )
+
+    assert decompiler._bounded_condition_plan(start, len(tokens)) is None
+    with pytest.raises(
+        Python311ParseError,
+        match="Unsupported phase-3 opcode POP_JUMP_FORWARD_IF_FALSE",
+    ):
+        decompiler.decompile_body()
+
+
+@pytest.mark.parametrize(
+    ("name", "exit_count", "operator"),
+    (
+        ("terminal_short_circuit_statement_and", 2, ast.And),
+        ("terminal_short_circuit_statement_or", 2, ast.Or),
+        ("terminal_short_circuit_statement_many", 3, ast.And),
+    ),
+)
+def test_terminal_short_circuit_statement_plan_owns_cleanup_and_ast(
+    name,
+    exit_count,
+    operator,
+):
+    decompiler, start = terminal_structured_decompiler(name)
+    plan = decompiler._terminal_short_circuit_statement_plan(
+        start,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+
+    assert plan is not None
+    assert isinstance(plan.expression, ast.BoolOp)
+    assert isinstance(plan.expression.op, operator)
+    assert len(plan.exit_blocks) == exit_count
+    assert len(plan.cleanup_offsets) == exit_count
+    assert plan.condition_blocks
+
+    recovered_text = recover_terminal_source()
+    tree = ast.parse(recovered_text)
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+    assert len(function.body) == 1
+    statement = function.body[0]
+    assert isinstance(statement, ast.Expr)
+    assert isinstance(statement.value, ast.BoolOp)
+    assert isinstance(statement.value.op, operator)
+    assert not any(isinstance(node, ast.Return) for node in ast.walk(function))
+
+
+def test_terminal_short_circuit_statement_preserves_calls_and_return_values():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_short_circuit_statement_original",
+    )
+    recovered = execute(
+        recover_terminal_source(),
+        "terminal_short_circuit_statement_recovered",
+    )
+
+    class BindingProbe:
+        def __init__(self, truth, events):
+            self.truth = truth
+            self.events = events
+
+        def __bool__(self):
+            self.events.append("bool")
+            return self.truth
+
+        def binding(self, value):
+            self.events.append(("binding", value))
+            return "bound"
+
+    for name in (
+        "terminal_short_circuit_statement_and",
+        "terminal_short_circuit_statement_or",
+    ):
+        for truth in (False, True):
+            original_events = []
+            recovered_events = []
+            original_probe = BindingProbe(truth, original_events)
+            recovered_probe = BindingProbe(truth, recovered_events)
+
+            assert original[name](original_probe) is None
+            assert recovered[name](recovered_probe) is None
+            assert recovered_events == original_events
+
+    for values in (
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ):
+        original_events = []
+        recovered_events = []
+
+        def callback(events, label, result):
+            def invoke():
+                events.append(label)
+                return result
+
+            return invoke
+
+        original_result = original[
+            "terminal_short_circuit_statement_many"
+        ](
+            callback(original_events, "first", values[0]),
+            callback(original_events, "second", values[1]),
+            callback(original_events, "final", True),
+        )
+        recovered_result = recovered[
+            "terminal_short_circuit_statement_many"
+        ](
+            callback(recovered_events, "first", values[0]),
+            callback(recovered_events, "second", values[1]),
+            callback(recovered_events, "final", True),
+        )
+        assert recovered_result is original_result is None
+        assert recovered_events == original_events
+
+    class RaisingBindingProbe(BindingProbe):
+        def binding(self, value):
+            self.events.append(("binding", value))
+            raise LookupError("binding failure")
+
+    for namespace in (original, recovered):
+        events = []
+        with pytest.raises(LookupError, match="binding failure"):
+            namespace["terminal_short_circuit_statement_and"](
+                RaisingBindingProbe(True, events)
+            )
+        assert events == ["bool", ("binding", False)]
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    (
+        "outside_region",
+        "loop_context",
+        "class_body",
+        "module_body",
+        "generator",
+        "coroutine",
+        "async_generator",
+        "pending_stack",
+        "missing_position",
+        "wrong_position_line",
+        "non_none_return",
+        "missing_cleanup",
+        "missing_return",
+        "extra_pop",
+        "wrong_condition_opcode",
+        "wrong_jump_target",
+        "normal_successor",
+        "back_edge",
+        "exception_edge",
+        "foreign_predecessor",
+        "unreachable_exit",
+        "work_limit",
+    ),
+)
+def test_terminal_short_circuit_statement_rejects_unsafe_shape(corruption):
+    decompiler, start = terminal_structured_decompiler(
+        "terminal_short_circuit_statement_and"
+    )
+    baseline = decompiler._terminal_short_circuit_statement_plan(
+        start,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+    assert baseline is not None
+
+    blocks = decompiler.cfg.blocks
+    edges = decompiler.cfg.edges
+    loop = None
+    region_end = len(decompiler.tokens)
+    if corruption == "outside_region":
+        region_end -= 1
+    elif corruption == "loop_context":
+        loop = SimpleNamespace()
+    elif corruption == "class_body":
+        decompiler.is_class_body = True
+    elif corruption == "module_body":
+        decompiler.code = decompiler.code.replace(co_name="<module>")
+    elif corruption in ("generator", "coroutine", "async_generator"):
+        flag = {
+            "generator": 0x20,
+            "coroutine": 0x80,
+            "async_generator": 0x200,
+        }[corruption]
+        decompiler.code = decompiler.code.replace(
+            co_flags=decompiler.code.co_flags | flag,
+        )
+    elif corruption == "pending_stack":
+        decompiler.stack.append(ast.Constant(value="unexpected"))
+    elif corruption in ("missing_position", "wrong_position_line"):
+        cleanup = min(baseline.cleanup_offsets)
+        if corruption == "missing_position":
+            decompiler._positions_by_offset.pop(cleanup)
+        else:
+            line, end_line, column, end_column = (
+                decompiler._positions_by_offset[cleanup]
+            )
+            decompiler._positions_by_offset[cleanup] = (
+                line + 1,
+                end_line + 1,
+                column,
+                end_column,
+            )
+    elif corruption in (
+        "non_none_return",
+        "missing_cleanup",
+        "missing_return",
+    ):
+        cleanup = min(baseline.cleanup_offsets)
+        cleanup_token = decompiler.tokens[
+            decompiler.offset_to_index[cleanup]
+        ]
+        if corruption == "non_none_return":
+            load = decompiler.tokens[
+                decompiler.offset_to_index[cleanup] + 1
+            ]
+            assert load.kind == "LOAD_CONST"
+            load.attr = 1
+        elif corruption == "missing_cleanup":
+            cleanup_token.kind = "NOP"
+        else:
+            returned = decompiler.tokens[
+                decompiler.offset_to_index[cleanup] + 2
+            ]
+            assert returned.kind == "RETURN_VALUE"
+            returned.kind = "NOP"
+    elif corruption == "extra_pop":
+        token = decompiler.tokens[start]
+        assert token.kind == "LOAD_FAST"
+        token.kind = "POP_TOP"
+    elif corruption in ("wrong_condition_opcode", "wrong_jump_target"):
+        condition_block = min(baseline.condition_blocks)
+        block = blocks[condition_block]
+        last = block.instructions[-1]
+        replacement = FakeInstruction(
+            offset=last.offset,
+            kind=(
+                "POP_JUMP_FORWARD_IF_FALSE"
+                if corruption == "wrong_condition_opcode"
+                else last.kind
+            ),
+            target=(
+                min(baseline.cleanup_offsets)
+                if corruption == "wrong_condition_opcode"
+                else max(baseline.cleanup_offsets) + 100
+            ),
+        )
+        blocks = tuple(
+            replace(
+                candidate,
+                instructions=candidate.instructions[:-1] + (replacement,),
+            )
+            if candidate.index == condition_block
+            else candidate
+            for candidate in blocks
+        )
+    elif corruption in ("normal_successor", "foreign_predecessor"):
+        extra_index = len(blocks)
+        extra_start = max(block.end for block in blocks) + 2
+        extra = BasicBlock(
+            index=extra_index,
+            start=extra_start,
+            end=extra_start + 2,
+            instructions=(FakeInstruction(extra_start, "NOP"),),
+        )
+        blocks = (*blocks, extra)
+        if corruption == "normal_successor":
+            edges = tuple(
+                sorted(
+                    (*edges, Edge(max(baseline.exit_blocks), extra_index, "jump"))
+                )
+            )
+        else:
+            edges = tuple(
+                sorted(
+                    (*edges, Edge(extra_index, min(baseline.exit_blocks), "jump"))
+                )
+            )
+    elif corruption in ("back_edge", "exception_edge"):
+        source = max(baseline.exit_blocks)
+        kind = "jump" if corruption == "back_edge" else "exception"
+        edges = tuple(
+            sorted((*edges, Edge(source, decompiler.cfg.entry, kind)))
+        )
+    elif corruption == "unreachable_exit":
+        orphan = max(baseline.exit_blocks)
+        edges = tuple(edge for edge in edges if edge.target != orphan)
+    elif corruption == "work_limit":
+        target = min(baseline.exit_blocks)
+        edges = tuple(
+            sorted(
+                (
+                    *edges,
+                    *(
+                        Edge(decompiler.cfg.entry, target, "jump")
+                        for _ in range(300)
+                    ),
+                )
+            )
+        )
+
+    decompiler.cfg = ControlFlowGraph(
+        blocks=blocks,
+        edges=edges,
+        entry=decompiler.cfg.entry,
+        offset_to_block=decompiler.cfg.offset_to_block,
+    )
+    assert (
+        decompiler._terminal_short_circuit_statement_plan(
+            start,
+            loop=loop,
+            region_end=region_end,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    (
+        "missing_entry_position",
+        "missing_jump_position",
+        "missing_pass_position",
+        "wrong_span",
+        "wrong_indent",
+        "duplicate_pass_position",
+    ),
+)
+def test_terminal_empty_if_plan_rejects_ambiguous_pass_position(corruption):
+    decompiler, condition = terminal_decompiler("terminal_empty_and")
+    baseline = decompiler._terminal_empty_if_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+    assert baseline is not None
+
+    pass_offset = condition.true_endpoint
+    if corruption == "missing_entry_position":
+        decompiler._positions_by_offset.pop(condition.entry_offset)
+    elif corruption == "missing_jump_position":
+        jump_offset = decompiler.tokens[
+            next(iter(condition.nodes.values())).jump_index
+        ].offset
+        decompiler._positions_by_offset.pop(jump_offset)
+    elif corruption == "missing_pass_position":
+        decompiler._positions_by_offset.pop(pass_offset)
+    elif corruption == "wrong_span":
+        line, end_line, column, end_column = (
+            decompiler._positions_by_offset[pass_offset]
+        )
+        decompiler._positions_by_offset[pass_offset] = (
+            line,
+            end_line,
+            column,
+            end_column + 1,
+        )
+    elif corruption == "wrong_indent":
+        line, end_line, column, end_column = (
+            decompiler._positions_by_offset[pass_offset]
+        )
+        decompiler._positions_by_offset[pass_offset] = (
+            line,
+            end_line,
+            column + 8,
+            end_column + 8,
+        )
+    else:
+        decompiler._positions_by_offset[condition.false_endpoint] = (
+            decompiler._positions_by_offset[pass_offset]
+        )
+
+    start = decompiler.offset_to_index[condition.entry_offset]
+    assert (
+        decompiler._bounded_condition_plan(start, len(decompiler.tokens))
+        is None
+    )
+    assert (
+        decompiler._terminal_empty_if_plan(
+            condition,
+            loop=None,
+            region_end=len(decompiler.tokens),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    (
+        "outside_region",
+        "loop_context",
+        "class_body",
+        "module_body",
+        "generator",
+        "coroutine",
+        "async_generator",
+        "missing_condition_block",
+        "non_none_return",
+        "extra_semantic_instruction",
+        "missing_return",
+        "overlapping_pairs",
+        "normal_successor",
+        "back_edge",
+        "exception_edge",
+        "foreign_predecessor",
+        "unreachable_exit",
+        "work_limit",
+    ),
+)
+def test_terminal_empty_if_plan_rejects_unsafe_cfg_ownership(corruption):
+    decompiler, condition = terminal_decompiler("terminal_empty_and")
+    baseline = decompiler._terminal_empty_if_plan(
+        condition,
+        loop=None,
+        region_end=len(decompiler.tokens),
+    )
+    assert baseline is not None
+
+    blocks = decompiler.cfg.blocks
+    edges = decompiler.cfg.edges
+    loop = None
+    region_end = len(decompiler.tokens)
+    if corruption == "outside_region":
+        region_end -= 1
+    elif corruption == "loop_context":
+        loop = SimpleNamespace()
+    elif corruption == "class_body":
+        decompiler.is_class_body = True
+    elif corruption == "module_body":
+        decompiler.code = decompiler.code.replace(co_name="<module>")
+    elif corruption in ("generator", "coroutine", "async_generator"):
+        flag = {
+            "generator": 0x20,
+            "coroutine": 0x80,
+            "async_generator": 0x200,
+        }[corruption]
+        decompiler.code = decompiler.code.replace(
+            co_flags=decompiler.code.co_flags | flag,
+        )
+    elif corruption == "missing_condition_block":
+        jump_offset = decompiler.tokens[
+            next(iter(condition.nodes.values())).jump_index
+        ].offset
+        decompiler.cfg.offset_to_block = {
+            offset: block
+            for offset, block in decompiler.cfg.offset_to_block.items()
+            if offset != jump_offset
+        }
+    elif corruption in (
+        "non_none_return",
+        "extra_semantic_instruction",
+        "missing_return",
+    ):
+        offset = min(baseline.owned_offsets)
+        token = decompiler.tokens[decompiler.offset_to_index[offset]]
+        if corruption == "non_none_return":
+            assert token.kind == "LOAD_CONST"
+            token.attr = 1
+        elif corruption == "extra_semantic_instruction":
+            assert token.kind == "LOAD_CONST"
+            token.kind = "LOAD_FAST"
+            token.attr = "unexpected"
+        else:
+            return_offset = offset + 2
+            returned = decompiler.tokens[
+                decompiler.offset_to_index[return_offset]
+            ]
+            assert returned.kind == "RETURN_VALUE"
+            returned.kind = "NOP"
+    elif corruption == "overlapping_pairs":
+        owned = sorted(baseline.owned_offsets)
+        first_block = decompiler.cfg.offset_to_block[owned[0]]
+        decompiler.cfg.offset_to_block = dict(decompiler.cfg.offset_to_block)
+        decompiler.cfg.offset_to_block[owned[-2]] = first_block
+        decompiler.cfg.offset_to_block[owned[-1]] = first_block
+    elif corruption in ("normal_successor", "foreign_predecessor"):
+        extra_index = len(blocks)
+        extra_start = max(block.end for block in blocks) + 2
+        extra = BasicBlock(
+            index=extra_index,
+            start=extra_start,
+            end=extra_start + 2,
+            instructions=(FakeInstruction(extra_start, "NOP"),),
+        )
+        blocks = (*blocks, extra)
+        if corruption == "normal_successor":
+            edges = tuple(
+                sorted(
+                    (*edges, Edge(max(baseline.exit_blocks), extra_index, "jump"))
+                )
+            )
+        else:
+            edges = tuple(
+                sorted(
+                    (*edges, Edge(extra_index, min(baseline.exit_blocks), "jump"))
+                )
+            )
+    elif corruption in ("back_edge", "exception_edge"):
+        source = max(baseline.exit_blocks)
+        kind = "jump" if corruption == "back_edge" else "exception"
+        edges = tuple(
+            sorted((*edges, Edge(source, decompiler.cfg.entry, kind)))
+        )
+    elif corruption == "unreachable_exit":
+        orphan = max(baseline.exit_blocks)
+        edges = tuple(edge for edge in edges if edge.target != orphan)
+    elif corruption == "work_limit":
+        forward = min(baseline.exit_blocks)
+        edges = tuple(
+            sorted(
+                (
+                    *edges,
+                    *(
+                        Edge(decompiler.cfg.entry, forward, "jump")
+                        for _ in range(300)
+                    ),
+                )
+            )
+        )
+
+    decompiler.cfg = ControlFlowGraph(
+        blocks=blocks,
+        edges=edges,
+        entry=decompiler.cfg.entry,
+        offset_to_block=decompiler.cfg.offset_to_block,
+    )
+    assert (
+        decompiler._terminal_empty_if_plan(
+            condition,
+            loop=loop,
+            region_end=region_end,
+        )
+        is None
+    )
 
 
 def test_terminal_no_else_epilogues_preserve_behavior_and_short_circuiting():

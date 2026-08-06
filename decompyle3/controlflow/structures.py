@@ -109,6 +109,35 @@ class _ImplicitReturnEpiloguePlan:
 
 
 @dataclass(frozen=True)
+class _TerminalEmptyIfEvidence:
+    suite_endpoint: int
+    suite_kind: str
+    false_endpoints: FrozenSet[int]
+    condition_blocks: FrozenSet[int]
+    exit_blocks: FrozenSet[int]
+    owned_offsets: FrozenSet[int]
+
+
+@dataclass(frozen=True)
+class _TerminalEmptyIfPlan:
+    test: ast.expr
+    suite_kind: str
+    region_end: int
+    condition_blocks: FrozenSet[int]
+    exit_blocks: FrozenSet[int]
+    owned_offsets: FrozenSet[int]
+
+
+@dataclass(frozen=True)
+class _TerminalShortCircuitStatementPlan:
+    expression: ast.expr
+    region_end: int
+    condition_blocks: FrozenSet[int]
+    exit_blocks: FrozenSet[int]
+    cleanup_offsets: FrozenSet[int]
+
+
+@dataclass(frozen=True)
 class _LoopContext:
     break_target: int
     continue_targets: frozenset
@@ -225,6 +254,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self._region_work_count = 0
         self._region_work_limit = max(1024, len(self.tokens) * 64)
         self._latch_expression_memo: Dict[Tuple[int, int], int] = {}
+        try:
+            positions = tuple(code.co_positions())
+        except (AttributeError, TypeError, ValueError):
+            positions = ()
+        self._positions_by_offset = {
+            index * 2: position for index, position in enumerate(positions)
+        }
         self.cfg = build_cfg(flow_tokens, self.exception_regions)
         self.control_flow = analyze_control_flow(self.cfg)
 
@@ -497,6 +533,46 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             for offset, node in nodes.items()
         }
         return remapped, {canonical.get(endpoint, endpoint) for endpoint in endpoints}
+
+    def _coalesce_terminal_empty_if_endpoints(
+        self,
+        entry_offset: int,
+        nodes: Dict[int, _DecisionNode],
+        endpoints: Set[int],
+        region_end: int,
+    ) -> Optional[Tuple[Dict[int, _DecisionNode], Set[int]]]:
+        """Keep the source ``pass`` leaf distinct from equivalent exits."""
+        if len(endpoints) <= 2:
+            return None
+        evidence = self._terminal_empty_if_evidence(
+            entry_offset,
+            nodes,
+            region_end,
+            raw_endpoints=frozenset(endpoints),
+        )
+        if evidence is None:
+            return None
+
+        false_endpoint = min(evidence.false_endpoints)
+        canonical = {
+            endpoint: (
+                evidence.suite_endpoint
+                if endpoint == evidence.suite_endpoint
+                else false_endpoint
+            )
+            for endpoint in endpoints
+        }
+        remapped = {
+            offset: _DecisionNode(
+                start_index=node.start_index,
+                jump_index=node.jump_index,
+                predicate=node.predicate,
+                true_offset=canonical.get(node.true_offset, node.true_offset),
+                false_offset=canonical.get(node.false_offset, node.false_offset),
+            )
+            for offset, node in nodes.items()
+        }
+        return remapped, {evidence.suite_endpoint, false_endpoint}
 
     def _chained_condition_plan(
         self,
@@ -1020,20 +1096,38 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         if collected is None:
             return None
         nodes, endpoints = collected
-        nodes, endpoints = self._coalesce_condition_endpoints(
+        terminal_empty = self._coalesce_terminal_empty_if_endpoints(
+            self.tokens[start].offset,
             nodes,
             endpoints,
+            end,
         )
+        if terminal_empty is not None:
+            nodes, endpoints = terminal_empty
+        else:
+            nodes, endpoints = self._coalesce_condition_endpoints(
+                nodes,
+                endpoints,
+            )
         nodes, endpoints = reduce_decision_endpoints(nodes, endpoints)
         if len(endpoints) != 2:
             collected = collect(allow_multiline=False)
             if collected is None:
                 return None
             nodes, endpoints = collected
-            nodes, endpoints = self._coalesce_condition_endpoints(
+            terminal_empty = self._coalesce_terminal_empty_if_endpoints(
+                self.tokens[start].offset,
                 nodes,
                 endpoints,
+                end,
             )
+            if terminal_empty is not None:
+                nodes, endpoints = terminal_empty
+            else:
+                nodes, endpoints = self._coalesce_condition_endpoints(
+                    nodes,
+                    endpoints,
+                )
             nodes, endpoints = reduce_decision_endpoints(nodes, endpoints)
         if len(endpoints) != 2:
             return None
@@ -1385,6 +1479,456 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and semantic[1].kind == "RETURN_VALUE"
         )
 
+    def _terminal_empty_if_evidence(
+        self,
+        entry_offset: int,
+        nodes: Dict[int, _DecisionNode],
+        region_end: int,
+        raw_endpoints: Optional[FrozenSet[int]] = None,
+    ) -> Optional[_TerminalEmptyIfEvidence]:
+        """Prove ownership of a terminal ``if ...: pass`` decision graph."""
+        flags = int(getattr(self.code, "co_flags", 0))
+        if (
+            region_end != len(self.tokens)
+            or self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+            or flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)
+            or not nodes
+        ):
+            return None
+
+        semantic_indices = [
+            index
+            for index in range(region_end)
+            if self.tokens[index].kind not in _IGNORED_INTERNAL
+        ]
+        pairs = []
+        cursor = len(semantic_indices)
+        while cursor >= 2:
+            load_index = semantic_indices[cursor - 2]
+            return_index = semantic_indices[cursor - 1]
+            load = self.tokens[load_index]
+            returned = self.tokens[return_index]
+            if not (
+                load.kind == "LOAD_CONST"
+                and load.attr is None
+                and returned.kind == "RETURN_VALUE"
+            ):
+                break
+            pairs.append((load_index, return_index))
+            cursor -= 2
+        if len(pairs) < 2:
+            return None
+        pairs.reverse()
+
+        pair_endpoints = frozenset(
+            self.tokens[load_index].offset for load_index, _ in pairs
+        )
+        if raw_endpoints is not None and raw_endpoints != pair_endpoints:
+            return None
+
+        entry_position = self._positions_by_offset.get(entry_offset)
+        if (
+            entry_position is None
+            or len(entry_position) != 4
+            or not isinstance(entry_position[0], int)
+        ):
+            return None
+        condition_line = entry_position[0]
+
+        jump_positions = tuple(
+            self._positions_by_offset.get(
+                self.tokens[node.jump_index].offset
+            )
+            for node in nodes.values()
+        )
+        if any(
+            position is None
+            or len(position) != 4
+            or any(value is None for value in position)
+            for position in jump_positions
+        ):
+            return None
+        spanning_positions = tuple(
+            position
+            for position in jump_positions
+            if position[1] > position[0]
+        )
+        if spanning_positions:
+            condition_column = min(
+                position[2] for position in spanning_positions
+            )
+        else:
+            predicate_columns = []
+            for node in nodes.values():
+                for index in range(node.start_index, node.jump_index + 1):
+                    position = self._positions_by_offset.get(
+                        self.tokens[index].offset
+                    )
+                    if (
+                        position is not None
+                        and len(position) == 4
+                        and position[0] == condition_line
+                        and isinstance(position[2], int)
+                    ):
+                        predicate_columns.append(position[2])
+            if not predicate_columns or min(predicate_columns) < len("if "):
+                return None
+            condition_column = min(predicate_columns) - len("if ")
+
+        suite_candidates = []
+        for load_index, _ in pairs:
+            load = self.tokens[load_index]
+            position = self._positions_by_offset.get(load.offset)
+            if (
+                position is None
+                or len(position) != 4
+                or any(value is None for value in position)
+            ):
+                return None
+            line, end_line, column, end_column = position
+            if not (
+                line == end_line
+                and line > condition_line
+                and 1 <= column - condition_column <= 4
+            ):
+                continue
+            width = end_column - column
+            if width == len("pass"):
+                suite_candidates.append((load.offset, "pass"))
+            elif width == len("return"):
+                suite_candidates.append((load.offset, "return"))
+        if len(suite_candidates) != 1:
+            return None
+        suite_endpoint, suite_kind = suite_candidates[0]
+        false_endpoints = pair_endpoints - {suite_endpoint}
+        if (
+            not false_endpoints
+            or suite_endpoint != min(pair_endpoints)
+        ):
+            return None
+
+        pair_blocks = set()
+        owned_offsets = set()
+        for load_index, return_index in pairs:
+            load = self.tokens[load_index]
+            returned = self.tokens[return_index]
+            load_block = self.cfg.offset_to_block.get(load.offset)
+            return_block = self.cfg.offset_to_block.get(returned.offset)
+            if (
+                load_block is None
+                or load_block != return_block
+                or self.cfg.block(load_block).start != load.offset
+                or self.cfg.block(load_block).terminator != "RETURN_VALUE"
+                or self._normal_edges_from(load_block)
+            ):
+                return None
+            pair_blocks.add(load_block)
+            owned_offsets.update((load.offset, returned.offset))
+        if len(pair_blocks) != len(pairs):
+            return None
+
+        condition_block_indexes = tuple(
+            self.cfg.offset_to_block.get(
+                self.tokens[node.jump_index].offset
+            )
+            for node in nodes.values()
+        )
+        if (
+            not condition_block_indexes
+            or any(index is None for index in condition_block_indexes)
+            or len(set(condition_block_indexes)) != len(nodes)
+        ):
+            return None
+        condition_blocks = frozenset(condition_block_indexes)
+        if any(
+            self.cfg.block(index).terminator not in _CONDITIONAL_JUMPS
+            for index in condition_blocks
+        ):
+            return None
+
+        entry_block = self.cfg.offset_to_block.get(entry_offset)
+        if entry_block is None or entry_block not in condition_blocks:
+            return None
+
+        pending = [entry_block]
+        visited = set()
+        work_limit = max(64, len(self.cfg.blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            visited.add(block_index)
+            block = self.cfg.block(block_index)
+            for edge in self._normal_edges_from(block_index):
+                target = self.cfg.block(edge.target)
+                if target.start <= block.start:
+                    return None
+                pending.append(edge.target)
+
+        if visited != set(condition_blocks) | pair_blocks:
+            return None
+        if any(
+            edge.kind == "exception"
+            and (edge.source in visited or edge.target in visited)
+            for edge in self.cfg.edges
+        ):
+            return None
+        for block_index in visited:
+            outside_predecessors = {
+                edge.source
+                for edge in self.cfg.incoming(block_index)
+                if edge.kind != "exception" and edge.source not in visited
+            }
+            if outside_predecessors:
+                if block_index != entry_block:
+                    return None
+                entry_start = self.cfg.block(entry_block).start
+                if any(
+                    self.cfg.block(source).start >= entry_start
+                    for source in outside_predecessors
+                ):
+                    return None
+
+        exit_blocks = {
+            block_index
+            for block_index in visited
+            if not self._normal_edges_from(block_index)
+        }
+        if exit_blocks != pair_blocks:
+            return None
+
+        return _TerminalEmptyIfEvidence(
+            suite_endpoint=suite_endpoint,
+            suite_kind=suite_kind,
+            false_endpoints=frozenset(false_endpoints),
+            condition_blocks=condition_blocks,
+            exit_blocks=frozenset(exit_blocks),
+            owned_offsets=frozenset(owned_offsets),
+        )
+
+    def _terminal_empty_if_plan(
+        self,
+        plan: _ConditionPlan,
+        loop: Optional[_LoopContext],
+        region_end: int,
+    ) -> Optional[_TerminalEmptyIfPlan]:
+        """Match a fully proven function-tail ``if ...: pass``."""
+        if loop is not None:
+            return None
+        evidence = self._terminal_empty_if_evidence(
+            plan.entry_offset,
+            plan.nodes,
+            region_end,
+        )
+        if (
+            evidence is None
+            or plan.true_endpoint != evidence.suite_endpoint
+            or plan.false_endpoint not in evidence.false_endpoints
+            or set(plan.endpoints)
+            != {plan.true_endpoint, plan.false_endpoint}
+        ):
+            return None
+        return _TerminalEmptyIfPlan(
+            test=plan.expression,
+            suite_kind=evidence.suite_kind,
+            region_end=region_end,
+            condition_blocks=evidence.condition_blocks,
+            exit_blocks=evidence.exit_blocks,
+            owned_offsets=evidence.owned_offsets,
+        )
+
+    def _terminal_short_circuit_statement_plan(
+        self,
+        start: int,
+        loop: Optional[_LoopContext],
+        region_end: int,
+    ) -> Optional[_TerminalShortCircuitStatementPlan]:
+        """Match a terminal short-circuit expression with copied cleanup."""
+        flags = int(getattr(self.code, "co_flags", 0))
+        if (
+            loop is not None
+            or region_end != len(self.tokens)
+            or not 0 <= start < region_end
+            or self.is_class_body
+            or getattr(self.code, "co_name", "<module>") == "<module>"
+            or flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)
+            or self.stack
+            or self.pending_assignment_value is not None
+            or self.pending_assignment_targets
+            or self.pending_booleans
+            or self.pending_keywords
+        ):
+            return None
+
+        entry_offset = self.tokens[start].offset
+        entry_block = self.cfg.offset_to_block.get(entry_offset)
+        if entry_block is None:
+            return None
+
+        pending = [entry_block]
+        visited = set()
+        work_limit = max(64, len(self.cfg.blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return None
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            visited.add(block_index)
+            block = self.cfg.block(block_index)
+            for edge in self._normal_edges_from(block_index):
+                target = self.cfg.block(edge.target)
+                if target.start <= block.start:
+                    return None
+                pending.append(edge.target)
+
+        if any(
+            edge.kind == "exception"
+            and (edge.source in visited or edge.target in visited)
+            for edge in self.cfg.edges
+        ):
+            return None
+        for block_index in visited:
+            outside_predecessors = {
+                edge.source
+                for edge in self.cfg.incoming(block_index)
+                if edge.kind != "exception" and edge.source not in visited
+            }
+            if outside_predecessors:
+                if block_index != entry_block:
+                    return None
+                entry_start = self.cfg.block(entry_block).start
+                if any(
+                    self.cfg.block(source).start >= entry_start
+                    for source in outside_predecessors
+                ):
+                    return None
+
+        exit_blocks = {
+            block_index
+            for block_index in visited
+            if not self._normal_edges_from(block_index)
+        }
+        condition_blocks = set(visited) - exit_blocks
+        if not exit_blocks or not condition_blocks:
+            return None
+        if any(
+            self.cfg.block(block_index).terminator != "RETURN_VALUE"
+            for block_index in exit_blocks
+        ):
+            return None
+        if any(
+            self.cfg.block(block_index).terminator
+            not in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP")
+            for block_index in condition_blocks
+        ):
+            return None
+
+        source_line = None
+        for index in range(start, region_end):
+            position = self._positions_by_offset.get(
+                self.tokens[index].offset
+            )
+            if (
+                position is not None
+                and len(position) == 4
+                and isinstance(position[0], int)
+            ):
+                source_line = position[0]
+                break
+        if source_line is None:
+            return None
+
+        cleanup_offsets = set()
+        for block_index in exit_blocks:
+            block = self.cfg.block(block_index)
+            semantic = [
+                self.tokens[index]
+                for index in range(start, region_end)
+                if self.tokens[index].kind not in _IGNORED_INTERNAL
+                and self.cfg.offset_to_block.get(self.tokens[index].offset)
+                == block_index
+            ]
+            if (
+                len(semantic) < 3
+                or semantic[-3].kind != "POP_TOP"
+                or semantic[-2].kind != "LOAD_CONST"
+                or semantic[-2].attr is not None
+                or semantic[-1].kind != "RETURN_VALUE"
+            ):
+                return None
+            cleanup = semantic[-3]
+            position = self._positions_by_offset.get(cleanup.offset)
+            if (
+                position is None
+                or len(position) != 4
+                or position[0] != source_line
+                or position[1] != source_line
+            ):
+                return None
+            cleanup_offsets.add(cleanup.offset)
+        if len(cleanup_offsets) != len(exit_blocks):
+            return None
+
+        if {
+            self.tokens[index].offset
+            for index in range(start, region_end)
+            if self.tokens[index].kind == "POP_TOP"
+        } != cleanup_offsets:
+            return None
+        if any(
+            instruction_target(self.cfg.block(block_index).last)
+            not in cleanup_offsets
+            for block_index in condition_blocks
+        ):
+            return None
+
+        from decompyle3.parsers.p311.expressions import recover_expression311
+
+        try:
+            expression = recover_expression311(
+                self.code,
+                self.tokens,
+                start=start,
+                end=region_end,
+                terminal_kinds=frozenset({"POP_TOP"}),
+            )
+        except Python311ParseError:
+            return None
+        if not isinstance(expression, ast.BoolOp):
+            return None
+
+        return _TerminalShortCircuitStatementPlan(
+            expression=expression,
+            region_end=region_end,
+            condition_blocks=frozenset(condition_blocks),
+            exit_blocks=frozenset(exit_blocks),
+            cleanup_offsets=frozenset(cleanup_offsets),
+        )
+
+    def _try_terminal_short_circuit_statement(
+        self,
+        start: int,
+        loop: Optional[_LoopContext],
+        region_end: int,
+    ) -> Optional[int]:
+        plan = self._terminal_short_circuit_statement_plan(
+            start,
+            loop,
+            region_end,
+        )
+        if plan is None:
+            return None
+        self.body.append(ast.Expr(value=plan.expression))
+        return plan.region_end
+
     def _implicit_return_epilogue_plan(
         self,
         plan: _ConditionPlan,
@@ -1705,6 +2249,20 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         )
         return plan.region_end
 
+    def _emit_terminal_empty_if(
+        self,
+        plan: _TerminalEmptyIfPlan,
+    ) -> int:
+        suite = (
+            ast.Pass()
+            if plan.suite_kind == "pass"
+            else ast.Return(value=None)
+        )
+        self.body.append(
+            ast.If(test=plan.test, body=[suite], orelse=[])
+        )
+        return plan.region_end
+
     def _emit_terminal_if(
         self,
         plan: _TerminalIfPlan,
@@ -1934,6 +2492,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         true_index = self.offset_to_index[plan.true_endpoint]
         false_index = self.offset_to_index[plan.false_endpoint]
         if true_index > false_index:
+            terminal_empty = self._terminal_empty_if_plan(
+                plan,
+                loop,
+                region_end,
+            )
+            if terminal_empty is not None:
+                return self._emit_terminal_empty_if(terminal_empty)
             terminal = self._terminal_if_plan(plan, loop, region_end)
             if terminal is not None:
                 return self._emit_terminal_if(terminal, loop)
@@ -1966,6 +2531,13 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             excluded_target=excluded,
         )
         if jump_index is None:
+            terminal_empty = self._terminal_empty_if_plan(
+                plan,
+                loop,
+                region_end,
+            )
+            if terminal_empty is not None:
+                return self._emit_terminal_empty_if(terminal_empty)
             terminal = self._terminal_if_plan(plan, loop, region_end)
             if terminal is not None:
                 return self._emit_terminal_if(terminal, loop)
@@ -3068,6 +3640,15 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
             if inline_expression_end is not None:
                 index = inline_expression_end
+                continue
+
+            short_circuit_end = self._try_terminal_short_circuit_statement(
+                index,
+                loop,
+                end,
+            )
+            if short_circuit_end is not None:
+                index = short_circuit_end
                 continue
 
             condition = self._bounded_condition_plan(
