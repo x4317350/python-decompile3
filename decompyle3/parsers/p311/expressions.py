@@ -70,7 +70,14 @@ def _combine_decision(
         else None
     )
     if true_constant is True and false_constant is False:
-        return predicate
+        # This is a value-producing conditional expression, so returning the
+        # predicate itself would preserve only its truth value.  For example,
+        # ``True if 2 else False`` returns the bool ``True``, not the int ``2``.
+        return ast.IfExp(
+            test=predicate,
+            body=when_true,
+            orelse=when_false,
+        )
     if true_constant is False and false_constant is True:
         return _negate(predicate)
     if false_constant is False:

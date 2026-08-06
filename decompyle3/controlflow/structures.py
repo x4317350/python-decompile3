@@ -392,10 +392,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 # part of a CALL expression; only GET_ITER/FOR_ITER starts a
                 # source-level loop statement.
                 continue
+            # JUMP_IF_*_OR_POP belongs to a value-producing short-circuit
+            # expression.  Keep scanning for the POP_JUMP decision that uses
+            # that value; _predicate() will reject an unclosed expression CFG.
             if (
                 kind in _STATEMENT_BOUNDARIES
                 or kind in UNCONDITIONAL_JUMPS
-                or kind.startswith("JUMP_IF_")
             ):
                 return None
         return None
