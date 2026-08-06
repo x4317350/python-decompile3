@@ -1408,16 +1408,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         }
         if start_block not in interval_blocks:
             return None
-        if any(
-            edge.kind == "exception"
-            and (
-                edge.source in interval_blocks
-                or edge.target in interval_blocks
-            )
-            for edge in self.cfg.edges
-        ):
-            return None
-
         pending = [start_block]
         visited = set()
         work_limit = max(32, len(interval_blocks) * 4)
@@ -1432,7 +1422,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if block_index not in interval_blocks:
                 return None
             visited.add(block_index)
-            for edge in self._normal_edges_from(block_index):
+            for edge in self.cfg.outgoing(block_index):
                 if edge.target not in interval_blocks:
                     return None
                 pending.append(edge.target)
@@ -1441,30 +1431,49 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
         for block_index in visited:
             outside_predecessors = {
-                edge.source
+                (edge.source, edge.kind)
                 for edge in self.cfg.incoming(block_index)
-                if edge.kind != "exception" and edge.source not in visited
+                if edge.source not in visited
             }
             if block_index == start_block:
                 if not outside_predecessors:
                     return None
-                if not outside_predecessors <= condition_blocks:
+                if any(
+                    kind == "exception" or source not in condition_blocks
+                    for source, kind in outside_predecessors
+                ):
                     return None
             elif outside_predecessors:
                 return None
 
+        exit_blocks = {
+            block_index
+            for block_index in visited
+            if not self.cfg.outgoing(block_index)
+        }
         exits = {
             self.cfg.block(block_index).terminator
-            for block_index in visited
-            if not self._normal_edges_from(block_index)
+            for block_index in exit_blocks
         }
         if any(
-            self.cfg.block(block_index).terminator == "RETURN_VALUE"
-            and self._normal_edges_from(block_index)
+            self.cfg.block(block_index).terminator
+            in ("RETURN_VALUE", "RERAISE")
+            and self.cfg.outgoing(block_index)
             for block_index in visited
         ):
             return None
-        if not exits or exits != {"RETURN_VALUE"}:
+        if not exit_blocks or "RETURN_VALUE" not in exits:
+            return None
+        if not exits <= {"RETURN_VALUE", "RERAISE"}:
+            return None
+        if any(
+            self.cfg.block(block_index).terminator == "RERAISE"
+            and not any(
+                edge.kind == "exception"
+                for edge in self.cfg.incoming(block_index)
+            )
+            for block_index in exit_blocks
+        ):
             return None
         return frozenset(exits)
 
@@ -2219,9 +2228,42 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and semantic[-2].attr is None
             and semantic[-1].kind == "RETURN_VALUE"
             and not self._ends_in_control_transfer(body)
+            and not self._normal_interval_escapes(start, end)
         ):
             body.append(ast.Return(value=None))
         return body
+
+    def _normal_interval_escapes(self, start: int, end: int) -> bool:
+        """Return whether a normal path bypasses one physical interval tail."""
+        if not 0 <= start < end <= len(self.tokens):
+            return True
+        lower = self.tokens[start].offset
+        upper = self._region_end_offset(end)
+        start_block = self.cfg.offset_to_block.get(lower)
+        if (
+            start_block is None
+            or self.cfg.block(start_block).start != lower
+        ):
+            return True
+
+        pending = [start_block]
+        visited = set()
+        work_limit = max(32, len(self.cfg.blocks) * 4)
+        work_count = 0
+        while pending:
+            work_count += 1
+            if work_count > work_limit:
+                return True
+            block_index = pending.pop()
+            if block_index in visited:
+                continue
+            visited.add(block_index)
+            for edge in self._normal_edges_from(block_index):
+                target = self.cfg.block(edge.target)
+                if not lower <= target.start < upper:
+                    return True
+                pending.append(edge.target)
+        return False
 
     def _emit_implicit_return_epilogue(
         self,

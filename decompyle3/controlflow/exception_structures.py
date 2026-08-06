@@ -346,6 +346,78 @@ class ExceptionStructureDecompiler311:
                     handler_offset
                 )
 
+    def _normal_completion_entry(
+        self,
+        fragments,
+        normal_jump: int,
+        handler_index: int,
+    ) -> Optional[int]:
+        """Find the protected exit that reaches the handler-skipping jump."""
+        protected_blocks = {
+            block.index
+            for block in self.owner.cfg.blocks
+            if any(
+                fragment.start <= block.start < fragment.end
+                for fragment in fragments
+            )
+        }
+        normal_jump_offset = self.tokens[normal_jump].offset
+        normal_jump_block = self.owner.cfg.offset_to_block.get(
+            normal_jump_offset
+        )
+        if not protected_blocks or normal_jump_block is None:
+            return None
+
+        candidates = {
+            edge.target
+            for block_index in protected_blocks
+            for edge in self.owner._normal_edges_from(block_index)
+            if edge.target not in protected_blocks
+            and self.owner.cfg.block(edge.target).start
+            <= normal_jump_offset
+        }
+        if not candidates:
+            return None
+
+        handler_offset = self.tokens[handler_index].offset
+
+        def reaches_normal_jump(start_block: int) -> bool:
+            pending = [start_block]
+            visited = set()
+            work_limit = max(32, len(self.owner.cfg.blocks) * 4)
+            work_count = 0
+            while pending:
+                work_count += 1
+                if work_count > work_limit:
+                    return False
+                block_index = pending.pop()
+                if block_index == normal_jump_block:
+                    return True
+                if block_index in visited:
+                    continue
+                visited.add(block_index)
+                block = self.owner.cfg.block(block_index)
+                # A source ``else`` may contain its own closed try/with
+                # protocol.  Its handled exception edges are part of the
+                # path to the outer handler-skipping jump, while an edge to
+                # the outer handler itself remains excluded by the bound.
+                for edge in self.owner.cfg.outgoing(block_index):
+                    target = self.owner.cfg.block(edge.target)
+                    if not block.start < target.start < handler_offset:
+                        continue
+                    pending.append(edge.target)
+            return False
+
+        viable = {
+            block_index
+            for block_index in candidates
+            if reaches_normal_jump(block_index)
+        }
+        if len(viable) != 1:
+            return None
+        entry_offset = self.owner.cfg.block(viable.pop()).start
+        return self.offset_to_index.get(entry_offset)
+
     def _capture_deferred_return_finally(
         self,
         start: int,
@@ -1586,6 +1658,26 @@ class ExceptionStructureDecompiler311:
             and self.tokens[handler_index - 1].kind == "JUMP_FORWARD"
             else None
         )
+        normal_body_start = body_end
+        if (
+            normal_jump is not None
+            and not protected_return
+            and not held_return_through_handler
+            and any(
+                self.tokens[index].kind == "RETURN_VALUE"
+                for index in range(body_end, normal_jump)
+            )
+        ):
+            normal_body_start = self._normal_completion_entry(
+                fragments,
+                normal_jump,
+                handler_index,
+            )
+            if normal_body_start is None:
+                self._error(
+                    "Cannot prove try normal-completion ownership",
+                    self.tokens[body_end].offset,
+                )
         if protected_return or held_return_through_handler:
             orelse = []
             normal_join = None
@@ -1599,7 +1691,7 @@ class ExceptionStructureDecompiler311:
             normal_join = None
         else:
             orelse = self._capture_before_handler(
-                body_end,
+                normal_body_start,
                 normal_jump,
                 entry.target,
                 loop,
