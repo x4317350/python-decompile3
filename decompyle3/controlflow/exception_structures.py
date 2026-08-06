@@ -421,6 +421,12 @@ class ExceptionStructureDecompiler311:
                 if block_index in visited:
                     continue
                 visited.add(block_index)
+                if block_index in protected_blocks:
+                    # This is a non-raising gap between exception-table
+                    # fragments, not code which completed the logical try.
+                    # A real normal-completion suite cannot leave the
+                    # protected body and then re-enter one of its fragments.
+                    continue
                 block = self.owner.cfg.block(block_index)
                 # A source ``else`` may contain its own closed try/with
                 # protocol.  Its handled exception edges are part of the
@@ -442,6 +448,102 @@ class ExceptionStructureDecompiler311:
             return None
         entry_offset = self.owner.cfg.block(viable.pop()).start
         return self.offset_to_index.get(entry_offset)
+
+    def _protected_terminal_none_return_end(
+        self,
+        fragments,
+        body_end: int,
+        handler_index: int,
+    ) -> Optional[int]:
+        """Own a non-raising None-return block reached only by the try body."""
+        if not 0 <= body_end + 1 < handler_index:
+            return None
+        load = self.tokens[body_end]
+        returned = self.tokens[body_end + 1]
+        if not (
+            load.kind == "LOAD_CONST"
+            and load.attr is None
+            and returned.kind == "RETURN_VALUE"
+        ):
+            return None
+
+        return_block = self.owner.cfg.offset_to_block.get(load.offset)
+        if (
+            return_block is None
+            or self.owner.cfg.block(return_block).start != load.offset
+            or self.owner.cfg.block(return_block).terminator != "RETURN_VALUE"
+            or self.owner._normal_edges_from(return_block)
+        ):
+            return None
+
+        protected_blocks = set()
+        for block in self.owner.cfg.blocks:
+            for fragment in fragments:
+                if fragment.start <= block.start < fragment.end:
+                    protected_blocks.add(block.index)
+                    break
+        incoming = []
+        for edge in self.owner.cfg.incoming(return_block):
+            if edge.kind != "exception":
+                incoming.append(edge)
+        if (
+            not incoming
+            or any(edge.source not in protected_blocks for edge in incoming)
+        ):
+            return None
+        return body_end + 2
+
+    def _enclosing_fragmented_handler(
+        self,
+        entry,
+        next_index: int,
+    ):
+        """Find an outer handler whose protected fragment owns continuation."""
+        if not 0 <= next_index < len(self.tokens):
+            return None
+        continuation_offset = self.tokens[next_index].offset
+        covering = []
+        for candidate in self.entries:
+            if (
+                candidate.target != entry.target
+                and candidate.depth == entry.depth
+                and candidate.lasti == entry.lasti
+                and candidate.start
+                not in self.owner._suppressed_exception_starts
+                and candidate.start <= continuation_offset < candidate.end
+                and candidate.target > continuation_offset
+                and candidate.target
+                not in self.owner._suppressed_exception_handler_targets
+                and self.tokens[
+                    self.offset_to_index[candidate.target]
+                ].kind
+                == "PUSH_EXC_INFO"
+                and (
+                    self._handler_has_match(
+                        self.offset_to_index[candidate.target]
+                    )
+                    or self._handler_is_bare(candidate)
+                )
+            ):
+                covering.append(candidate)
+        targets = set()
+        for candidate in covering:
+            targets.add(candidate.target)
+        if len(targets) != 1:
+            return None
+        target = targets.pop()
+        fragments = []
+        for candidate in self.entries:
+            if (
+                candidate.target == target
+                and candidate.depth == entry.depth
+                and candidate.lasti == entry.lasti
+                and candidate.start < target
+            ):
+                fragments.append(candidate)
+        if not fragments:
+            return None
+        return target, fragments
 
     def _capture_deferred_return_finally(
         self,
@@ -1602,6 +1704,13 @@ class ExceptionStructureDecompiler311:
                 # source return; these physical loop-iterator cleanup pairs
                 # belong to that same normal path, not to ``try`` orelse.
                 body_end = cursor + 1
+        terminal_none_end = self._protected_terminal_none_return_end(
+            fragments,
+            body_end,
+            handler_index,
+        )
+        if terminal_none_end is not None:
+            body_end = terminal_none_end
         if (
             0 < body_end < handler_index
             and self.tokens[body_end - 1].kind
@@ -1763,6 +1872,35 @@ class ExceptionStructureDecompiler311:
             orelse=orelse,
             finalbody=[],
         )
+
+        enclosing_fragmented = self._enclosing_fragmented_handler(
+            entry,
+            next_index,
+        )
+        if enclosing_fragmented is not None:
+            outer_target, outer_fragments = enclosing_fragmented
+            outer_handler_index = self.offset_to_index[outer_target]
+            continuation = self._capture_protected_fragments(
+                next_index,
+                outer_handler_index,
+                loop,
+                outer_fragments,
+            )
+            outer_handlers, outer_end, outer_join = self._parse_handlers(
+                outer_handler_index,
+                loop,
+            )
+            statement = ast.Try(
+                body=[statement] + continuation,
+                handlers=outer_handlers,
+                orelse=[],
+                finalbody=[],
+            )
+            next_index = (
+                self.offset_to_index[outer_join]
+                if outer_join is not None
+                else outer_end
+            )
 
         if (
             next_index < len(self.tokens)

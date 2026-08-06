@@ -298,6 +298,39 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             for token in self.tokens[:load_index]
         )
 
+    def _is_structured_explicit_none_return(
+        self,
+        token_index: Optional[int],
+    ) -> bool:
+        """Identify a source return inside a closed structured branch."""
+        if not (
+            token_index is not None
+            and token_index > 0
+            and self.tokens[token_index - 1].kind == "LOAD_CONST"
+            and self.tokens[token_index - 1].attr is None
+        ):
+            return False
+        load = self.tokens[token_index - 1]
+        position = self._positions_by_offset.get(load.offset)
+        if (
+            position is None
+            or len(position) != 4
+            or any(value is None for value in position)
+        ):
+            return self._is_explicit_none_return(token_index)
+
+        # POP_EXCEPT may carry an explicit return statement's position even
+        # though it is interpreter protocol.  This exception-protocol-aware
+        # test is deliberately local to a branch whose CFG already proves
+        # that omitting the return would cross a control boundary.
+        return not any(
+            token.kind not in _IGNORED_INTERNAL
+            and token.kind
+            not in ("LOAD_CONST", "POP_EXCEPT", "RETURN_VALUE")
+            and self._positions_by_offset.get(token.offset) == position
+            for token in self.tokens[: token_index - 1]
+        )
+
     def _terminal_none_return_requires_control(
         self,
         start: int,
@@ -1277,31 +1310,135 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
 
         # A parenthesized or backslash-continued boolean condition may span
-        # several source lines.  Extend one fallback branch only when its
-        # decision chain provably rejoins the sibling endpoint; this avoids
-        # absorbing a following independent ``if`` statement.
-        for branch, stop in (
-            tuple(endpoints),
-            tuple(reversed(tuple(endpoints))),
-        ):
-            extension = path_to_shared_endpoint(
-                branch,
-                stop,
-                frozenset(nodes),
-            )
-            if extension is None:
-                continue
-            extra_nodes, extended_endpoints = extension
-            extra_nodes, extended_endpoints = (
-                self._coalesce_condition_endpoints(
-                    extra_nodes,
-                    extended_endpoints,
+        # several source lines and several converging OR groups.  Close the
+        # graph iteratively: every added decision must be reached only from
+        # already-owned condition blocks and must retain a path to an existing
+        # sibling endpoint.  This preserves a three-way ``A or B or C`` chain
+        # without absorbing an unrelated following statement.
+        extension_work = 0
+        extension_limit = max(32, len(self.tokens) * 2)
+        while len(endpoints) >= 2:
+            extension_work += 1
+            if extension_work > extension_limit:
+                return None
+            extended = False
+            ordered_endpoints = tuple(sorted(endpoints))
+            for branch in ordered_endpoints:
+                branch_index = self.offset_to_index.get(branch)
+                if branch_index is None:
+                    continue
+                branch_jump = self._condition_jump(
+                    branch_index,
+                    end,
+                    stop_offsets,
                 )
-            )
-            if len(extended_endpoints) == 2:
-                nodes.update(extra_nodes)
-                endpoints = extended_endpoints
+                if branch_jump is None:
+                    continue
+                branch_jump_position = self._positions_by_offset.get(
+                    self.tokens[branch_jump].offset
+                )
+                branch_position = self._positions_by_offset.get(branch)
+                owned_jump_positions = {
+                    self._positions_by_offset.get(
+                        self.tokens[node.jump_index].offset
+                    )
+                    for node in nodes.values()
+                }
+                # CPython either carries the preceding predicate's position
+                # onto the bridge jump or places the bridge inside the source
+                # range of the parenthesized condition.  A decision starting
+                # a source suite lies outside that range and must not be
+                # absorbed merely because several condition paths reach it.
+                position_is_owned = (
+                    branch_jump_position in owned_jump_positions
+                )
+                if (
+                    not position_is_owned
+                    and branch_position is not None
+                    and not any(
+                        value is None for value in branch_position
+                    )
+                ):
+                    for owned_position in owned_jump_positions:
+                        if (
+                            owned_position is not None
+                            and not any(
+                                value is None for value in owned_position
+                            )
+                            and owned_position[0]
+                            <= branch_position[0]
+                            <= branch_position[1]
+                            <= owned_position[1]
+                        ):
+                            position_is_owned = True
+                            break
+                if (
+                    branch_jump_position is None
+                    or any(
+                        value is None for value in branch_jump_position
+                    )
+                    or not position_is_owned
+                ):
+                    continue
+                branch_block = self.cfg.block_at(branch)
+                branch_predecessors = {
+                    edge.source
+                    for edge in self.cfg.incoming(branch_block.index)
+                    if edge.kind != "exception"
+                }
+                # Iterative closure is for converging boolean continuations.
+                # A single-predecessor decision is normally the first source
+                # statement inside an if suite and must remain a nested if.
+                if len(branch_predecessors) < 2:
+                    continue
+                for stop in ordered_endpoints:
+                    if branch == stop:
+                        continue
+                    extension = path_to_shared_endpoint(
+                        branch,
+                        stop,
+                        frozenset(nodes),
+                    )
+                    if extension is None:
+                        continue
+                    extra_nodes, _extended_endpoints = extension
+                    if not extra_nodes or set(extra_nodes) <= set(nodes):
+                        continue
+                    candidate_nodes = dict(nodes)
+                    candidate_nodes.update(extra_nodes)
+                    candidate_endpoints = {
+                        outcome
+                        for candidate_node in candidate_nodes.values()
+                        for outcome in (
+                            candidate_node.true_offset,
+                            candidate_node.false_offset,
+                        )
+                        if outcome not in candidate_nodes
+                    }
+                    candidate_nodes, candidate_endpoints = (
+                        self._coalesce_condition_endpoints(
+                            candidate_nodes,
+                            candidate_endpoints,
+                        )
+                    )
+                    candidate_nodes, candidate_endpoints = (
+                        reduce_decision_endpoints(
+                            candidate_nodes,
+                            candidate_endpoints,
+                        )
+                    )
+                    if not 2 <= len(candidate_endpoints) <= 3:
+                        continue
+                    nodes = candidate_nodes
+                    endpoints = candidate_endpoints
+                    extended = True
+                    break
+                if extended:
+                    break
+            if not extended:
                 break
+        if len(endpoints) != 2:
+            return None
         true_endpoint, false_endpoint = sorted(endpoints)
 
         entry_offset = self.tokens[start].offset
@@ -1500,6 +1637,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             visited.add(block_index)
             for edge in self.cfg.outgoing(block_index):
                 if edge.target not in interval_blocks:
+                    # An interval nested in an enclosing try can raise to
+                    # that try's handler without gaining a normal source
+                    # continuation.  Only a normal edge leaving the branch
+                    # disproves local termination.
+                    if edge.kind == "exception":
+                        continue
                     return None
                 pending.append(edge.target)
 
@@ -1525,7 +1668,10 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         exit_blocks = {
             block_index
             for block_index in visited
-            if not self.cfg.outgoing(block_index)
+            if not any(
+                edge.target in interval_blocks
+                for edge in self.cfg.outgoing(block_index)
+            )
         }
         exits = {
             self.cfg.block(block_index).terminator
@@ -1534,7 +1680,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         if any(
             self.cfg.block(block_index).terminator
             in ("RETURN_VALUE", "RERAISE")
-            and self.cfg.outgoing(block_index)
+            and self._normal_edges_from(block_index)
             for block_index in visited
         ):
             return None
@@ -2283,26 +2429,35 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         body: List[ast.stmt],
         start: int,
         end: int,
+        *,
+        require_explicit: bool = False,
     ) -> List[ast.stmt]:
         if (
             self.is_class_body
             or getattr(self.code, "co_name", "<module>") == "<module>"
         ):
             return body
-        semantic = [
-            token
-            for token in self.tokens[start:end]
+        semantic_indices = [
+            index
+            for index in range(start, end)
             if (
-                token.kind not in _IGNORED_INTERNAL
-                and token.offset
+                self.tokens[index].kind not in _IGNORED_INTERNAL
+                and self.tokens[index].offset
                 not in self._suppressed_implicit_epilogue_offsets
             )
         ]
+        semantic = [self.tokens[index] for index in semantic_indices]
         if (
             len(semantic) >= 2
             and semantic[-2].kind == "LOAD_CONST"
             and semantic[-2].attr is None
             and semantic[-1].kind == "RETURN_VALUE"
+            and (
+                not require_explicit
+                or self._is_structured_explicit_none_return(
+                    semantic_indices[-1]
+                )
+            )
             and not self._ends_in_control_transfer(body)
             and not self._normal_interval_escapes(start, end)
             and self._terminal_none_return_requires_control(start, end)
@@ -2404,6 +2559,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             plan.body_end,
             loop,
         )
+        body = self._preserve_terminal_none_return(
+            body,
+            plan.body_start,
+            plan.body_end,
+            require_explicit=True,
+        )
         if len(body) == 1 and isinstance(body[0], ast.Return):
             self.body.append(
                 ast.If(
@@ -2427,6 +2588,12 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             plan.orelse_start,
             plan.orelse_end,
             loop,
+        )
+        orelse = self._preserve_terminal_none_return(
+            orelse,
+            plan.orelse_start,
+            plan.orelse_end,
+            require_explicit=True,
         )
         self.body.append(
             ast.If(
@@ -2492,6 +2659,37 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             target + 1,
         )
         if join_jump is None:
+            # A value such as ``test and left or right`` reaches its merge
+            # through a second short-circuit jump, not JUMP_FORWARD.  Recover
+            # the whole closed expression slice so the first decision is not
+            # emitted as a statement-level ``if: pass``.
+            short_circuit_joins = sorted(
+                {
+                    instruction_target(self.tokens[index])
+                    for index in range(jump_index + 1, target_index)
+                    if self.tokens[index].kind.startswith("JUMP_IF_")
+                    and instruction_target(self.tokens[index]) is not None
+                    and instruction_target(self.tokens[index]) > target
+                }
+            )
+            for candidate_join in short_circuit_joins:
+                candidate_join_index = self.offset_to_index.get(
+                    candidate_join
+                )
+                if (
+                    candidate_join_index is None
+                    or not target_index < candidate_join_index <= end
+                ):
+                    continue
+                try:
+                    expression = self._expression_slice(
+                        start,
+                        candidate_join_index,
+                    )
+                except Python311ParseError:
+                    continue
+                self.stack.append(expression)
+                return candidate_join_index
             return None
         join = instruction_target(self.tokens[join_jump])
         join_index = self.offset_to_index.get(join)
@@ -3480,7 +3678,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
     ) -> Optional[int]:
         """Recover one closed conditional expression ending in ``return``."""
         if (
-            self.stack
+            getattr(self.code, "co_name", "<module>") == "<module>"
+            or self.stack
             or self.pending_assignment_value is not None
             or self.pending_assignment_targets
             or self.pending_booleans
@@ -3597,6 +3796,21 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             expression = self._expression_slice(start, store_index)
         except Python311ParseError:
             return None
+        if getattr(self.code, "co_name", "<module>") != "<module>":
+            for token in candidate:
+                name = (
+                    token.attr
+                    if isinstance(token.attr, str)
+                    else token.pattr
+                )
+                if token.kind == "STORE_GLOBAL" and isinstance(name, str):
+                    self.global_names.add(name)
+                elif (
+                    token.kind == "STORE_DEREF"
+                    and isinstance(name, str)
+                    and name in tuple(getattr(self.code, "co_freevars", ()))
+                ):
+                    self.nonlocal_names.add(name)
         self.stack.append(expression)
         return store_index
 
