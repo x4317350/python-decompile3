@@ -55,7 +55,6 @@ THIRD_PARTY_PACKAGES = (
 )
 THIRD_PARTY_DISTRIBUTIONS = (
     "attrs",
-    "black",
     "click",
     "packaging",
     "platformdirs",

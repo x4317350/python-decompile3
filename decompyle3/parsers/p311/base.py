@@ -27,10 +27,6 @@ from decompyle3.errors import (
 from decompyle3.ir import CallInfo, FunctionInfo
 from decompyle3.scanner import get_scanner
 from decompyle3.semantics.make_function311 import build_arguments311
-from decompyle3.source_format import (
-    DEFAULT_LINE_LENGTH,
-    format_python311_source,
-)
 
 
 CO_GENERATOR = 0x20
@@ -1626,8 +1622,6 @@ class Python311BaseParser:
         self.opc = None
         self.code_object = None
         self.seen_ops = frozenset()
-        self.format_source = False
-        self.line_length = DEFAULT_LINE_LENGTH
 
     def customize_grammar_rules(self, tokens, customize):
         """Record the exact 3.11 vocabulary; no legacy grammar is inherited."""
@@ -1675,17 +1669,6 @@ class Python311BaseParser:
                     code_name=self.code_object.co_name,
                 ) from error
             source = unparse(tree)
-            if (
-                self.format_source
-                and isinstance(tree, ast.Module)
-                and self.compile_mode == "exec"
-                and self.code_object.co_name == "<module>"
-            ):
-                source = format_python311_source(
-                    source,
-                    line_length=self.line_length,
-                    code_name=self.code_object.co_name,
-                )
             validation_mode = (
                 "eval"
                 if isinstance(tree, ast.Expression)

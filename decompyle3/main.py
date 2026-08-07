@@ -111,8 +111,6 @@ def decompile(
     compile_mode="exec",
     start_offset: int = 0,
     stop_offset: int = -1,
-    format_source: bool = True,
-    line_length: int = 100,
 ) -> Any:
     """
     ingests and deparses a given code block 'co'
@@ -178,8 +176,6 @@ def decompile(
                 code_objects=code_objects,
                 python_implementation=python_implementation,
                 debug_opts=debug_opts,
-                format_source=format_source,
-                line_length=line_length,
             )
             header_count = 3 + len(sys_version_lines)
             if deparsed is not None:
@@ -193,23 +189,15 @@ def decompile(
                 deparse_fn = code_deparse_fragments
             else:
                 deparse_fn = code_deparse
-            deparse_options = dict(
+            deparsed = deparse_fn(
+                co,
+                out,
+                bytecode_version,
                 python_implementation=python_implementation,
                 debug_opts=debug_opts,
                 compile_mode=compile_mode,
                 start_offset=start_offset,
                 stop_offset=stop_offset,
-            )
-            if deparse_fn is code_deparse:
-                deparse_options.update(
-                    format_source=format_source,
-                    line_length=line_length,
-                )
-            deparsed = deparse_fn(
-                co,
-                out,
-                bytecode_version,
-                **deparse_options,
             )
             pass
         real_out.write("\n")
@@ -263,8 +251,6 @@ def decompile_file(
     do_fragments=False,
     start_offset=0,
     stop_offset=-1,
-    format_source: bool = True,
-    line_length: int = 100,
 ) -> Any:
     """
     decompile Python byte-code file (.pyc). Return objects to
@@ -303,8 +289,6 @@ def decompile_file(
                     mapstream=mapstream,
                     start_offset=start_offset,
                     stop_offset=stop_offset,
-                    format_source=format_source,
-                    line_length=line_length,
                 ),
             )
     else:
@@ -327,8 +311,6 @@ def decompile_file(
                 compile_mode="exec",
                 start_offset=start_offset,
                 stop_offset=stop_offset,
-                format_source=format_source,
-                line_length=line_length,
             )
         ]
     return deparsed
@@ -350,8 +332,6 @@ def main(
     do_fragments=False,
     start_offset: int = 0,
     stop_offset: int = -1,
-    format_source: bool = True,
-    line_length: int = 100,
 ) -> Tuple[int, int, int, int]:
     """
     in_base	base directory for input files
@@ -430,10 +410,8 @@ def main(
                 source_encoding,
                 linemap_stream,
                 do_fragments,
-                start_offset=start_offset,
-                stop_offset=stop_offset,
-                format_source=format_source,
-                line_length=line_length,
+                start_offset,
+                stop_offset,
             )
             if do_fragments:
                 for deparsed_object in deparsed_objects:

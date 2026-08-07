@@ -40,7 +40,6 @@
   "environment": {
     "package_versions": {
       "attrs": "26.1.0",
-      "black": "26.5.1",
       "click": "8.4.2",
       "packaging": "26.2",
       "platformdirs": "4.11.0",
@@ -55,12 +54,12 @@
   "first_failure": null,
   "groups": {
     "project": {
-      "decompile_success": 116,
+      "decompile_success": 115,
       "fail_closed": 0,
-      "input_files": 116,
+      "input_files": 115,
       "malformed_or_unsupported_input": 0,
       "syntax_failure": 0,
-      "syntax_success": 116,
+      "syntax_success": 115,
       "unexpected_crash": 0
     },
     "stdlib": {
@@ -82,7 +81,7 @@
       "unexpected_crash": 0
     }
   },
-  "input_digest": "183f967b4bf66d5d75dd189d65693731dc3c34fd2290ca1310b8a8c33a712aeb",
+  "input_digest": "7faab1f78b981654783ba83040220d2aec0b520cd733a6b34e8105f5e2db4125",
   "phase": 11,
   "schema_version": 1,
   "selection": {
@@ -120,12 +119,12 @@
     "version": "3.11"
   },
   "totals": {
-    "decompile_success": 605,
+    "decompile_success": 604,
     "fail_closed": 0,
-    "input_files": 605,
+    "input_files": 604,
     "malformed_or_unsupported_input": 0,
     "syntax_failure": 0,
-    "syntax_success": 605,
+    "syntax_success": 604,
     "unexpected_crash": 0
   }
 }

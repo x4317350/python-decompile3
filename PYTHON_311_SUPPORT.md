@@ -57,7 +57,7 @@ recoverable.
 - `Shape pass: 45`
 - `Shape fail-closed: 1`
 - `Shape missing: 0`
-- 真实语料：605/605 成功反编译，0 项明确 fail-closed；
+- 真实语料：604/604 成功反编译，0 项明确 fail-closed；
 - 差分行为探针：6 项一致，0 项不一致；
 - 全量测试允许的已解释 legacy skip：6 项。
 
@@ -132,7 +132,7 @@ physical bytecode offset when an offset is available.
   recovery, and advanced exception-cleanup transfers. Recursive structure
   exhaustion has been eliminated from the fixed archive.
 - Artificial irreducible control-flow graphs are also rejected explicitly.
-  The maintained CPython 3.11 source corpus and the fixed 605-file archive
+  The maintained CPython 3.11 source corpus and the fixed 604-file archive
   contain no such graph. The detector uses reachable-only iterative SCC
   analysis, ignores dead incoming edges, and emits bounded deterministic
   diagnostics, so large hostile graphs fail closed without depending on
@@ -151,11 +151,8 @@ physical bytecode offset when an offset is available.
   depth-1 exception-table target all match CPython 3.11 output. Terminal
   `except*` combined with `else` has two distinct terminal exits and remains a
   separate fail-closed shape.
-- Source is first rendered with `ast.unparse()` and, by default, formatted
-  with Black for CPython 3.11. Formatting is accepted only when reparsing
-  proves the complete AST is unchanged; `--no-format-source` retains the raw
-  `ast.unparse()` layout. Original whitespace, comments, and quote style are
-  not preserved.
+- Source is rendered with `ast.unparse()`. Original whitespace, quote style,
+  comments, and other non-semantic formatting are not preserved.
 - Partial decompilation with `start_offset` or `stop_offset` is rejected for
   CPython 3.11. Slicing normalized instructions before CFG recovery can split
   an operand-producing expression, jump, or exception-table region, so the

@@ -13,11 +13,6 @@ import click
 from xdis.version_info import version_tuple_to_str
 
 from decompyle3.main import main, status_msg
-from decompyle3.source_format import (
-    DEFAULT_LINE_LENGTH,
-    MAX_LINE_LENGTH,
-    MIN_LINE_LENGTH,
-)
 from decompyle3.version import __version__
 
 case_sensitive = {"case_sensitive": False}
@@ -57,18 +52,6 @@ def usage():
     "--verify",
     type=click.Choice(["run", "syntax"]),
     default=None,
-)
-@click.option(
-    "--format-source/--no-format-source",
-    default=True,
-    help="Format recovered CPython 3.11 module source.",
-)
-@click.option(
-    "--line-length",
-    type=click.IntRange(min=MIN_LINE_LENGTH, max=MAX_LINE_LENGTH),
-    default=DEFAULT_LINE_LENGTH,
-    show_default=True,
-    help="Preferred maximum source line length.",
 )
 @click.option(
     "--recurse/--no-recurse",
@@ -112,8 +95,6 @@ def main_bin(
     tree_plus: bool,
     linemaps: bool,
     verify,
-    format_source: bool,
-    line_length: int,
     recurse_dirs: bool,
     outfile,
     start_offset: int,
@@ -213,8 +194,6 @@ def main_bin(
                 do_linemaps=linemaps,
                 start_offset=start_offset,
                 stop_offset=stop_offset,
-                format_source=format_source,
-                line_length=line_length,
             )
 
             if len(pyc_paths) > 1:
