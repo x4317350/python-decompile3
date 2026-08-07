@@ -194,6 +194,42 @@ def _boolean_operation(operator, *expressions: ast.expr) -> ast.BoolOp:
     return ast.BoolOp(op=operator(), values=values)
 
 
+def _same_expression(left: ast.AST, right: ast.AST) -> bool:
+    """Compare recovered expressions without source locations."""
+    return ast.dump(left, include_attributes=False) == ast.dump(
+        right,
+        include_attributes=False,
+    )
+
+
+def _factor_ifexp_common_and_suffix(
+    predicate: ast.expr,
+    when_true: ast.expr,
+    when_false: ast.expr,
+) -> Optional[ast.expr]:
+    """Factor ``E if A else B... and E`` without changing evaluation order."""
+    if not (
+        isinstance(when_false, ast.BoolOp)
+        and isinstance(when_false.op, ast.And)
+        and len(when_false.values) >= 2
+        and _same_expression(when_true, when_false.values[-1])
+    ):
+        return None
+
+    prefix_values = when_false.values[:-1]
+    alternate_guard = (
+        prefix_values[0]
+        if len(prefix_values) == 1
+        else _boolean_operation(ast.And, *prefix_values)
+    )
+    combined_guard = _boolean_operation(
+        ast.Or,
+        predicate,
+        alternate_guard,
+    )
+    return _boolean_operation(ast.And, combined_guard, when_true)
+
+
 def _combine_decision(
     predicate: ast.expr, when_true: ast.expr, when_false: ast.expr
 ) -> ast.expr:
@@ -221,6 +257,13 @@ def _combine_decision(
         return _boolean_operation(ast.Or, predicate, when_false)
     if false_constant is True:
         return _boolean_operation(ast.Or, _negate(predicate), when_true)
+    factored = _factor_ifexp_common_and_suffix(
+        predicate,
+        when_true,
+        when_false,
+    )
+    if factored is not None:
+        return factored
     return ast.IfExp(test=predicate, body=when_true, orelse=when_false)
 
 
