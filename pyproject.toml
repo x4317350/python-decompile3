@@ -10,6 +10,7 @@ authors = [
 name = "decompyle3"
 description = "Python cross-version byte-code library and disassembler"
 dependencies = [
+    "black >= 23.3",
     "click",
     "spark-parser >= 1.8.9, < 1.9.2",
     "xdis > 6.2",

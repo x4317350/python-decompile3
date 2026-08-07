@@ -75,7 +75,7 @@
     "missing": []
   },
   "realworld": {
-    "archived_input_files": 604,
+    "archived_input_files": 605,
     "maximum_syntax_failures": 0,
     "maximum_unexpected_crashes": 0,
     "required_behavior_consistent": 6,

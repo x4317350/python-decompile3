@@ -1107,6 +1107,8 @@ def code_deparse(
     walker=SourceWalker,
     start_offset: int = 0,
     stop_offset: int = -1,
+    format_source: bool = True,
+    line_length: int = 100,
 ) -> Optional[SourceWalker]:
     """
     ingests and deparses a given code block 'co'. If version is None,
@@ -1186,6 +1188,9 @@ def code_deparse(
         python_implementation=python_implementation,
         linestarts=linestarts,
     )
+    if version[:2] == (3, 11):
+        deparsed.p.format_source = format_source
+        deparsed.p.line_length = line_length
 
     is_top_level_module = co.co_name == "<module>"
     if compile_mode == "eval":
@@ -1283,6 +1288,8 @@ def deparse_code2str(
     walker=SourceWalker,
     start_offset: int = 0,
     stop_offset: int = -1,
+    format_source: bool = True,
+    line_length: int = 100,
 ) -> str:
     """
     Return the deparsed text for a Python code object. `out` is where
@@ -1303,6 +1310,8 @@ def deparse_code2str(
         walker=walker,
         start_offset=start_offset,
         stop_offset=stop_offset,
+        format_source=format_source,
+        line_length=line_length,
     )
 
     return "# deparse failed" if tree is None else tree.text
