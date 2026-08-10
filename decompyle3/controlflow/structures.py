@@ -138,6 +138,13 @@ class _TerminalShortCircuitStatementPlan:
 
 
 @dataclass(frozen=True)
+class _TerminalForElsePlan:
+    cleanup_start: int
+    else_end: int
+    append_break: bool
+
+
+@dataclass(frozen=True)
 class _LoopContext:
     break_target: int
     continue_targets: frozenset
@@ -2258,6 +2265,270 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and self.tokens[cursor].attr is None
         )
 
+    def _implicit_none_return_end(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Return the end of one implicit ``None`` epilogue at start."""
+        load_index = self._next_semantic_index(start, end)
+        if (
+            load_index >= end
+            or self.tokens[load_index].kind != "LOAD_CONST"
+            or self.tokens[load_index].attr is not None
+        ):
+            return None
+        return_index = self._next_semantic_index(load_index + 1, end)
+        if (
+            return_index >= end
+            or self.tokens[return_index].kind != "RETURN_VALUE"
+            or self._is_explicit_none_return(return_index)
+        ):
+            return None
+        return self._next_semantic_index(return_index + 1, end)
+
+    def _terminal_while_latch(
+        self,
+        plan: _ConditionPlan,
+        candidates: List[int],
+        body_start: int,
+        false_index: int,
+        region_end: int,
+    ) -> Optional[int]:
+        """Prove a latch followed by duplicated implicit return sinks.
+
+        CPython can put an implicit ``None`` epilogue on both the repeated
+        condition's false edge and the condition-entry false edge.  Those
+        blocks are not loop payload, so they must not make the physical tail
+        latch look like an early ``continue``.
+        """
+        physical_end = len(self.tokens)
+        if not (
+            candidates
+            and body_start < region_end <= physical_end
+            and false_index < physical_end
+        ):
+            return None
+        candidate = candidates[-1]
+        token = self.tokens[candidate]
+        if token.kind != "POP_JUMP_BACKWARD_IF_TRUE":
+            return None
+        if self._semantic_target_offset(token) != plan.true_endpoint:
+            return None
+
+        latch_start = self._latch_expression_start(body_start, candidate)
+        if not body_start <= latch_start < candidate:
+            return None
+        try:
+            latch_expression = self._expression_slice(
+                latch_start,
+                candidate,
+            )
+        except Python311ParseError:
+            return None
+        if not _same_expression(latch_expression, plan.expression):
+            return None
+
+        copied_starts = []
+        copied_end = candidate + 1
+        while copied_end < false_index:
+            copied_start = self._next_semantic_index(
+                copied_end,
+                false_index,
+            )
+            next_end = self._implicit_none_return_end(
+                copied_start,
+                false_index,
+            )
+            if next_end is None or next_end <= copied_end:
+                return None
+            copied_starts.append(copied_start)
+            copied_end = next_end
+        if copied_end != false_index or not copied_starts:
+            return None
+        follow_end = self._implicit_none_return_end(
+            false_index,
+            physical_end,
+        )
+        if follow_end is None or any(
+            self.tokens[index].kind not in _IGNORED_INTERNAL
+            for index in range(follow_end, physical_end)
+        ):
+            return None
+
+        candidate_block = self.cfg.block_at(token.offset)
+        copied_blocks = tuple(
+            self.cfg.block_at(self.tokens[index].offset)
+            for index in copied_starts
+        )
+        follow_block = self.cfg.block_at(
+            self.tokens[false_index].offset
+        )
+        if not any(
+            edge.kind == "false"
+            and edge.target == copied_blocks[0].index
+            for edge in self._normal_edges_from(candidate_block.index)
+        ):
+            return None
+        terminal_blocks = copied_blocks + (follow_block,)
+        if any(
+            self._normal_edges_from(block.index)
+            for block in terminal_blocks
+        ):
+            return None
+        if any(
+            edge.kind == "exception"
+            for block in terminal_blocks
+            for edge in self.cfg.incoming(block.index)
+        ):
+            return None
+        return candidate
+
+    def _terminal_for_else_plan(
+        self,
+        for_iter_index: int,
+        body_start: int,
+        else_index: int,
+        region_end: int,
+    ) -> Optional[_TerminalForElsePlan]:
+        """Separate terminal iterator cleanup from a real ``else`` suite."""
+        if not body_start < else_index < region_end:
+            return None
+
+        # Walk backwards because ignored protocol tokens can sit between the
+        # iterator POP_TOP, the implicit None load, and RETURN_VALUE.
+        return_index = else_index - 1
+        while (
+            return_index >= body_start
+            and self.tokens[return_index].kind in _IGNORED_INTERNAL
+        ):
+            return_index -= 1
+        if (
+            return_index < body_start
+            or self.tokens[return_index].kind != "RETURN_VALUE"
+            or self._is_explicit_none_return(return_index)
+        ):
+            return None
+        load_index = return_index - 1
+        while (
+            load_index >= body_start
+            and self.tokens[load_index].kind in _IGNORED_INTERNAL
+        ):
+            load_index -= 1
+        if (
+            load_index < body_start
+            or self.tokens[load_index].kind != "LOAD_CONST"
+            or self.tokens[load_index].attr is not None
+        ):
+            return None
+        cleanup_start = load_index - 1
+        while (
+            cleanup_start >= body_start
+            and self.tokens[cleanup_start].kind in _IGNORED_INTERNAL
+        ):
+            cleanup_start -= 1
+        if (
+            cleanup_start < body_start
+            or self.tokens[cleanup_start].kind != "POP_TOP"
+        ):
+            return None
+
+        for_iter_block = self.cfg.block_at(
+            self.tokens[for_iter_index].offset
+        )
+        else_block = self.cfg.block_at(self.tokens[else_index].offset)
+        cleanup_block = self.cfg.block_at(
+            self.tokens[cleanup_start].offset
+        )
+        if not any(
+            edge.target == else_block.index and edge.kind == "exhausted"
+            for edge in self._normal_edges_from(for_iter_block.index)
+        ):
+            return None
+        if any(
+            edge.source != for_iter_block.index
+            or edge.kind == "exception"
+            for edge in self.cfg.incoming(else_block.index)
+        ):
+            return None
+        if self._normal_edges_from(cleanup_block.index):
+            return None
+
+        cleanup_predecessors = tuple(
+            edge
+            for edge in self.cfg.incoming(cleanup_block.index)
+            if edge.kind != "exception"
+        )
+        cleanup_is_block_tail = (
+            cleanup_block.last.offset == self.tokens[return_index].offset
+        )
+        same_block_fallthrough = (
+            cleanup_block.start < self.tokens[cleanup_start].offset
+            and cleanup_is_block_tail
+        )
+        if same_block_fallthrough:
+            append_break = True
+        else:
+            if not cleanup_predecessors:
+                return None
+            body_blocks = self._normal_region_blocks(
+                body_start,
+                cleanup_start,
+            )
+            if any(
+                edge.source not in body_blocks
+                for edge in cleanup_predecessors
+            ):
+                return None
+            append_break = any(
+                edge.kind == "fallthrough"
+                for edge in cleanup_predecessors
+            )
+
+        else_blocks = self._normal_region_blocks(else_index, region_end)
+        if not else_blocks:
+            return None
+        if any(
+            edge.target not in else_blocks
+            for block_index in else_blocks
+            for edge in self._normal_edges_from(block_index)
+        ):
+            return None
+        for block_index in else_blocks:
+            outside_sources = {
+                edge.source
+                for edge in self.cfg.incoming(block_index)
+                if edge.kind != "exception"
+                and edge.source not in else_blocks
+            }
+            if block_index == else_block.index:
+                if outside_sources != {for_iter_block.index}:
+                    return None
+            elif outside_sources:
+                return None
+        terminal_blocks = {
+            block_index
+            for block_index in else_blocks
+            if not self._normal_edges_from(block_index)
+        }
+        if not terminal_blocks or any(
+            self.cfg.block(block_index).terminator
+            not in ("RAISE_VARARGS", "RERAISE", "RETURN_VALUE")
+            for block_index in terminal_blocks
+        ):
+            return None
+        if any(
+            edge.kind == "exception"
+            for block_index in (cleanup_block.index, else_block.index)
+            for edge in self.cfg.incoming(block_index)
+        ):
+            return None
+        return _TerminalForElsePlan(
+            cleanup_start=cleanup_start,
+            else_end=region_end,
+            append_break=append_break,
+        )
+
     def _terminal_interval_exit_kinds(
         self,
         start: int,
@@ -3835,6 +4106,14 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             body_start,
             false_index,
         )
+        if latch_jump is None:
+            latch_jump = self._terminal_while_latch(
+                plan,
+                back_jumps,
+                body_start,
+                false_index,
+                region_end,
+            )
         synthetic_tail_break = latch_jump is None
         if latch_jump is None:
             body_end = false_index
@@ -4181,6 +4460,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         self,
         get_iter_index: int,
         loop: Optional[_LoopContext],
+        region_end: int,
     ) -> int:
         for_iter_index = self._next_semantic_index(get_iter_index + 1)
         if (
@@ -4207,8 +4487,18 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             body_start,
             else_index,
         )
+        terminal_else = (
+            self._terminal_for_else_plan(
+                for_iter_index,
+                body_start,
+                else_index,
+                region_end,
+            )
+            if latch is None
+            else None
+        )
         iterator_break_cleanup = None
-        if latch is None:
+        if latch is None and terminal_else is None:
             candidate = else_index - 1
             while (
                 candidate >= body_start
@@ -4222,12 +4512,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             ):
                 iterator_break_cleanup = candidate
         body_limit = (
-            latch
-            if latch is not None
+            terminal_else.cleanup_start
+            if terminal_else is not None
             else (
-                iterator_break_cleanup
-                if iterator_break_cleanup is not None
-                else else_index
+                latch
+                if latch is not None
+                else (
+                    iterator_break_cleanup
+                    if iterator_break_cleanup is not None
+                    else else_index
+                )
             )
         )
         break_targets = [
@@ -4252,8 +4546,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             ):
                 self.current_token = self.tokens[for_iter_index]
                 self._error("FOR_ITER has neither a loop-back nor break edge")
-        loop_end = max(break_targets) if break_targets else else_offset
-        loop_end_index = self.offset_to_index[loop_end]
+        loop_end = (
+            self._region_end_offset(terminal_else.else_end)
+            if terminal_else is not None
+            else (max(break_targets) if break_targets else else_offset)
+        )
+        loop_end_index = (
+            terminal_else.else_end
+            if terminal_else is not None
+            else self.offset_to_index[loop_end]
+        )
         continue_targets = {
             self.tokens[for_iter_index].offset,
             self.tokens[get_iter_index + 1].offset,
@@ -4264,7 +4566,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             body_start,
             body_limit,
             _LoopContext(
-                break_target=loop_end,
+                break_target=(
+                    self.tokens[terminal_else.cleanup_start].offset
+                    if terminal_else is not None
+                    else loop_end
+                ),
                 continue_targets=frozenset(continue_targets),
             ),
         )
@@ -4285,10 +4591,26 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             body.append(ast.Break())
         if iterator_break_cleanup is not None:
             body.append(ast.Break())
+        if terminal_else is not None and terminal_else.append_break and (
+            not body
+            or not isinstance(
+                body[-1],
+                (ast.Break, ast.Continue, ast.Raise, ast.Return),
+            )
+        ):
+            body.append(ast.Break())
         orelse = (
-            self._capture_region(else_index, loop_end_index, loop)
-            if loop_end > else_offset
-            else []
+            self._capture_region(
+                else_index,
+                terminal_else.else_end,
+                loop,
+            )
+            if terminal_else is not None
+            else (
+                self._capture_region(else_index, loop_end_index, loop)
+                if loop_end > else_offset
+                else []
+            )
         )
         self.body.append(
             ast.For(
@@ -4906,7 +5228,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 ].kind
                 == "FOR_ITER"
             ):
-                index = self._for_loop(index, loop)
+                index = self._for_loop(index, loop, end)
                 continue
 
             if (
