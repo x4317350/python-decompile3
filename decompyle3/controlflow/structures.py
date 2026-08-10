@@ -230,6 +230,80 @@ def _factor_ifexp_common_and_suffix(
     return _boolean_operation(ast.And, combined_guard, when_true)
 
 
+def _or_prefix(expression: ast.expr, suffix: ast.expr) -> Optional[ast.expr]:
+    """Return ``X`` when expression is ``X or suffix``."""
+    if not (
+        isinstance(expression, ast.BoolOp)
+        and isinstance(expression.op, ast.Or)
+        and len(expression.values) >= 2
+        and _same_expression(expression.values[-1], suffix)
+    ):
+        return None
+    values = expression.values[:-1]
+    return values[0] if len(values) == 1 else _boolean_operation(ast.Or, *values)
+
+
+def _factor_ifexp_common_or_suffix(
+    predicate: ast.expr,
+    when_true: ast.expr,
+    when_false: ast.expr,
+) -> Optional[ast.expr]:
+    """Factor decision-DAG OR suffixes without repeating evaluation.
+
+    ``(X or S) if P else S`` is ``P and X or S`` in a truth context.  The
+    transformation evaluates P, X and S in exactly the same order and at most
+    once, while preventing a shared short-circuit continuation from being
+    copied exponentially into nested conditional expressions.
+    """
+    true_prefix = _or_prefix(when_true, when_false)
+    if true_prefix is not None:
+        return _boolean_operation(
+            ast.Or,
+            _boolean_operation(ast.And, predicate, true_prefix),
+            when_false,
+        )
+    false_prefix = _or_prefix(when_false, when_true)
+    if false_prefix is not None:
+        return _boolean_operation(
+            ast.Or,
+            _boolean_operation(ast.And, _negate(predicate), false_prefix),
+            when_true,
+        )
+    if not (
+        isinstance(when_true, ast.BoolOp)
+        and isinstance(when_true.op, ast.Or)
+        and isinstance(when_false, ast.BoolOp)
+        and isinstance(when_false.op, ast.Or)
+        and _same_expression(
+            when_true.values[-1],
+            when_false.values[-1],
+        )
+    ):
+        return None
+    suffix = when_true.values[-1]
+    true_values = when_true.values[:-1]
+    false_values = when_false.values[:-1]
+    true_value = (
+        true_values[0]
+        if len(true_values) == 1
+        else _boolean_operation(ast.Or, *true_values)
+    )
+    false_value = (
+        false_values[0]
+        if len(false_values) == 1
+        else _boolean_operation(ast.Or, *false_values)
+    )
+    return _boolean_operation(
+        ast.Or,
+        ast.IfExp(
+            test=predicate,
+            body=true_value,
+            orelse=false_value,
+        ),
+        suffix,
+    )
+
+
 def _combine_decision(
     predicate: ast.expr, when_true: ast.expr, when_false: ast.expr
 ) -> ast.expr:
@@ -264,18 +338,33 @@ def _combine_decision(
     )
     if factored is not None:
         return factored
+    factored = _factor_ifexp_common_or_suffix(
+        predicate,
+        when_true,
+        when_false,
+    )
+    if factored is not None:
+        return factored
     return ast.IfExp(test=predicate, body=when_true, orelse=when_false)
 
 
 class StructuredDecompiler311(_StraightLineDecompiler):
     """Extend the phase-3 stack parser with one CFG-backed structuring path."""
 
-    def __init__(self, code, tokens, compile_mode="exec", is_class_body=False):
+    def __init__(
+        self,
+        code,
+        tokens,
+        compile_mode="exec",
+        is_class_body=False,
+        class_name=None,
+    ):
         super(StructuredDecompiler311, self).__init__(
             code,
             tokens,
             compile_mode=compile_mode,
             is_class_body=is_class_body,
+            class_name=class_name,
         )
         self.offset_to_index = {
             token.offset: index for index, token in enumerate(self.tokens)
@@ -994,6 +1083,9 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         continuation_offset = None
         opposite_endpoint = None
         continuation_on_true = False
+        continuation_predicate = None
+        continuation_jump = None
+        continuation_outcomes = None
         for candidate, opposite, on_true in (
             (true_endpoint, false_endpoint, True),
             (false_endpoint, true_endpoint, False),
@@ -1001,16 +1093,37 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             candidate_index = self.offset_to_index.get(candidate)
             if candidate_index is None or not continuation_is_owned(candidate):
                 continue
-            candidate_jump = self._condition_jump(
+            chained_continuation = self._standalone_chained_condition_plan(
                 candidate_index,
-                len(self.tokens),
             )
-            if candidate_jump is None:
-                continue
-            outcomes = tuple(
-                self._resolve_condition_endpoint(value)
-                for value in self._jump_outcomes(candidate_jump)
-            )
+            if chained_continuation is not None:
+                candidate_predicate = chained_continuation.expression
+                candidate_jump = max(
+                    node.jump_index
+                    for node in chained_continuation.nodes.values()
+                )
+                outcomes = (
+                    chained_continuation.true_endpoint,
+                    chained_continuation.false_endpoint,
+                )
+            else:
+                candidate_jump = self._condition_jump(
+                    candidate_index,
+                    len(self.tokens),
+                )
+                if candidate_jump is None:
+                    continue
+                try:
+                    candidate_predicate = self._predicate(
+                        candidate_index,
+                        candidate_jump,
+                    )
+                except Python311ParseError:
+                    continue
+                outcomes = tuple(
+                    self._resolve_condition_endpoint(value)
+                    for value in self._jump_outcomes(candidate_jump)
+                )
             canonical_outcomes = tuple(
                 opposite
                 if value == opposite
@@ -1023,33 +1136,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             continuation_offset = candidate
             opposite_endpoint = opposite
             continuation_on_true = on_true
+            continuation_predicate = candidate_predicate
+            continuation_jump = candidate_jump
+            continuation_outcomes = canonical_outcomes
             break
 
         if continuation_offset is not None:
             continuation_index = self.offset_to_index[continuation_offset]
-            continuation_jump = self._condition_jump(
-                continuation_index,
-                len(self.tokens),
-            )
-            continuation_predicate = self._predicate(
-                continuation_index,
-                continuation_jump,
-            )
-            continuation_outcomes = tuple(
-                opposite_endpoint
-                if value == opposite_endpoint
-                or self._equivalent_condition_endpoints(
-                    value,
-                    opposite_endpoint,
-                )
-                else value
-                for value in (
-                    self._resolve_condition_endpoint(outcome)
-                    for outcome in self._jump_outcomes(
-                        continuation_jump
-                    )
-                )
-            )
+            assert continuation_predicate is not None
+            assert continuation_jump is not None
+            assert continuation_outcomes is not None
             other_endpoint = next(
                 value
                 for value in continuation_outcomes
@@ -1108,6 +1204,45 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             false_endpoint=false_endpoint,
             expression=expression,
         )
+
+    def _standalone_chained_condition_plan(
+        self,
+        start: int,
+    ) -> Optional[_ConditionPlan]:
+        """Parse a chained-comparison continuation without leaking stack.
+
+        The first comparison in a statement is encountered after its prefix
+        has already populated the main expression stack.  A short-circuit
+        continuation starts at fresh LOAD/SWAP/COPY instructions instead.
+        Replaying only that expression prefix in an isolated parser state
+        lets the same chained-comparison proof handle both positions.
+        """
+        first_jump = self._condition_jump(start, len(self.tokens))
+        if first_jump is None or first_jump == start:
+            return None
+        old_body = self.body
+        old_stack = self.stack
+        old_assignment = self.pending_assignment_value
+        old_targets = self.pending_assignment_targets
+        old_token = self.current_token
+        self.body = []
+        self.stack = []
+        self.pending_assignment_value = None
+        self.pending_assignment_targets = []
+        try:
+            for index in range(start, first_jump):
+                self._dispatch(self.tokens[index])
+            if self.body or self.pending_assignment_value is not None:
+                return None
+            return self._chained_condition_plan(first_jump)
+        except Python311ParseError:
+            return None
+        finally:
+            self.body = old_body
+            self.stack = old_stack
+            self.pending_assignment_value = old_assignment
+            self.pending_assignment_targets = old_targets
+            self.current_token = old_token
 
     def _condition_plan(self, start: int) -> Optional[_ConditionPlan]:
         return self._bounded_condition_plan(start, len(self.tokens))
@@ -1726,15 +1861,49 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 # inside an if suite even when its broad PEP 657 range is
                 # contained by the parent condition.  Chained comparisons
                 # use their narrower transparent-bridge proof above instead.
-                if len(branch_predecessors) < 2:
+                same_position_continuation = (
+                    position_is_owned
+                    and branch_jump_position in owned_jump_positions
+                )
+                sibling_positions = [
+                    self._positions_by_offset.get(endpoint)
+                    for endpoint in ordered_endpoints
+                    if endpoint != branch
+                ]
+                same_column_continuation = (
+                    len(branch_predecessors) == 1
+                    and branch_position is not None
+                    and entry_position is not None
+                    and len(branch_position) == len(entry_position) == 4
+                    and not any(value is None for value in branch_position)
+                    and not any(value is None for value in entry_position)
+                    and branch_position[0] > entry_position[0]
+                    and branch_position[2] == entry_position[2]
+                    and sibling_positions
+                    and all(
+                        position is not None
+                        and len(position) == 4
+                        and position[0] is not None
+                        and position[0] > branch_position[1]
+                        for position in sibling_positions
+                    )
+                )
+                if (
+                    len(branch_predecessors) < 2
+                    and not same_position_continuation
+                    and not same_column_continuation
+                ):
                     continue
                 if (
                     starts_later_source_statement
                     and not same_exception_condition
+                    and not same_position_continuation
+                    and not same_column_continuation
                 ):
                     continue
                 if (
                     not position_is_owned
+                    and not same_column_continuation
                     and not (
                         len(branch_predecessors) >= 2
                         and same_exception_condition
@@ -1952,6 +2121,141 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             edge
             for edge in self.cfg.outgoing(block_index)
             if edge.kind != "exception"
+        )
+
+    def _normal_region_blocks(self, start: int, end: int) -> FrozenSet[int]:
+        """Return normally reachable blocks inside one physical interval.
+
+        Exception-table edges are deliberately excluded: handlers can be
+        physically placed after a loop latch without being its source-level
+        fallthrough.  Back edges that leave the interval are also boundaries,
+        so walking this set cannot accidentally consume the next iteration.
+        """
+        if not 0 <= start < end <= len(self.tokens):
+            return frozenset()
+        lower = self.tokens[start].offset
+        upper = self._region_end_offset(end)
+        entry = self.cfg.offset_to_block.get(lower)
+        if entry is None:
+            return frozenset()
+        interval = {
+            block.index
+            for block in self.cfg.blocks
+            if block.end > lower and block.start < upper
+        }
+        if entry not in interval:
+            return frozenset()
+        pending = [entry]
+        visited = set()
+        while pending:
+            block_index = pending.pop()
+            if block_index in visited or block_index not in interval:
+                continue
+            visited.add(block_index)
+            pending.extend(
+                edge.target
+                for edge in self._normal_edges_from(block_index)
+                if edge.target in interval
+            )
+        return frozenset(visited)
+
+    def _trailing_loop_back_jump(
+        self,
+        candidates: List[int],
+        body_start: int,
+        body_end: int,
+    ) -> Optional[int]:
+        """Select a physical tail latch, never a guard-continue back edge.
+
+        A guard ``continue`` can be the last jump back to the header even
+        though its false edge reaches more loop-body work placed after it.
+        Such a jump must not become ``body_end``.  A real tail latch is a
+        normally reachable candidate with no later normally reachable block
+        in the candidate interval.  Exception-only blocks do not disqualify
+        it because they are not source fallthrough.
+        """
+        reachable = self._normal_region_blocks(body_start, body_end)
+        if not reachable:
+            return None
+        for candidate in reversed(candidates):
+            offset = self.tokens[candidate].offset
+            source_block = self.cfg.offset_to_block.get(offset)
+            if source_block not in reachable:
+                if any(
+                    self.tokens[index].kind not in _IGNORED_INTERNAL
+                    and self.tokens[index].kind
+                    not in ("JUMP_FORWARD", "POP_TOP")
+                    for index in range(candidate + 1, body_end)
+                ):
+                    continue
+                return candidate
+            if any(
+                self.cfg.block(block_index).start > offset
+                and any(
+                    instruction.kind not in _IGNORED_INTERNAL
+                    and instruction.kind not in ("JUMP_FORWARD", "POP_TOP")
+                    for instruction in self.cfg.block(block_index).instructions
+                )
+                for block_index in reachable
+            ):
+                continue
+            return candidate
+        return None
+
+    def _normal_fallthrough_reaches(
+        self,
+        start: int,
+        end: int,
+        target_offset: int,
+    ) -> bool:
+        """Whether a normally reachable interval block falls into target."""
+        reachable = self._normal_region_blocks(start, end)
+        target_block = self.cfg.offset_to_block.get(target_offset)
+        if target_block is None:
+            return False
+        return any(
+            edge.kind == "fallthrough" and edge.target == target_block
+            for block_index in reachable
+            for edge in self._normal_edges_from(block_index)
+        )
+
+    def _loop_break_uses_duplicated_none_epilogue(
+        self,
+        body_start: int,
+        follow_index: int,
+    ) -> bool:
+        """Recognize ``break`` merged with two implicit None epilogues.
+
+        At function end CPython can compile a loop-body ``break`` directly as
+        ``LOAD_CONST None; RETURN_VALUE`` and place an equivalent pair at the
+        iterator-exhausted/condition-false target.  The normal return cleanup
+        intentionally hides both implicit epilogues; the loop structurer must
+        retain their control distinction as a source-level ``break``.
+        """
+
+        def none_return_at(index: int) -> bool:
+            index = self._next_semantic_index(index, len(self.tokens))
+            return (
+                index + 1 < len(self.tokens)
+                and self.tokens[index].kind == "LOAD_CONST"
+                and self.tokens[index].attr is None
+                and self.tokens[index + 1].kind == "RETURN_VALUE"
+            )
+
+        if not none_return_at(follow_index):
+            return False
+        cursor = follow_index - 1
+        while cursor >= body_start and self.tokens[cursor].kind in _IGNORED_INTERNAL:
+            cursor -= 1
+        if cursor < body_start or self.tokens[cursor].kind != "RETURN_VALUE":
+            return False
+        cursor -= 1
+        while cursor >= body_start and self.tokens[cursor].kind in _IGNORED_INTERNAL:
+            cursor -= 1
+        return (
+            cursor >= body_start
+            and self.tokens[cursor].kind == "LOAD_CONST"
+            and self.tokens[cursor].attr is None
         )
 
     def _terminal_interval_exit_kinds(
@@ -3526,8 +3830,15 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         if not back_jumps:
             return None
 
-        latch_jump = back_jumps[-1]
-        if self.tokens[latch_jump].kind.startswith("POP_JUMP_"):
+        latch_jump = self._trailing_loop_back_jump(
+            back_jumps,
+            body_start,
+            false_index,
+        )
+        synthetic_tail_break = latch_jump is None
+        if latch_jump is None:
+            body_end = false_index
+        elif self.tokens[latch_jump].kind.startswith("POP_JUMP_"):
             body_end = self._latch_expression_start(body_start, latch_jump)
         else:
             body_end = latch_jump
@@ -3557,6 +3868,24 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 continue_targets=frozenset(continue_targets),
             ),
         )
+        if synthetic_tail_break and (
+            self._normal_fallthrough_reaches(
+                body_start,
+                false_index,
+                plan.false_endpoint,
+            )
+            or self._loop_break_uses_duplicated_none_epilogue(
+                body_start,
+                false_index,
+            )
+        ) and (
+            not body
+            or not isinstance(
+                body[-1],
+                (ast.Break, ast.Continue, ast.Raise, ast.Return),
+            )
+        ):
+            body.append(ast.Break())
         orelse = (
             self._capture_region(false_index, loop_end_index, loop)
             if loop_end > plan.false_endpoint
@@ -3580,6 +3909,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         start_offset = self.tokens[start].offset
         if start_offset in self._suppressed_loop_starts:
             return None
+        if self.tokens[start].kind not in (
+            "INTERNAL_EXTENDED_ARG",
+            "INTERNAL_RESUME",
+            "NOP",
+        ):
+            # CPython 3.11 marks a source ``while True`` header with a NOP
+            # (apart from protocol instructions).  Treating an arbitrary
+            # condition-evaluation instruction as such invents an outer
+            # infinite loop around ordinary ``while condition`` bytecode.
+            return None
         header_offsets = {start_offset}
         header_cursor = start + 1
         while (
@@ -3591,6 +3930,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         ):
             header_offsets.add(self.tokens[header_cursor].offset)
             header_cursor += 1
+        if not any(
+            self.tokens[index].kind == "NOP"
+            for index in range(start, header_cursor)
+        ):
+            return None
         if (
             self.tokens[start].kind
             in ("INTERNAL_EXTENDED_ARG", "INTERNAL_RESUME", "NOP")
@@ -3618,22 +3962,110 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         ]
         if not latches:
             return None
-        latch = latches[-1]
-        break_targets = [
+        explicit_follow_targets = [
             instruction_target(self.tokens[index])
-            for index in range(start, latch)
+            for index in range(start, latches[-1])
             if self.tokens[index].kind == "JUMP_FORWARD"
             and instruction_target(self.tokens[index])
-            > self.tokens[latch].offset
+            > self.tokens[latches[-1]].offset
         ]
+        latch_search_end = end
+        if explicit_follow_targets:
+            candidate_end = self.offset_to_index.get(
+                max(explicit_follow_targets)
+            )
+            if candidate_end is not None and candidate_end > latches[-1]:
+                latch_search_end = candidate_end
+        latch = self._trailing_loop_back_jump(
+            latches,
+            start,
+            latch_search_end,
+        )
+        consume_terminal_region = False
+        if latch is None:
+            last_continue = latches[-1]
+            normally_reachable = self._normal_region_blocks(start, end)
+            break_marker = next(
+                (
+                    index
+                    for index in range(last_continue + 1, end)
+                    if self.tokens[index].kind == "NOP"
+                    and self.tokens[index].linestart is not None
+                    and self._next_semantic_index(index + 1, end) < end
+                    and self.cfg.block_at(
+                        self.tokens[index].offset
+                    ).index
+                    in normally_reachable
+                    and not any(
+                        edge.kind == "exception"
+                        for edge in self.cfg.incoming(
+                            self.cfg.block_at(
+                                self.tokens[index].offset
+                            ).index
+                        )
+                    )
+                ),
+                None,
+            )
+            if break_marker is None:
+                terminal_blocks = [
+                    block_index
+                    for block_index in normally_reachable
+                    if not self._normal_edges_from(block_index)
+                ]
+                if not terminal_blocks or any(
+                    self.cfg.block(block_index).terminator
+                    not in ("RAISE_VARARGS", "RERAISE", "RETURN_VALUE")
+                    for block_index in terminal_blocks
+                ) or any(
+                    edge.target not in normally_reachable
+                    for block_index in normally_reachable
+                    for edge in self._normal_edges_from(block_index)
+                ):
+                    return None
+                # A loop whose only non-continue paths return or raise has no
+                # source follow.  Its latch may live in duplicated finally or
+                # except cleanup before later physical handler blocks.  Keep
+                # the whole closed region inside the loop so the exception
+                # structurer, rather than the straight-line parser, owns that
+                # cleanup protocol.
+                body_end = end
+                loop_end_index = end
+                loop_end = self._region_end_offset(end)
+                append_tail_break = False
+                consume_terminal_region = True
+            else:
+                loop_end_index = self._next_semantic_index(
+                    break_marker + 1,
+                    end,
+                )
+                loop_end = self.tokens[loop_end_index].offset
+                body_end = break_marker
+                append_tail_break = True
+        else:
+            body_end = latch
+            append_tail_break = False
+        break_targets = (
+            []
+            if consume_terminal_region
+            else [
+                instruction_target(self.tokens[index])
+                for index in range(start, body_end)
+                if self.tokens[index].kind == "JUMP_FORWARD"
+                and instruction_target(self.tokens[index])
+                > self.tokens[body_end].offset
+            ]
+        )
         if break_targets:
             loop_end = max(break_targets)
             loop_end_index = self.offset_to_index.get(loop_end)
-            if loop_end_index is None or loop_end_index <= latch:
+            if loop_end_index is None or loop_end_index <= body_end:
                 return None
-        elif latch + 1 == end:
+        elif append_tail_break or consume_terminal_region:
+            pass
+        elif body_end + 1 == end:
             loop_end_index = end
-            loop_end = self.tokens[latch].offset + 2
+            loop_end = self.tokens[body_end].offset + 2
         else:
             return None
 
@@ -3642,11 +4074,16 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         try:
             body = self._capture_region(
                 start,
-                latch,
+                body_end,
                 _LoopContext(
                     break_target=loop_end,
                     continue_targets=frozenset(
-                        header_offsets | {self.tokens[latch].offset}
+                        header_offsets
+                        | (
+                            {self.tokens[latch].offset}
+                            if latch is not None
+                            else set()
+                        )
                     ),
                 ),
             )
@@ -3654,6 +4091,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             self._suppressed_loop_starts.difference_update(
                 added_loop_starts
             )
+        if append_tail_break:
+            body.append(ast.Break())
         self.body.append(
             ast.While(
                 test=ast.Constant(value=True),
@@ -3763,7 +4202,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             and self._semantic_target_offset(self.tokens[index])
             == self.tokens[for_iter_index].offset
         ]
-        latch = latch_candidates[-1] if latch_candidates else None
+        latch = self._trailing_loop_back_jump(
+            latch_candidates,
+            body_start,
+            else_index,
+        )
         iterator_break_cleanup = None
         if latch is None:
             candidate = else_index - 1
@@ -3825,6 +4268,21 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 continue_targets=frozenset(continue_targets),
             ),
         )
+        if (
+            latch is None
+            and self._loop_break_uses_duplicated_none_epilogue(
+                body_start,
+                else_index,
+            )
+            and (
+                not body
+                or not isinstance(
+                    body[-1],
+                    (ast.Break, ast.Continue, ast.Raise, ast.Return),
+                )
+            )
+        ):
+            body.append(ast.Break())
         if iterator_break_cleanup is not None:
             body.append(ast.Break())
         orelse = (

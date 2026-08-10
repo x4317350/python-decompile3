@@ -274,7 +274,13 @@ def _constant_value(node, default=None):
     return default
 
 
-def _new_decompiler311(code, tokens, compile_mode="exec", is_class_body=False):
+def _new_decompiler311(
+    code,
+    tokens,
+    compile_mode="exec",
+    is_class_body=False,
+    class_name=None,
+):
     from decompyle3.controlflow.structures import StructuredDecompiler311
 
     return StructuredDecompiler311(
@@ -282,17 +288,26 @@ def _new_decompiler311(code, tokens, compile_mode="exec", is_class_body=False):
         tokens,
         compile_mode=compile_mode,
         is_class_body=is_class_body,
+        class_name=class_name,
     )
 
 
 class _StraightLineDecompiler:
     """Convert one normalized 3.11 token stream to Python AST statements."""
 
-    def __init__(self, code, tokens, compile_mode="exec", is_class_body=False):
+    def __init__(
+        self,
+        code,
+        tokens,
+        compile_mode="exec",
+        is_class_body=False,
+        class_name=None,
+    ):
         self.code = code
         self.tokens = list(tokens)
         self.compile_mode = compile_mode
         self.is_class_body = is_class_body
+        self.class_name = class_name
         self.stack: List[Any] = []
         self.body: List[ast.stmt] = []
         self.pending_booleans: List[_PendingBoolean] = []
@@ -1105,6 +1120,7 @@ class _StraightLineDecompiler:
             self._nested_tokens(value.body_function.code),
             compile_mode="exec",
             is_class_body=True,
+            class_name=class_name,
         )
         body = nested.decompile_body()
         if not body:
@@ -1116,6 +1132,31 @@ class _StraightLineDecompiler:
             body=body,
             decorator_list=list(value.decorators),
         )
+
+    def _source_function_name(self, code, stored_name: str) -> str:
+        """Undo class-private mangling only when bytecode proves the name.
+
+        ``co_name`` keeps the source spelling while ``STORE_NAME`` in a class
+        body carries CPython's mangled spelling.  Re-applying the forward
+        transformation makes this deliberately fail closed for ordinary
+        names that merely resemble ``_Class__private``.
+        """
+        if not self.is_class_body or not self.class_name:
+            return stored_name
+        source_name = getattr(code, "co_name", None)
+        if (
+            not isinstance(source_name, str)
+            or not source_name.startswith("__")
+            or source_name.endswith("__")
+            or "." in source_name
+        ):
+            return stored_name
+        stripped_class = self.class_name.lstrip("_")
+        if not stripped_class:
+            return stored_name
+        if "_" + stripped_class + source_name != stored_name:
+            return stored_name
+        return source_name
 
     def _store_value(self, target: ast.expr, value):
         if isinstance(value, _UnpackItem):
@@ -1133,7 +1174,12 @@ class _StraightLineDecompiler:
                     self._error(
                         "A function definition is stored to a non-name target"
                     )
-                self.body.append(self._function_node(value, target.id))
+                self.body.append(
+                    self._function_node(
+                        value,
+                        self._source_function_name(value.code, target.id),
+                    )
+                )
             return
         if isinstance(value, _ClassValue):
             if not isinstance(target, ast.Name):
