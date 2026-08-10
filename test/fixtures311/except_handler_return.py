@@ -172,3 +172,15 @@ def return_after_nested_handler(iterator, events):
         return
     events.append(("continued", value))
     return "done"
+
+
+def bare_return_many_predecessors(flag, iterator, events):
+    try:
+        if flag:
+            events.append("branch")
+        value = next(iterator)
+    except:
+        events.append("caught")
+        return
+    events.append(("continued", value))
+    return "done"

@@ -149,3 +149,14 @@ def test_lambda_targets_defaults_collections_and_closures_preserve_behavior():
         assert sequence[0]() == 7
         assert sequence[1][0](2) == 5
         assert assigned["offset"](4) == 11
+
+
+def test_lambda_used_by_short_circuit_store_deref_preserves_behavior():
+    _, original, rebuilt = namespaces()
+
+    for namespace in (original, rebuilt):
+        then, events = namespace["make_lazy_resolver"](10)
+        assert events == []
+        assert then(1) == 11
+        assert then(2) == 12
+        assert events == [1, 2]

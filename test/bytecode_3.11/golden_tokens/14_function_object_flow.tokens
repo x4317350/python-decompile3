@@ -20,7 +20,7 @@
 0040 | 0015 | LOAD_CONST | arg=3 | target=- | value='inner' | stack=1/- | cache=()
 0042 | 0016 | PRECALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(44,) | meta=(('call_offset', 46), ('argc', 1), ('keyword_names', ())) | internal=True
 0046 | 0017 | CALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(48, 50, 52, 54) | call(argc=1,positional=1,keywords=(),mode=null,method=False,null=True,self=False,ex=False,starargs=False,kwargs=False)
-0056 | 0018 | LOAD_CONST | arg=17 | target=- | value=(2,) | stack=1/- | cache=()
+0056 | 0018 | LOAD_CONST | arg=18 | target=- | value=(2,) | stack=1/- | cache=()
 0058 | 0019 | LOAD_CONST | arg=5 | target=- | value=3 | stack=1/- | cache=()
 0060 | 0020 | LOAD_CONST | arg=6 | target=- | value=('scale',) | stack=1/- | cache=()
 0062 | 0021 | BUILD_CONST_KEY_MAP | arg=1 | target=- | value=1 | stack=-1/- | cache=()
@@ -55,8 +55,11 @@
 0150 | 0050 | LOAD_CONST | arg=15 | target=- | value=<code build_lambdas> | stack=1/- | cache=()
 0152 | 0051 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='build_lambdas',defaults=None,kwdefaults=(),annotations=(),closure=())
 0154 | 0052 | STORE_NAME | arg=7 | target=- | value='build_lambdas' | stack=-1/- | cache=()
-0156 | 0053 | LOAD_CONST | arg=16 | target=- | value=None | stack=1/- | cache=()
-0158 | 0054 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+0156 | 0053 | LOAD_CONST | arg=16 | target=- | value=<code make_lazy_resolver> | stack=1/- | cache=()
+0158 | 0054 | MAKE_FUNCTION | arg=0 | target=- | value=0 | stack=0/- | cache=() | function(flags=0x0,code='make_lazy_resolver',defaults=None,kwdefaults=(),annotations=(),closure=())
+0160 | 0055 | STORE_NAME | arg=8 | target=- | value='make_lazy_resolver' | stack=-1/- | cache=()
+0162 | 0056 | LOAD_CONST | arg=17 | target=- | value=None | stack=1/- | cache=()
+0164 | 0057 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
 
 ## code: record
 0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='name' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'name')) | internal=True
@@ -289,3 +292,58 @@
 0006 | 0003 | LOAD_FAST | arg=0 | target=- | value='value' | stack=1/- | cache=()
 0008 | 0004 | BINARY_ADD | arg=0 | target=- | value=0 | stack=-1/- | cache=(10,) | meta=(('operator', '+'), ('inplace', False))
 0012 | 0005 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: make_lazy_resolver
+0000 | 0000 | MAKE_CELL | arg=0 | target=- | value='offset' | stack=0/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'offset')) | internal=True
+0002 | 0001 | MAKE_CELL | arg=2 | target=- | value='events' | stack=0/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'events')) | internal=True
+0004 | 0002 | MAKE_CELL | arg=3 | target=- | value='resolve' | stack=0/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve')) | internal=True
+0006 | 0003 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0008 | 0004 | BUILD_LIST | arg=0 | target=- | value=0 | stack=1/- | cache=()
+0010 | 0005 | STORE_DEREF | arg=2 | target=- | value='events' | stack=-1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'events'))
+0012 | 0006 | LOAD_CONST | arg=0 | target=- | value=None | stack=1/- | cache=()
+0014 | 0007 | STORE_DEREF | arg=3 | target=- | value='resolve' | stack=-1/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve'))
+0016 | 0008 | LOAD_CLOSURE | arg=2 | target=- | value='events' | stack=1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'events'))
+0018 | 0009 | LOAD_CLOSURE | arg=0 | target=- | value='offset' | stack=1/- | cache=() | meta=(('localsplus_index', 0), ('localsplus_name', 'offset'))
+0020 | 0010 | LOAD_CLOSURE | arg=3 | target=- | value='resolve' | stack=1/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve'))
+0022 | 0011 | BUILD_TUPLE | arg=3 | target=- | value=3 | stack=-2/- | cache=()
+0024 | 0012 | LOAD_CONST | arg=1 | target=- | value=<code make_lazy_resolver.<locals>.then> | stack=1/- | cache=()
+0026 | 0013 | MAKE_FUNCTION | arg=8 | target=- | value=8 | stack=-1/- | cache=() | function(flags=0x8,code='then',defaults=None,kwdefaults=(),annotations=(),closure=('events', 'offset', 'resolve'))
+0028 | 0014 | STORE_FAST | arg=1 | target=- | value='then' | stack=-1/- | cache=()
+0030 | 0015 | LOAD_FAST | arg=1 | target=- | value='then' | stack=1/- | cache=()
+0032 | 0016 | LOAD_DEREF | arg=2 | target=- | value='events' | stack=1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'events'))
+0034 | 0017 | BUILD_TUPLE | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0036 | 0018 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: make_lazy_resolver.<locals>.then
+0000 | 0000 | COPY_FREE_VARS | arg=3 | target=- | value=3 | stack=0/- | cache=() | meta=(('freevars', ('events', 'offset', 'resolve')),) | internal=True
+0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0004 | 0002 | LOAD_DEREF | arg=3 | target=- | value='resolve' | stack=1/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve'))
+0006 | 0003 | JUMP_IF_TRUE_OR_POP | arg=5 | target=18 | value=18 | stack=-1/0 | cache=()
+0008 | 0004 | LOAD_CLOSURE | arg=1 | target=- | value='events' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'events'))
+0010 | 0005 | LOAD_CLOSURE | arg=2 | target=- | value='offset' | stack=1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'offset'))
+0012 | 0006 | BUILD_TUPLE | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0014 | 0007 | LOAD_CONST | arg=1 | target=- | value=<code make_lazy_resolver.<locals>.then.<locals>.<lambda>> | stack=1/- | cache=()
+0016 | 0008 | MAKE_FUNCTION | arg=8 | target=- | value=8 | stack=-1/- | cache=() | function(flags=0x8,code='<lambda>',defaults=None,kwdefaults=(),annotations=(),closure=('events', 'offset'))
+0018 | 0009 | STORE_DEREF | arg=3 | target=- | value='resolve' | stack=-1/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve'))
+0020 | 0010 | PUSH_NULL | arg=- | target=- | value=None | stack=1/- | cache=() | meta=(('call_protocol', 'null'),) | internal=True
+0022 | 0011 | LOAD_DEREF | arg=3 | target=- | value='resolve' | stack=1/- | cache=() | meta=(('localsplus_index', 3), ('localsplus_name', 'resolve'))
+0024 | 0012 | LOAD_FAST | arg=0 | target=- | value='value' | stack=1/- | cache=()
+0026 | 0013 | PRECALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(28,) | meta=(('call_offset', 30), ('argc', 1), ('keyword_names', ())) | internal=True
+0030 | 0014 | CALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(32, 34, 36, 38) | call(argc=1,positional=1,keywords=(),mode=null,method=False,null=True,self=False,ex=False,starargs=False,kwargs=False)
+0040 | 0015 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()
+
+## code: make_lazy_resolver.<locals>.then.<locals>.<lambda>
+0000 | 0000 | COPY_FREE_VARS | arg=2 | target=- | value=2 | stack=0/- | cache=() | meta=(('freevars', ('events', 'offset')),) | internal=True
+0002 | 0001 | INTERNAL_RESUME | arg=0 | target=- | value=0 | stack=0/- | cache=() | meta=(('resume_where', 0),) | internal=True
+0004 | 0002 | LOAD_DEREF | arg=1 | target=- | value='events' | stack=1/- | cache=() | meta=(('localsplus_index', 1), ('localsplus_name', 'events'))
+0006 | 0003 | LOAD_METHOD | arg=0 | target=- | value='append' | stack=1/- | cache=(8, 10, 12, 14, 16, 18, 20, 22, 24, 26)
+0028 | 0004 | LOAD_FAST | arg=0 | target=- | value='item' | stack=1/- | cache=()
+0030 | 0005 | PRECALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(32,) | meta=(('call_offset', 34), ('argc', 1), ('keyword_names', ())) | internal=True
+0034 | 0006 | CALL | arg=1 | target=- | value=1 | stack=-1/- | cache=(36, 38, 40, 42) | call(argc=1,positional=1,keywords=(),mode=self_or_null,method=True,null=False,self=True,ex=False,starargs=False,kwargs=False)
+0044 | 0007 | LOAD_FAST | arg=0 | target=- | value='item' | stack=1/- | cache=()
+0046 | 0008 | LOAD_DEREF | arg=2 | target=- | value='offset' | stack=1/- | cache=() | meta=(('localsplus_index', 2), ('localsplus_name', 'offset'))
+0048 | 0009 | BINARY_ADD | arg=0 | target=- | value=0 | stack=-1/- | cache=(50,) | meta=(('operator', '+'), ('inplace', False))
+0052 | 0010 | BUILD_TUPLE | arg=2 | target=- | value=2 | stack=-1/- | cache=()
+0054 | 0011 | LOAD_CONST | arg=1 | target=- | value=1 | stack=1/- | cache=()
+0056 | 0012 | BINARY_SUBSCR | arg=- | target=- | value=None | stack=-1/- | cache=(58, 60, 62, 64)
+0066 | 0013 | RETURN_VALUE | arg=- | target=- | value=None | stack=-1/- | cache=()

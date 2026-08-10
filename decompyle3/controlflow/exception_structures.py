@@ -116,12 +116,22 @@ class ExceptionStructureDecompiler311:
         if not ambiguous_transfer:
             return True
 
+        normal_index = self.offset_to_index.get(entry.end)
+        if normal_index is not None and any(
+            self.tokens[index].kind == "RETURN_VALUE"
+            for index in range(normal_index, handler_index)
+        ):
+            # ``finally: continue`` overrides a pending return, so CPython
+            # does not emit a RETURN_VALUE in its duplicated normal cleanup.
+            # A surviving loop-iterator return before this unconditional
+            # handler continue therefore belongs to ``except: continue``.
+            return True
+
         # ``except: continue/break`` and ``finally: continue/break`` have
         # the same exceptional cleanup prefix.  A real except region has a
         # normal edge that jumps forward around the handler.  In a finally
         # region, normal execution instead runs a duplicated copy of the
         # cleanup/control transfer before reaching the exceptional handler.
-        normal_index = self.offset_to_index.get(entry.end)
         if normal_index is None:
             return False
         normal_index = self.owner._next_semantic_index(
@@ -656,7 +666,7 @@ class ExceptionStructureDecompiler311:
 
             return None
 
-        if not continue_blocks and not break_blocks:
+        if not return_blocks and not continue_blocks and not break_blocks:
             return None
 
         protected_blocks = set()
@@ -1265,19 +1275,44 @@ class ExceptionStructureDecompiler311:
             return None
 
         for block_index in visited:
-            outside = {
-                edge.source
+            outside = [
+                edge
                 for edge in cfg.incoming(block_index)
                 if edge.source not in visited
-                and (
-                    block_index == start_block
-                    or edge.kind != "exception"
-                )
-            }
+            ]
             if block_index == start_block:
-                if len(outside) != 1:
+                # The CFG materializes one exception edge per protected basic
+                # block.  They are multiple physical predecessors but one
+                # logical entry into this handler.  Ordinary predecessors
+                # would make the terminal return reachable outside the
+                # handler and therefore remain unsafe.
+                handler_offset = cfg.block(start_block).start
+                handler_entries = [
+                    candidate
+                    for candidate in self.entries
+                    if candidate.target == handler_offset
+                ]
+                typed_clause_entry = (
+                    len(outside) == 1
+                    and outside[0].kind != "exception"
+                )
+                bare_clause_entry = (
+                    bool(outside)
+                    and all(edge.kind == "exception" for edge in outside)
+                    and bool(handler_entries)
+                    and all(
+                        any(
+                            candidate.start
+                            <= cfg.block(edge.source).start
+                            < candidate.end
+                            for candidate in handler_entries
+                        )
+                        for edge in outside
+                    )
+                )
+                if not (typed_clause_entry or bare_clause_entry):
                     return None
-            elif outside:
+            elif any(edge.kind != "exception" for edge in outside):
                 return None
 
         continuation_block = cfg.offset_to_block.get(continuation_offset)
@@ -1991,6 +2026,96 @@ class ExceptionStructureDecompiler311:
                 for candidate in outer_fragments
             )
             crosses_with = True
+
+        held_value = (
+            self.owner.stack[-1]
+            if len(self.owner.stack) == 1
+            and isinstance(self.owner.stack[-1], ast.expr)
+            and self.owner.pending_assignment_value is None
+            and not self.owner.pending_assignment_targets
+            and not self.owner.pending_booleans
+            and not self.owner.pending_keywords
+            else None
+        )
+        if held_value is not None and self._handler_is_bare(entry):
+            cleanup_end = self._handler_cleanup_end(
+                handler_index + 1,
+                handler_index,
+            )
+            normal_returns = [
+                index
+                for index in range(body_end, handler_index)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ]
+            handler_returns = [
+                index
+                for index in range(handler_index, cleanup_end)
+                if self.tokens[index].kind == "RETURN_VALUE"
+            ]
+            normal_gap_is_protocol = all(
+                self.tokens[index].kind
+                in ("INTERNAL_EXTENDED_ARG", "NOP", "RETURN_VALUE")
+                for index in range(body_end, handler_index)
+            )
+            if (
+                normal_returns
+                and handler_returns
+                and normal_gap_is_protocol
+            ):
+                held_value = self.owner.stack.pop()
+                return_offsets = {
+                    self.tokens[index].offset
+                    for index in range(start, cleanup_end)
+                    if self.tokens[index].kind == "RETURN_VALUE"
+                }
+                added_returns = (
+                    return_offsets
+                    - self.owner._suppressed_exception_protocol_offsets
+                )
+                self.owner._suppressed_exception_protocol_offsets.update(
+                    added_returns
+                )
+                try:
+                    cleanup_body = self._capture_protected_fragments(
+                        start,
+                        body_end,
+                        loop,
+                        fragments,
+                    )
+                    handlers, parsed_end, handler_join = (
+                        self._parse_handlers(
+                            handler_index,
+                            loop,
+                            None,
+                        )
+                    )
+                except Python311ParseError:
+                    self.owner.stack.append(held_value)
+                    raise
+                finally:
+                    self.owner._suppressed_exception_protocol_offsets.difference_update(
+                        added_returns
+                    )
+                if handler_join is not None or parsed_end != cleanup_end:
+                    self.owner._error(
+                        "Held return cleanup has an unexpected handler join"
+                    )
+                cleanup_try = ast.Try(
+                    body=cleanup_body or [ast.Pass()],
+                    handlers=handlers,
+                    orelse=[],
+                    finalbody=[],
+                )
+                return (
+                    ast.Try(
+                        body=[ast.Return(value=held_value)],
+                        handlers=[],
+                        orelse=[],
+                        finalbody=[cleanup_try],
+                    ),
+                    cleanup_end,
+                )
+
         deferred_return_body = (
             self._capture_protected_return(start, body_end, loop)
             if not held_return_through_handler
@@ -3056,10 +3181,26 @@ class ExceptionStructureDecompiler311:
                         for index in range(fragment_end, boundary)
                         if self.tokens[index].kind == "RETURN_VALUE"
                     )
+                    iterator_return_constant = (
+                        return_index - 1
+                        if loop is not None
+                        and return_index > fragment_end
+                        and self.tokens[return_index - 1].kind
+                        == "LOAD_CONST"
+                        and any(
+                            self.tokens[index].kind == "POP_TOP"
+                            for index in range(
+                                fragment_end,
+                                return_index - 1,
+                            )
+                        )
+                        else None
+                    )
                     protocol_offsets = {
                         self.tokens[index].offset
                         for index in range(fragment_end, boundary)
-                        if index != return_index
+                        if index
+                        not in (return_index, iterator_return_constant)
                     }
                     added_protocol = (
                         protocol_offsets
@@ -3461,7 +3602,89 @@ class ExceptionStructureDecompiler311:
 
         return statement, next_index
 
+    def _terminal_return_try_without_protected_entry(self, index: int, loop):
+        """Recover ``try: return`` when CPython omits its empty range.
+
+        A constant ``return`` cannot raise, so CPython 3.11 emits the source
+        handler protocol but no exception-table entry targeting it.  Accept
+        only the compiler's closed, unreachable-handler shape; arbitrary dead
+        ``PUSH_EXC_INFO`` sequences must continue to fail closed.
+        """
+        if (
+            self.tokens[index].kind != "NOP"
+            or index + 3 >= len(self.tokens)
+            or self.tokens[index + 1].kind != "LOAD_CONST"
+            or self.tokens[index + 1].attr is not None
+            or self.tokens[index + 2].kind != "RETURN_VALUE"
+            or self.tokens[index + 3].kind != "PUSH_EXC_INFO"
+        ):
+            return None
+
+        handler_index = index + 3
+        handler_offset = self.tokens[handler_index].offset
+        handler_block = self.owner.cfg.offset_to_block.get(handler_offset)
+        if (
+            handler_block is None
+            or self.owner.cfg.incoming(handler_block)
+            or any(entry.target == handler_offset for entry in self.entries)
+            or not (
+                self._handler_has_match(handler_index)
+                or self.tokens[handler_index + 1].kind == "POP_TOP"
+            )
+        ):
+            return None
+
+        cleanup_entries = [
+            entry
+            for entry in self.entries
+            if entry.lasti
+            and handler_offset <= entry.start
+            and entry.target > handler_offset
+        ]
+        if not cleanup_entries:
+            return None
+        handlers, cleanup_end, join = self._parse_handlers(
+            handler_index,
+            loop,
+            None,
+        )
+        if join is not None:
+            self._error(
+                "Entry-less terminal try handler has an unexpected join",
+                handler_offset,
+            )
+        cleanup_offset = (
+            self.tokens[cleanup_end].offset
+            if cleanup_end < len(self.tokens)
+            else self.tokens[-1].offset + 2
+        )
+        if any(
+            entry.end > cleanup_offset
+            for entry in cleanup_entries
+        ):
+            self._error(
+                "Entry-less terminal try handler crosses its cleanup",
+                handler_offset,
+            )
+        return (
+            ast.Try(
+                body=[ast.Return(value=None)],
+                handlers=handlers,
+                orelse=[],
+                finalbody=[],
+            ),
+            cleanup_end,
+        )
+
     def try_statement(self, index: int, loop):
+        terminal = self._terminal_return_try_without_protected_entry(
+            index,
+            loop,
+        )
+        if terminal is not None:
+            statement, next_index = terminal
+            self.owner.body.append(statement)
+            return next_index
         offset = self.tokens[index].offset
         entries = [
             entry

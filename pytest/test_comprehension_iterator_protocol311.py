@@ -134,6 +134,18 @@ def test_incremental_literals_extended_loop_and_terminal_loop_preserve_behavior(
             namespace["first_or_error"]([])
 
 
+def test_iterator_cleanup_break_preserves_single_iteration_and_outer_loop():
+    tree, original, rebuilt = namespaces()
+    assert sum(isinstance(node, ast.Break) for node in ast.walk(tree)) >= 2
+
+    for namespace in (original, rebuilt):
+        assert namespace["first_or_default"]([], "missing") == "missing"
+        assert namespace["first_or_default"]([1, 2, 3], "missing") == 1
+        events = []
+        namespace["nested_first"]([[1, 2], [], [3, 4]], events)
+        assert events == [1, "group", "group", 3, "group"]
+
+
 def test_conditional_outputs_filters_and_generators_preserve_behavior():
     _, original, rebuilt = namespaces()
     values = [-2, -1, 0, 1, 2, 3]
@@ -174,3 +186,28 @@ def test_conditional_outputs_filters_and_generators_preserve_behavior():
             3,
         ]
         assert generator_lambda_snapshot(namespace) == (7, "finished")
+
+
+def test_extended_arg_comprehension_latch_preserves_behavior():
+    root = compile(
+        SOURCE.read_text(encoding="utf-8"),
+        str(SOURCE),
+        "exec",
+        dont_inherit=True,
+    )
+    comprehension = max(
+        (
+            code
+            for code in Scanner311.iter_code_objects(root)
+            if code.co_name == "<listcomp>"
+        ),
+        key=lambda code: len(code.co_code),
+    )
+    scanner = Scanner311()
+    tokens, _ = scanner.ingest(comprehension)
+    assert any(token.kind == "INTERNAL_EXTENDED_ARG" for token in tokens)
+
+    _, original, rebuilt = namespaces()
+    values = [-1, 0, 37, 179, 180]
+    assert original["extended_comprehension_filter"](values) == [0, 37, 179]
+    assert rebuilt["extended_comprehension_filter"](values) == [0, 37, 179]

@@ -117,13 +117,28 @@ class MatchStructureDecompiler311:
         def has_pattern_comparison():
             """A value pattern compares and then branches on the result."""
             comparison_seen = False
-            for token in lookahead[1:]:
+            comparison_index = None
+            for position, token in enumerate(lookahead[1:], start=1):
                 if token.kind.startswith("MATCH_"):
                     return True
                 if token.kind.startswith("COMPARE_") or token.kind == "IS":
                     comparison_seen = True
+                    comparison_index = index + position
                     continue
                 if token.kind.startswith("POP_JUMP_"):
+                    if comparison_seen and kind.startswith("LOAD_"):
+                        # The match subject is already on the physical stack;
+                        # a value-pattern prefix must therefore produce one
+                        # comparator.  A multiline conditional expression
+                        # such as ``x == '-'`` produces two values here and
+                        # must not be mistaken for the first ``case``.
+                        try:
+                            self.owner._expression_slice(
+                                index,
+                                comparison_index,
+                            )
+                        except Python311ParseError:
+                            return False
                     return comparison_seen or (
                         kind == "COPY_STACK"
                         and (

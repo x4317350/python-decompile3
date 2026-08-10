@@ -208,6 +208,31 @@ class ComprehensionDecompiler311:
         success_index = final_jump + 1
         if success_index >= len(self.tokens):
             return None
+        while (
+            success_index < len(self.tokens)
+            and self.tokens[success_index].kind in _IGNORED_INTERNAL
+        ):
+            success_index += 1
+        seen_success_bridges = set()
+        while (
+            success_index < len(self.tokens)
+            and self.tokens[success_index].kind == "JUMP_FORWARD"
+            and success_index not in seen_success_bridges
+        ):
+            seen_success_bridges.add(success_index)
+            target_index = self.offset_to_index.get(
+                instruction_target(self.tokens[success_index])
+            )
+            if target_index is None or target_index <= success_index:
+                return None
+            success_index = target_index
+            while (
+                success_index < len(self.tokens)
+                and self.tokens[success_index].kind in _IGNORED_INTERNAL
+            ):
+                success_index += 1
+        if success_index >= len(self.tokens):
+            return None
         success_offset = self.tokens[success_index].offset
         jump_indices = [
             index
@@ -448,7 +473,8 @@ class ComprehensionDecompiler311:
             index
             for index in range(header + 1, exit_index)
             if self.tokens[index].kind.startswith("JUMP_BACKWARD")
-            and instruction_target(self.tokens[index]) == token.offset
+            and self._resolved_target_offset(self.tokens[index])
+            == token.offset
         ]
         if not latch_candidates:
             self._error("Synchronous comprehension loop has no back edge")
@@ -480,17 +506,18 @@ class ComprehensionDecompiler311:
                 current.kind.startswith("POP_JUMP_")
                 and target_offset == token.offset
             ):
-                if self._has_pending_conditional_branch(
+                has_pending_branch = self._has_pending_conditional_branch(
                     expression_start,
                     cursor,
-                ):
-                    cursor += 1
-                    continue
+                )
                 boolean_filter = self._boolean_filter(
                     expression_start,
                     cursor,
                     token.offset,
                 )
+                if has_pending_branch and boolean_filter is None:
+                    cursor += 1
+                    continue
                 if boolean_filter is None:
                     expression = self._filter(expression_start, cursor)
                     cursor += 1

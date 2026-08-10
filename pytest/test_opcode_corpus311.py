@@ -117,7 +117,7 @@ def test_phase2_corpus_reaches_full_raw_inventory():
         )
 
     assert len(sources) == 32
-    assert code_object_count == 218
+    assert code_object_count == 228
     assert raw == set(dis.opmap)
     assert set(dis.opmap) - normalized == {"CACHE"}
     assert not failures

@@ -35,7 +35,7 @@
              52 CACHE                    0
              54 CACHE                    0
 
- 23          56 LOAD_CONST              17 ((2,))
+ 23          56 LOAD_CONST              18 ((2,))
              58 LOAD_CONST               5 (3)
              60 LOAD_CONST               6 (('scale',))
              62 BUILD_CONST_KEY_MAP      1
@@ -91,8 +91,12 @@
  48         150 LOAD_CONST              15 (<code object build_lambdas at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 48>)
             152 MAKE_FUNCTION            0
             154 STORE_NAME               7 (build_lambdas)
-            156 LOAD_CONST              16 (None)
-            158 RETURN_VALUE
+
+ 64         156 LOAD_CONST              16 (<code object make_lazy_resolver at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 64>)
+            158 MAKE_FUNCTION            0
+            160 STORE_NAME               8 (make_lazy_resolver)
+            162 LOAD_CONST              17 (None)
+            164 RETURN_VALUE
 
 Disassembly of <code object record at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 7>:
               0 MAKE_CELL                0 (name)
@@ -471,3 +475,94 @@ Disassembly of <code object <lambda> at 0x..., file "test/simple_source/311/14_f
               8 BINARY_OP                0 (+)
              10 CACHE                    0
              12 RETURN_VALUE
+
+Disassembly of <code object make_lazy_resolver at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 64>:
+              0 MAKE_CELL                0 (offset)
+              2 MAKE_CELL                2 (events)
+              4 MAKE_CELL                3 (resolve)
+
+ 64           6 RESUME                   0
+
+ 65           8 BUILD_LIST               0
+             10 STORE_DEREF              2 (events)
+
+ 66          12 LOAD_CONST               0 (None)
+             14 STORE_DEREF              3 (resolve)
+
+ 68          16 LOAD_CLOSURE             2 (events)
+             18 LOAD_CLOSURE             0 (offset)
+             20 LOAD_CLOSURE             3 (resolve)
+             22 BUILD_TUPLE              3
+             24 LOAD_CONST               1 (<code object then at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 68>)
+             26 MAKE_FUNCTION            8 (closure)
+             28 STORE_FAST               1 (then)
+
+ 75          30 LOAD_FAST                1 (then)
+             32 LOAD_DEREF               2 (events)
+             34 BUILD_TUPLE              2
+             36 RETURN_VALUE
+
+Disassembly of <code object then at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 68>:
+              0 COPY_FREE_VARS           3
+
+ 68           2 RESUME                   0
+
+ 70           4 LOAD_DEREF               3 (resolve)
+              6 JUMP_IF_TRUE_OR_POP      5 (to 18)
+
+ 71           8 LOAD_CLOSURE             1 (events)
+             10 LOAD_CLOSURE             2 (offset)
+             12 BUILD_TUPLE              2
+             14 LOAD_CONST               1 (<code object <lambda> at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 71>)
+             16 MAKE_FUNCTION            8 (closure)
+
+ 70     >>   18 STORE_DEREF              3 (resolve)
+
+ 73          20 PUSH_NULL
+             22 LOAD_DEREF               3 (resolve)
+             24 LOAD_FAST                0 (value)
+             26 PRECALL                  1
+             28 CACHE                    0
+             30 CALL                     1
+             32 CACHE                    0
+             34 CACHE                    0
+             36 CACHE                    0
+             38 CACHE                    0
+             40 RETURN_VALUE
+
+Disassembly of <code object <lambda> at 0x..., file "test/simple_source/311/14_function_object_flow.py", line 71>:
+              0 COPY_FREE_VARS           2
+
+ 71           2 RESUME                   0
+              4 LOAD_DEREF               1 (events)
+              6 LOAD_METHOD              0 (append)
+              8 CACHE                    0
+             10 CACHE                    0
+             12 CACHE                    0
+             14 CACHE                    0
+             16 CACHE                    0
+             18 CACHE                    0
+             20 CACHE                    0
+             22 CACHE                    0
+             24 CACHE                    0
+             26 CACHE                    0
+             28 LOAD_FAST                0 (item)
+             30 PRECALL                  1
+             32 CACHE                    0
+             34 CALL                     1
+             36 CACHE                    0
+             38 CACHE                    0
+             40 CACHE                    0
+             42 CACHE                    0
+             44 LOAD_FAST                0 (item)
+             46 LOAD_DEREF               2 (offset)
+             48 BINARY_OP                0 (+)
+             50 CACHE                    0
+             52 BUILD_TUPLE              2
+             54 LOAD_CONST               1 (1)
+             56 BINARY_SUBSCR
+             58 CACHE                    0
+             60 CACHE                    0
+             62 CACHE                    0
+             64 CACHE                    0
+             66 RETURN_VALUE

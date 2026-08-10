@@ -1075,6 +1075,164 @@ def test_terminal_short_circuit_statement_preserves_calls_and_return_values():
         assert events == ["bool", ("binding", False)]
 
 
+def test_branch_local_short_circuit_owns_copied_cleanup_and_behavior():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "branch_local_short_circuit_original",
+    )
+    recovered_source = recover_terminal_source()
+    compile(recovered_source, "<branch-local-short-circuit>", "exec")
+    recovered = execute(
+        recovered_source,
+        "branch_local_short_circuit_recovered",
+    )
+
+    for branch, left in ((False, False), (False, True), (True, False), (True, True)):
+        original_events = []
+        recovered_events = []
+
+        def invoke(events, label):
+            def callback():
+                events.append(label)
+                return label
+
+            return callback
+
+        original_result = original["branch_local_short_circuit_statement"](
+            branch,
+            left,
+            invoke(original_events, "callback"),
+            invoke(original_events, "alternate"),
+        )
+        recovered_result = recovered["branch_local_short_circuit_statement"](
+            branch,
+            left,
+            invoke(recovered_events, "callback"),
+            invoke(recovered_events, "alternate"),
+        )
+        assert recovered_result is original_result is None
+        assert recovered_events == original_events
+
+
+def test_nested_conditional_argument_is_not_misclassified_as_match():
+    original_source = TERMINAL_SOURCE.read_text(encoding="utf-8")
+    recovered_source = recover_terminal_source()
+    recovered_tree = ast.parse(recovered_source)
+    compile(recovered_tree, "<conditional-argument-recovered>", "exec")
+
+    function = next(
+        node
+        for node in recovered_tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "nested_conditional_argument"
+    )
+    assert not any(isinstance(node, ast.Match) for node in ast.walk(function))
+    assert sum(
+        isinstance(node, ast.IfExp) for node in ast.walk(function)
+    ) == 3
+
+    original = execute(original_source, "conditional_argument_original")
+    recovered = execute(
+        recovered_source,
+        "conditional_argument_recovered",
+    )
+    for value, label in (
+        ("-", "difference"),
+        ("&", "intersection"),
+        ("~", "symmetric difference"),
+        ("|", "union"),
+    ):
+        expected = []
+        actual = []
+        original["nested_conditional_argument"](
+            value,
+            lambda *args: expected.append(args),
+        )
+        recovered["nested_conditional_argument"](
+            value,
+            lambda *args: actual.append(args),
+        )
+        assert actual == expected == [(f"kind={label}", value)]
+
+
+def test_degenerate_condition_preserves_evaluation_and_truth_testing():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "degenerate_condition_original",
+    )
+    recovered_source = recover_terminal_source()
+    compile(recovered_source, "<degenerate-condition>", "exec")
+    recovered = execute(recovered_source, "degenerate_condition_recovered")
+
+    class Probe:
+        def __init__(self, truth, events):
+            self.truth = truth
+            self.events = events
+
+        def __bool__(self):
+            self.events.append("bool")
+            return self.truth
+
+    for namespace in (original, recovered):
+        identity_events = []
+        identity_probe = Probe(True, identity_events)
+        namespace["degenerate_identity_condition"](
+            identity_probe,
+            lambda: identity_events.append("after"),
+        )
+        assert identity_events == ["after"]
+
+        for truth in (False, True):
+            truth_events = []
+            probe = Probe(truth, truth_events)
+            namespace["degenerate_truth_condition"](
+                lambda: (truth_events.append("test"), probe)[1],
+                lambda: truth_events.append("after"),
+            )
+            assert truth_events == ["test", "bool", "after"]
+
+
+def test_terminal_short_circuit_variants_preserve_protocol_and_exceptions():
+    original = execute(
+        TERMINAL_SOURCE.read_text(encoding="utf-8"),
+        "terminal_short_variants_original",
+    )
+    recovered_source = recover_terminal_source()
+    compile(recovered_source, "<terminal-short-variants>", "exec")
+    recovered = execute(recovered_source, "terminal_short_variants_recovered")
+
+    for namespace in (original, recovered):
+        for first, second in ((False, False), (False, True), (True, False)):
+            events = []
+            namespace["mixed_terminal_short_circuit"](
+                first,
+                second,
+                lambda: events.append("called"),
+            )
+            assert events == (["called"] if first or second else [])
+
+        events = []
+
+        def fail():
+            events.append("call")
+            raise LookupError("expected")
+
+        namespace["protected_terminal_short_circuit"](
+            True,
+            fail,
+            lambda: events.append("caught"),
+        )
+        assert events == ["call", "caught"]
+
+        for flag, expected in ((0, True), (7, False), (10, True)):
+            arguments = []
+            namespace["conditional_argument_short_circuit"](
+                lambda value: arguments.append(value),
+                flag,
+            )
+            assert arguments == [expected]
+
+
 @pytest.mark.parametrize(
     "corruption",
     (

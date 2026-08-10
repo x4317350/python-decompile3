@@ -124,6 +124,61 @@ def terminal_short_circuit_statement_many(first, second, final):
     first() and second() and final()
 
 
+def branch_local_short_circuit_statement(
+    branch,
+    left,
+    callback,
+    alternate,
+):
+    if branch:
+        left and callback()
+    else:
+        alternate()
+
+
+def degenerate_identity_condition(lock, after):
+    if lock is None:
+        pass
+    after()
+
+
+def degenerate_truth_condition(test, after):
+    if test():
+        pass
+    after()
+
+
+def mixed_terminal_short_circuit(first, second, callback):
+    (first or second) and callback()
+
+
+def protected_terminal_short_circuit(value, callback, caught):
+    try:
+        value and callback()
+    except LookupError:
+        caught()
+
+
+def conditional_argument_short_circuit(callback, flag):
+    callback and callback(True if flag in (0, 10) else False)
+
+
+def nested_conditional_argument(value, emit):
+    emit(
+        "kind=%s"
+        % (
+            "difference"
+            if value == "-"
+            else "intersection"
+            if value == "&"
+            else "symmetric difference"
+            if value == "~"
+            else "union"
+        ),
+        value,
+    )
+
+
 def terminal_before_no_else(left, right, events):
     events.append("before")
     if left and right:

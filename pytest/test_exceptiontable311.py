@@ -1254,6 +1254,19 @@ def test_except_handler_none_returns_stay_inside_handlers():
         assert isinstance(handler.body[-1], ast.Return)
         assert not any(isinstance(node, ast.Pass) for node in handler.body)
 
+    multi_predecessor = function_node(
+        tree,
+        "bare_return_many_predecessors",
+    )
+    bare_handler = next(
+        handler
+        for node in ast.walk(multi_predecessor)
+        if isinstance(node, ast.Try)
+        for handler in node.handlers
+        if handler.type is None
+    )
+    assert isinstance(bare_handler.body[-1], ast.Return)
+
     pass_handler = _first_handler(tree, "empty_pass")
     assert len(pass_handler.body) == 1
     assert isinstance(pass_handler.body[0], ast.Pass)
@@ -1354,3 +1367,111 @@ def test_except_handler_returns_preserve_continuation_behavior():
                 enabled,
             )
             assert actual == expected
+
+    for flag in (False, True):
+        for values in ((), (11,)):
+            expected = _call_with_events(
+                original,
+                "bare_return_many_predecessors",
+                values,
+                flag,
+            )
+            actual = _call_with_events(
+                recovered,
+                "bare_return_many_predecessors",
+                values,
+                flag,
+            )
+            assert actual == expected
+
+
+def test_terminal_try_loop_return_and_held_cleanup_preserve_behavior(
+    tmp_path,
+):
+    recovered_source = recover_source(tmp_path)
+    recovered_tree = ast.parse(recovered_source)
+    compile(recovered_tree, "<exception-frontier-recovered>", "exec")
+
+    terminal = function_node(recovered_tree, "terminal_try_return")
+    assert any(isinstance(node, ast.Try) for node in ast.walk(terminal))
+    loop_return = function_node(
+        recovered_tree,
+        "except_continue_with_return",
+    )
+    assert any(isinstance(node, ast.Try) for node in ast.walk(loop_return))
+
+    original = execute(
+        SOURCE.read_text(encoding="utf-8"),
+        "exception_frontier_original",
+    )
+    recovered = execute(
+        recovered_source,
+        "exception_frontier_recovered",
+    )
+    assert original["terminal_try_return"]() is None
+    assert recovered["terminal_try_return"]() is None
+
+    def run_loop(namespace, outcomes):
+        calls = []
+        events = []
+
+        def predicate(label, result=None, error=None):
+            def check():
+                calls.append(label)
+                if error is not None:
+                    raise error
+                return result
+
+            return check
+
+        predicates = [
+            predicate(label, result, error)
+            for label, result, error in outcomes
+        ]
+        returned = namespace["except_continue_with_return"](
+            predicates,
+            events,
+        )
+        return returned, calls, events
+
+    scenarios = (
+        (("false", False, None),),
+        (
+            ("raise", None, LookupError("boom")),
+            ("false", False, None),
+        ),
+        (
+            ("false", False, None),
+            ("true", True, None),
+            ("late", True, None),
+        ),
+    )
+    for scenario in scenarios:
+        assert run_loop(recovered, scenario) == run_loop(original, scenario)
+
+    class Resource:
+        def __init__(self, events, fail):
+            self.events = events
+            self.fail = fail
+
+        def close(self):
+            self.events.append("close")
+            if self.fail:
+                raise RuntimeError("close failed")
+
+    def run_cleanup(namespace, fail):
+        events = []
+
+        def value():
+            events.append("value")
+            return "result"
+
+        returned = namespace["held_return_cleanup"](
+            value,
+            Resource(events, fail),
+            events,
+        )
+        return returned, events
+
+    for fail in (False, True):
+        assert run_cleanup(recovered, fail) == run_cleanup(original, fail)

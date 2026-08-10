@@ -629,9 +629,22 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
         token = self.tokens[start]
         if token.kind in UNCONDITIONAL_JUMPS:
-            target = instruction_target(token)
-            if target is not None:
-                return f"jump:{target}"
+            seen_jumps = set()
+            while token.kind in UNCONDITIONAL_JUMPS:
+                if token.offset in seen_jumps:
+                    return None
+                seen_jumps.add(token.offset)
+                target = instruction_target(token)
+                if target is None:
+                    return None
+                target_index = self.offset_to_index.get(target)
+                if target_index is None:
+                    return f"jump:{target}"
+                target_index = self._next_semantic_index(target_index)
+                if target_index >= len(self.tokens):
+                    return f"jump:{target}"
+                token = self.tokens[target_index]
+            return f"jump:{token.offset}"
         for index in range(start, len(self.tokens)):
             kind = self.tokens[index].kind
             if kind == "RETURN_VALUE":
@@ -673,7 +686,18 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if signature is None:
                 canonical[endpoint] = endpoint
                 continue
-            canonical[endpoint] = by_signature.setdefault(signature, endpoint)
+            by_signature.setdefault(signature, []).append(endpoint)
+        for equivalent in by_signature.values():
+            resolved = {
+                self._resolve_condition_endpoint(endpoint)
+                for endpoint in equivalent
+            }
+            target = (
+                next(iter(resolved))
+                if len(equivalent) > 1 and len(resolved) == 1
+                else equivalent[0]
+            )
+            canonical.update({endpoint: target for endpoint in equivalent})
         if all(endpoint == target for endpoint, target in canonical.items()):
             return nodes, endpoints
         remapped = {
@@ -1343,7 +1367,33 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     if candidate_index is None or candidate_index >= end:
                         continue
                     candidate_block = self.cfg.block_at(candidate)
-                    if len(self.cfg.predecessors(candidate_block.index)) != 1:
+                    candidate_incoming = self.cfg.incoming(
+                        candidate_block.index
+                    )
+                    if any(
+                        edge.kind == "exception"
+                        for edge in candidate_incoming
+                    ):
+                        continue
+                    candidate_predecessors = {
+                        edge.source
+                        for edge in candidate_incoming
+                        if edge.kind != "exception"
+                    }
+                    owned_condition_blocks = {
+                        self.cfg.block_at(
+                            self.tokens[node.jump_index].offset
+                        ).index
+                        for node in nodes.values()
+                    } | {
+                        self.cfg.block_at(offset).index
+                        for offset in nodes
+                    }
+                    if (
+                        not candidate_predecessors
+                        or not candidate_predecessors
+                        <= owned_condition_blocks
+                    ):
                         continue
 
                     extra_nodes = {}
@@ -1396,7 +1446,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     if (
                         extra_nodes
                         and leaves
-                        and len(revised) < len(endpoints)
+                        and len(revised) <= len(endpoints)
                     ):
                         nodes.update(extra_nodes)
                         endpoints = revised
@@ -1656,12 +1706,32 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                     and branch_jump_position[0]
                     == branch_jump_position[1]
                 )
+                entry_position = self._positions_by_offset.get(
+                    self.tokens[start].offset
+                )
+                starts_later_source_statement = (
+                    self.tokens[branch_index].linestart is not None
+                    and condition_line is not None
+                    and self.tokens[branch_index].linestart
+                    != condition_line
+                    and branch_position is not None
+                    and entry_position is not None
+                    and len(branch_position) == len(entry_position) == 4
+                    and branch_position[2] is not None
+                    and entry_position[2] is not None
+                    and branch_position[2] <= entry_position[2] + 1
+                )
                 # Iterative closure is for converging boolean continuations.
                 # A single-predecessor decision is the first source statement
                 # inside an if suite even when its broad PEP 657 range is
                 # contained by the parent condition.  Chained comparisons
                 # use their narrower transparent-bridge proof above instead.
                 if len(branch_predecessors) < 2:
+                    continue
+                if (
+                    starts_later_source_statement
+                    and not same_exception_condition
+                ):
                     continue
                 if (
                     not position_is_owned
@@ -2191,11 +2261,27 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         if visited != set(condition_blocks) | pair_blocks:
             return None
         if any(
-            edge.kind == "exception"
-            and (edge.source in visited or edge.target in visited)
+            edge.kind == "exception" and edge.target in visited
             for edge in self.cfg.edges
         ):
             return None
+        for block_index in visited:
+            block_last = self.cfg.block(block_index).last
+            token_index = self.offset_to_index.get(block_last.offset)
+            if token_index is None:
+                return None
+            token_last = self.tokens[token_index]
+            if token_last.kind != block_last.kind:
+                return None
+            if (
+                token_last.kind
+                in (_CONDITIONAL_JUMPS | UNCONDITIONAL_JUMPS)
+                or token_last.kind
+                in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP")
+            ) and instruction_target(token_last) != instruction_target(
+                block_last
+            ):
+                return None
         for block_index in visited:
             outside_predecessors = {
                 edge.source
@@ -2270,7 +2356,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
         flags = int(getattr(self.code, "co_flags", 0))
         if (
             loop is not None
-            or region_end != len(self.tokens)
             or not 0 <= start < region_end
             or self.is_class_body
             or getattr(self.code, "co_name", "<module>") == "<module>"
@@ -2284,6 +2369,11 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             return None
 
         entry_offset = self.tokens[start].offset
+        region_end_offset = (
+            self.tokens[region_end].offset
+            if region_end < len(self.tokens)
+            else None
+        )
         entry_block = self.cfg.offset_to_block.get(entry_offset)
         if entry_block is None:
             return None
@@ -2301,6 +2391,17 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 continue
             visited.add(block_index)
             block = self.cfg.block(block_index)
+            if (
+                (
+                    block_index != entry_block
+                    and block.start < entry_offset
+                )
+                or (
+                    region_end_offset is not None
+                    and block.start >= region_end_offset
+                )
+            ):
+                return None
             for edge in self._normal_edges_from(block_index):
                 target = self.cfg.block(edge.target)
                 if target.start <= block.start:
@@ -2308,11 +2409,27 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 pending.append(edge.target)
 
         if any(
-            edge.kind == "exception"
-            and (edge.source in visited or edge.target in visited)
+            edge.kind == "exception" and edge.target in visited
             for edge in self.cfg.edges
         ):
             return None
+        for block_index in visited:
+            block_last = self.cfg.block(block_index).last
+            token_index = self.offset_to_index.get(block_last.offset)
+            if token_index is None:
+                return None
+            token_last = self.tokens[token_index]
+            if token_last.kind != block_last.kind:
+                return None
+            if (
+                token_last.kind
+                in (_CONDITIONAL_JUMPS | UNCONDITIONAL_JUMPS)
+                or token_last.kind
+                in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP")
+            ) and instruction_target(token_last) != instruction_target(
+                block_last
+            ):
+                return None
         for block_index in visited:
             outside_predecessors = {
                 edge.source
@@ -2342,13 +2459,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             for block_index in exit_blocks
         ):
             return None
-        if any(
-            self.cfg.block(block_index).terminator
-            not in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP")
-            for block_index in condition_blocks
-        ):
-            return None
-
         source_line = None
         for index in range(start, region_end):
             position = self._positions_by_offset.get(
@@ -2374,15 +2484,44 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 and self.cfg.offset_to_block.get(self.tokens[index].offset)
                 == block_index
             ]
-            if (
-                len(semantic) < 3
-                or semantic[-3].kind != "POP_TOP"
-                or semantic[-2].kind != "LOAD_CONST"
-                or semantic[-2].attr is not None
-                or semantic[-1].kind != "RETURN_VALUE"
+            if not (
+                len(semantic) >= 2
+                and semantic[-2].kind == "LOAD_CONST"
+                and semantic[-2].attr is None
+                and semantic[-1].kind == "RETURN_VALUE"
             ):
                 return None
-            cleanup = semantic[-3]
+            cleanup = semantic[-3] if len(semantic) >= 3 else None
+            if cleanup is None or cleanup.kind != "POP_TOP":
+                predecessors = [
+                    edge.source
+                    for edge in self.cfg.incoming(block_index)
+                    if edge.kind != "exception" and edge.source in visited
+                ]
+                if len(predecessors) != 1:
+                    return None
+                predecessor = predecessors[0]
+                predecessor_edges = self._normal_edges_from(predecessor)
+                if (
+                    len(predecessor_edges) != 1
+                    or predecessor_edges[0].target != block_index
+                ):
+                    return None
+                predecessor_semantic = [
+                    self.tokens[index]
+                    for index in range(start, region_end)
+                    if self.tokens[index].kind not in _IGNORED_INTERNAL
+                    and self.cfg.offset_to_block.get(
+                        self.tokens[index].offset
+                    )
+                    == predecessor
+                ]
+                if (
+                    not predecessor_semantic
+                    or predecessor_semantic[-1].kind != "POP_TOP"
+                ):
+                    return None
+                cleanup = predecessor_semantic[-1]
             position = self._positions_by_offset.get(cleanup.offset)
             if (
                 position is None
@@ -2401,13 +2540,6 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             if self.tokens[index].kind == "POP_TOP"
         } != cleanup_offsets:
             return None
-        if any(
-            instruction_target(self.cfg.block(block_index).last)
-            not in cleanup_offsets
-            for block_index in condition_blocks
-        ):
-            return None
-
         from decompyle3.parsers.p311.expressions import recover_expression311
 
         try:
@@ -2420,7 +2552,7 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             )
         except Python311ParseError:
             return None
-        if not isinstance(expression, ast.BoolOp):
+        if not isinstance(expression, (ast.BoolOp, ast.IfExp)):
             return None
 
         return _TerminalShortCircuitStatementPlan(
@@ -2998,6 +3130,38 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             body, orelse = fallthrough, targeted
         self.stack.append(ast.IfExp(test=test, body=body, orelse=orelse))
         return join_index
+
+    def _try_degenerate_condition(
+        self,
+        start: int,
+        end: int,
+    ) -> Optional[int]:
+        """Consume a condition whose two normal edges have one successor.
+
+        Custom 3.11 producers can omit CPython's otherwise inert ``NOP`` for
+        an empty suite.  The conditional still evaluates (and, for truth
+        jumps, truth-tests) its operand even though target and fallthrough
+        converge on the same semantic instruction.
+        """
+        jump_index = self._condition_jump(start, end)
+        if jump_index is None:
+            return None
+        successor_index = self._next_semantic_index(jump_index + 1, end)
+        if successor_index >= end:
+            return None
+        target_offset = self._semantic_target_offset(self.tokens[jump_index])
+        if target_offset != self.tokens[successor_index].offset:
+            return None
+        try:
+            predicate = self._predicate(start, jump_index)
+        except Python311ParseError:
+            return None
+
+        # ``not`` forces exactly one truth test for POP_JUMP_*_IF_TRUE/FALSE.
+        # For the identity variants the predicate is already an ``is``/``is
+        # not`` comparison and the extra negation has no user-visible calls.
+        self.body.append(ast.Expr(value=_negate(predicate)))
+        return successor_index
 
     def _try_assert_statement(self, start: int, end: int) -> Optional[int]:
         failure_index = next(
@@ -3600,14 +3764,40 @@ class StructuredDecompiler311(_StraightLineDecompiler):
             == self.tokens[for_iter_index].offset
         ]
         latch = latch_candidates[-1] if latch_candidates else None
-        body_limit = latch if latch is not None else else_index
+        iterator_break_cleanup = None
+        if latch is None:
+            candidate = else_index - 1
+            while (
+                candidate >= body_start
+                and self.tokens[candidate].kind in _IGNORED_INTERNAL
+            ):
+                candidate -= 1
+            if (
+                candidate >= body_start
+                and self.tokens[candidate].kind == "POP_TOP"
+                and self.tokens[candidate].linestart is not None
+            ):
+                iterator_break_cleanup = candidate
+        body_limit = (
+            latch
+            if latch is not None
+            else (
+                iterator_break_cleanup
+                if iterator_break_cleanup is not None
+                else else_index
+            )
+        )
         break_targets = [
             instruction_target(self.tokens[index])
             for index in range(body_start, body_limit)
             if self.tokens[index].kind == "JUMP_FORWARD"
             and instruction_target(self.tokens[index]) >= else_offset
         ]
-        if latch is None and not break_targets:
+        if (
+            latch is None
+            and not break_targets
+            and iterator_break_cleanup is None
+        ):
             terminators = {
                 "RAISE_VARARGS",
                 "RERAISE",
@@ -3635,6 +3825,8 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 continue_targets=frozenset(continue_targets),
             ),
         )
+        if iterator_break_cleanup is not None:
+            body.append(ast.Break())
         orelse = (
             self._capture_region(else_index, loop_end_index, loop)
             if loop_end > else_offset
@@ -3865,11 +4057,55 @@ class StructuredDecompiler311(_StraightLineDecompiler):
     ) -> Optional[int]:
         """Skip the physical iterator removal before a loop-body return."""
         if (
+            loop is not None
+            and self.tokens[index].kind == "SWAP_STACK"
+            and not self.stack
+            and index > 0
+        ):
+            cursor = index
+            while (
+                cursor + 1 < end
+                and self.tokens[cursor].kind == "SWAP_STACK"
+                and self.tokens[cursor].attr == 2
+                and self.tokens[cursor + 1].kind == "POP_TOP"
+            ):
+                cursor += 2
+            carried_return = (
+                cursor == end
+                and end < len(self.tokens)
+                and self.tokens[end].kind == "RETURN_VALUE"
+            )
+            preceding_regions = self.exception_region_map.covering(
+                self.tokens[index - 1].offset
+            )
+            if carried_return and any(
+                region.end == self.tokens[index].offset
+                for region in preceding_regions
+            ):
+                expression_start = self._latch_expression_start(0, index)
+                if expression_start < index:
+                    try:
+                        value = self._expression_slice(
+                            expression_start,
+                            index,
+                        )
+                    except Python311ParseError:
+                        return None
+                    self.body.append(ast.Return(value=value))
+                    self._suppressed_exception_protocol_offsets.add(
+                        self.tokens[end].offset
+                    )
+                    return end
+
+        if (
             loop is None
             or self.tokens[index].kind != "SWAP_STACK"
             or len(self.stack) != 1
-            or not isinstance(self.stack[-1], ast.expr)
         ):
+            return None
+        try:
+            self.stack[-1] = self._expression_value(self.stack[-1])
+        except Python311ParseError:
             return None
 
         cursor = index
@@ -4262,6 +4498,14 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = inline_expression_end
                 continue
 
+            degenerate_condition_end = self._try_degenerate_condition(
+                index,
+                end,
+            )
+            if degenerate_condition_end is not None:
+                index = degenerate_condition_end
+                continue
+
             short_circuit_end = self._try_terminal_short_circuit_statement(
                 index,
                 loop,
@@ -4271,14 +4515,24 @@ class StructuredDecompiler311(_StraightLineDecompiler):
                 index = short_circuit_end
                 continue
 
-            condition = self._bounded_condition_plan(
-                index,
-                end,
-                (
-                    loop.continue_targets
-                    if loop is not None
-                    else frozenset()
-                ),
+            condition_jump = self._condition_jump(index, end)
+            has_expression_prefix = (
+                condition_jump is not None
+                and self._latch_expression_start(index, condition_jump)
+                > index
+            )
+            condition = (
+                None
+                if has_expression_prefix
+                else self._bounded_condition_plan(
+                    index,
+                    end,
+                    (
+                        loop.continue_targets
+                        if loop is not None
+                        else frozenset()
+                    ),
+                )
             )
             if condition is not None:
                 loop_end = self._while_loop(condition, loop, end)

@@ -59,3 +59,17 @@ def build_lambdas(base):
     assigned = {}
     assigned["offset"] = lambda value: base + value
     return holder, mapping, sequence, assigned
+
+
+def make_lazy_resolver(offset):
+    events = []
+    resolve = None
+
+    def then(value):
+        nonlocal resolve
+        resolve = resolve or (
+            lambda item: (events.append(item), item + offset)[1]
+        )
+        return resolve(value)
+
+    return then, events

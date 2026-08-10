@@ -356,13 +356,7 @@ class _StraightLineDecompiler:
         return self.stack.pop()
 
     def _pop_expr(self) -> ast.expr:
-        value = self._pop()
-        if not isinstance(value, ast.expr):
-            self._error(
-                "Expected an expression on the operand stack, found "
-                f"{type(value).__name__}"
-            )
-        return self._expression_value(value)
+        return self._expression_value(self._pop())
 
     def _pop_many(self, count: int) -> List[Any]:
         if count < 0 or len(self.stack) < count:

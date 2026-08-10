@@ -71,6 +71,34 @@ def finally_continue(values):
     return seen
 
 
+def terminal_try_return():
+    try:
+        return
+    except Exception:
+        return
+
+
+def except_continue_with_return(predicates, events):
+    for predicate in predicates:
+        try:
+            if predicate():
+                return
+        except:
+            events.append("caught")
+            continue
+    events.append("done")
+
+
+def held_return_cleanup(value, resource, events):
+    try:
+        return value()
+    finally:
+        try:
+            resource.close()
+        except:
+            events.append("caught")
+
+
 def use_context(resource):
     with resource as active:
         return active.value
